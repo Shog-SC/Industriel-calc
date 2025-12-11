@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<!-- Version : V6.4.26 -->
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Salvage Calculator 4.4</title>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Star Citizen – Salvage Calculator">
+  <meta property="og:description" content="Détermine la valeur générée par ton salvage selon la boucle de ton vaisseau (RMC ou CMAT), avec les prix UEX en temps réel.">
+  <meta property="og:image" content="https://shog-sc.github.io/salvage-calc/icon.png">
+  <meta property="og:url" content="https://shog-sc.github.io/salvage-calc/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Star Citizen – Salvage Calculator">
+  <meta name="twitter:description" content="Determine your salvage value per RMC or CMAT loop with live UEX prices.">
+  <meta name="twitter:image" content="https://shog-sc.github.io/salvage-calc/icon.png">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="stylesheet" href="../assets/css/core.css">
+  <link rel="stylesheet" href="/assets/css/salvage.css">
+
+
+  <style>
+    .top-bar-user {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+    #discordLoginBtn {
+      background: #5865f2;
+      border: none;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(88,101,242,0.5);
+      white-space: nowrap;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease, opacity 0.1s ease;
+    }
+    #discordLoginBtn:hover {
+      background: #4752c4;
+      box-shadow: 0 0 10px rgba(88,101,242,0.8);
+      transform: translateY(-1px);
+    }
+    #discordLoginBtn:active {
+      transform: translateY(0);
+      box-shadow: 0 0 4px rgba(88,101,242,0.6);
+    }
+    #discordLoginBtn.connected {
+      background: #16a34a;
+      box-shadow: 0 0 8px rgba(22,163,74,0.7);
+    }
+  </style>
+
+
+  <style>
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body class="theme-neon">
+<div class="overlay">
+  <div class="container">
+    <div class="top-bar">
+      <div class="lang-switch">
+        <span id="langSwitchLabel">Langue :</span>
+        <select id="langSelect">
+          <option value="fr">FR</option>
+          <option value="en">EN</option>
+        </select>
+      </div>
+      <div class="top-bar-user">
+        <button id="discordLoginBtn" type="button">Connexion Discord</button>
+      </div>
+    </div>
+
+    <h1 id="titleMain">SALVAGE CALCULATOR 4.4</h1>
+    <div id="subText" class="sub">
+      Détermine la valeur générée par ton salvage selon la boucle de ton vaisseau (RMC ou CMAT).
+    </div>
+    <div class="activity-switcher">
+      <button class="activity-pill active" data-activity="salvage" id="activitySalvageBtn">Recyclage</button>
+      <button class="activity-pill" data-activity="hauling" id="activityHaulingBtn">Fret</button>
+      <button class="activity-pill" data-activity="mining" id="activityMiningBtn">Minage</button>
+    </div>
+
+    <section id="activity-salvage" class="activity-panel active">
+
+
+    <div class="info-panel" id="infoPanel">
+      <b>Comment utiliser l’outil :</b><br>
+      1. Renseigne tes SCU de salvage et les prix RMC / CMAT.<br>
+      2. Lance le calcul pour voir la valeur de ton run selon la boucle (RMC ou CMAT).<br>
+      <span class="info-more-toggle" onclick="toggleMoreInfo()">En savoir plus…</span>
+      <div id="infoMore" class="info-more" style="display:none;">
+        • Hull Scraping → RMC vendable (tous les vaisseaux salvage).<br>
+        • Construction Salvage Reclaimer → CMAT (~15 %, raffinage obligatoire).<br>
+        • Les prix sont basés sur UEX / relevés en jeu et peuvent varier selon les patchs.
+      </div>
+    </div>
+
+    <div class="mode-toggle">
+      <button id="btnModeDebutant" class="mode-btn active">Mode Débutant</button>
+      <button id="btnModeAvance" class="mode-btn">Mode Avancé</button>
+    </div>
+
+
+    <div id="modeDebutant" class="mode-section">
+      <div class="mode-debutant-card">
+        <div class="mode-debutant-grid">
+          <div class="field-label" id="labelDebShip">Vaisseau (mode Débutant)</div>
+          <div>
+            <select id="debShipSelect">
+              <option value="light">Salvation / Vulture / Fortune</option>
+              <option value="reclaimer">Reclaimer</option>
+            </select>
+          </div>
+
+          <div class="field-label" id="labelScuHullDeb">SCU Hull Scraping (RMC)</div>
+          <div id="fieldScuHullDeb"><input id="scuHullDeb" type="number" min="0" value="0" /></div>
+
+          <div class="field-label" id="labelScuCsDeb">SCU Construction Salvage (Reclaimer → CMAT)</div>
+          <div id="fieldScuCsDeb"><input id="scuCsDeb" type="number" min="0" value="0" /></div>
+          <div
+            class="hint"
+            id="hintScuCsDeb"
+            style="grid-column: 1 / -1; font-size: 0.8rem; opacity: 0.85; margin-top: 0.2rem;"
+          >
+            💡 Indique ici le nombre total de SCU brutes récoltées avant raffinage.
+          </div>
+
+          <div class="field-label">Prix RMC (calcul)</div>
+          <div id="debPrixRmc" class="field-value">–</div>
+
+          <div class="field-label">RMC — Top 1 (UEX)</div>
+          <div id="debTopRmc" class="field-value">—</div>
+
+          <div class="field-label">Prix CMAT (calcul)</div>
+          <div id="debPrixCmat" class="field-value">–</div>
+
+          <div class="field-label">CMAT — Top 1 (UEX)</div>
+          <div id="debTopCmat" class="field-value">—</div>
+        </div>
+
+        <div style="margin-top:1rem; text-align:center;">
+          <button id="btnCalcDebutant" class="btn-calc">Calculer le run</button>
+        </div>
+
+        <div class="mode-debutant-result">
+          <div>Hull Scraping → RMC vendu : <span id="debResRmc">–</span> aUEC</div>
+          <div>Construction Salvage → CMAT raffiné : <span id="debResCmat">–</span> aUEC</div>
+          <div class="mode-debutant-total neon-total">Total (vente salvage) : <span id="debResTotal">–</span> aUEC</div>
+        </div>
+
+        <div style="margin-top:0.5rem; font-size:0.8rem; opacity:0.8;">
+          Ce mode calcule combien tu gagnes en vendant ton salvage selon deux boucles&nbsp;:<br>
+          • Hull Scraping → RMC vendu directement.<br>
+          • Désintégration (Construction Salvage, Reclaimer) → Raffinage → CMAT → Vente.<br>
+          Il utilise les mêmes données que le mode avancé et met à jour les panneaux détaillés automatiquement.
+        </div>
+      </div>
+    </div>
+
+    <div id="modeAvance" class="mode-section hidden">
+      <div class="grid-main">
+      <div class="panel">
+        <div id="entriesTitle" class="panel-title">Entrées</div>
+
+        <label for="prixRmc">
+          <span id="labelPrixRmc">Prix RMC (aUEC / SCU)</span>
+        </label>
+        <input id="prixRmc" class="input-standard" type="number" value="0" readonly />
+        <div id="hintPrixRmc" class="hint">
+          RMC : matériau recyclé issu du hull scraping.
+        </div>
+
+        <label for="prixCmat">
+          <span id="labelPrixCmat">Prix CMAT (aUEC / SCU)</span>
+        </label>
+        <input id="prixCmat" class="input-standard" type="number" value="0" readonly />
+        <div id="hintPrixCmat" class="hint">
+          CMAT = Construction Materials (issu du Construction Salvage, Reclaimer uniquement).
+        </div>
+
+        <div class="sellpoints">
+          <div><span id="sellRmcLabel" class="label">Point de vente RMC :</span> <span id="rmcTerminal">—</span></div>
+          <div><span id="sellCmatLabel" class="label">Point de vente CMAT :</span> <span id="cmatTerminal">—</span></div>
+        </div>
+
+        <label for="shipSelect" id="labelShipSelect">Vaisseau utilisé pour ce run</label>
+        <select id="shipSelect" class="input-standard">
+          <option value="Vulture">Vulture</option>
+          <option value="Salvation">Salvation</option>
+          <option value="Fortune">Fortune</option>
+          <option value="Reclaimer">Reclaimer</option>
+        </select>
+
+        <div id="advancedScuLightGroup" style="margin-top: 0.75rem;">
+          <label for="scuLight">
+            <span id="labelScuLight">
+              SCU de salvage traitées – Salvation / Vulture / Fortune
+              (ces vaisseaux ne produisent que du RMC)
+            </span>
+          </label>
+          <input id="scuLight" class="input-standard" type="number" value="0" />
+        </div>
+
+        <div id="advancedScuReclaimerGroup" style="margin-top: 0.75rem;">
+          <label for="scuReclaimer">
+            <span id="labelScuReclaimer">
+              SCU de salvage traitées – Reclaimer (valeur BRUTE récoltée, avant raffinage RMC → CMAT)
+            </span>
+          </label>
+          <input id="scuReclaimer" class="input-standard" type="number" value="0" />
+        </div>
+
+        <button id="saveRunBtn" class="save-run-btn" type="button">
+          Envoyer ce run au leaderboard en ligne
+        </button>
+        <div id="antiSpamMessage" class="anti-spam-message"></div>
+        <div id="saveRunMessage" class="small-note"></div>
+
+        <div class="tag-row">
+          <div id="tagLight" class="tag">Vaisseaux légers : hull scraping → RMC uniquement</div>
+          <div id="tagReclaimer" class="tag red">Reclaimer : Construction Salvage → Raffinerie → CMAT (raffinage obligatoire, ~15 % vers CMAT, RMC non vendable)</div>
+        </div>
+
+        <div id="smallNote" class="small-note">
+          Light ships → RMC. Reclaimer → CMAT (~15 %, raffinage obligatoire).
+        </div>
+        <div id="apiStatus" class="api-status">Récupération des prix UEX…</div>
+      </div>
+
+      <div class="results-grid">
+        <div class="panel">
+          <div id="rmcPanelTitle" class="panel-title">Loop RMC – Vendre en Recycled Material Composite</div>
+
+          <div id="loopRmcLightPanel" class="result-block">
+            <div id="rmcLightHead" class="result-head">
+              Salvation / Vulture / Fortune (RMC uniquement)
+            </div>
+            <div class="result-values" id="rmcLightValues"></div>
+            <div class="result-extra" id="rmcLightExtra"></div>
+            <div class="decision" id="rmcLightDecision"></div>
+          </div>
+
+          <div id="loopRmcReclaimerPanel" class="result-block">
+            <div id="rmcRecHead" class="result-head">
+              Reclaimer – Loop Reclaimer : raffinage obligatoire (RMC désactivé)
+            </div>
+            <div class="result-values" id="rmcRecValues"></div>
+            <div class="result-extra" id="rmcRecExtra"></div>
+            <div class="decision" id="rmcRecDecision"></div>
+          </div>
+
+          <div id="cmatPanelTitle" class="panel-title panel-title-sub">Loop CMAT – Transformer en Construction Materials</div>
+
+          <div id="loopCmatLightPanel" class="result-block">
+            <div id="cmatLightHead" class="result-head">
+              Salvation / Vulture / Fortune
+            </div>
+            <div class="result-values" id="cmatLightValues"></div>
+            <div class="result-extra" id="cmatLightExtra"></div>
+            <div class="decision" id="cmatLightDecision"></div>
+          </div>
+
+          <div id="loopCmatReclaimerPanel" class="result-block">
+            <div id="cmatRecHead" class="result-head">
+              Reclaimer (15 % de conversion en CMAT)
+            </div>
+            <div class="result-values" id="cmatRecValues"></div>
+            <div class="result-extra" id="cmatRecExtra"></div>
+            <div class="decision" id="cmatRecDecision"></div>
+          </div>
+
+          
+          </div>
+        </div>
+
+                <div class="panel" id="leaderboardMainPanel">
+<div class="leaderboard-panel">
+                    <div class="leaderboard-title-row">
+                      <div class="leaderboard-title">Leaderboard – Salvage (online)</div>
+                      <div class="leaderboard-badges">
+                        <span class="badge-local-beta">Online Beta</span>
+                      </div>
+                    </div>
+                    <div id="leaderboardSub" class="leaderboard-sub">
+                      Classement basé sur le nombre de runs et les bénéfices théoriques (local au navigateur pour l’instant).
+                    </div>
+          
+                    <button id="toggleMyRunsBtn" type="button" class="my-runs-btn">Voir mes runs détaillés</button>
+                    <div id="myRunsPanel" class="my-runs-panel">
+                      <div id="myRunsTitle" class="my-runs-title">Mes runs enregistrés</div>
+          
+                      <div class="my-runs-section">
+                        <div id="myRunsActiveTitle" class="my-runs-subtitle">En attente de vente</div>
+                        <ul id="myRunsActiveList" class="my-runs-list"></ul>
+                        <div id="myRunsActiveEmpty" class="my-runs-empty">Aucun run en attente de vente.</div>
+                      </div>
+          
+                      <div class="my-runs-section">
+                        <div id="myRunsSoldTitle" class="my-runs-subtitle">Runs vendus</div>
+                        <ul id="myRunsSoldList" class="my-runs-list"></ul>
+                        <div id="myRunsSoldEmpty" class="my-runs-empty">Aucun run vendu pour l'instant.</div>
+                      </div>
+                    </div>
+          
+                    <div id="leaderboardTop3Box" class="leaderboard-top3-box">
+                      <div id="leaderboardTop3Title" class="leaderboard-top3-title">Top 3 global (en ligne)</div>
+                      <ul id="leaderboardList" class="leaderboard-list leaderboard-top3-list"></ul>
+                      <div id="leaderboardEmpty" class="leaderboard-empty" style="display:none;">
+                        Aucun run en ligne pour l'instant.
+                      </div>
+                      
+                    </div>
+          
+                    <div class="leaderboard-actions">
+                      <button id="clearMyRunsBtn" type="button">Supprimer mes runs</button>
+                      <button id="clearAllRunsBtn" type="button">Reset complet (local)</button>
+                      <button id="resetOnlineBtn" type="button" style="display:none; width:100%; margin-top:0.35rem;">
+                        Reset leaderboard online (admin)
+                      </button>
+                      <div id="leaderboardActionMsg" class="leaderboard-action-msg"></div>
+                    </div>
+                  </div>
+        </div>
+
+        <div class="panel" id="sellZonesPanel">
+          <div id="sellZonesTitle" class="panel-title">Top 3 ventes RMC &amp; CMAT</div>
+
+          <div class="result-block">
+            <div class="result-head">Top 3 – RMC</div>
+            <ul id="marketTop3RmcList" class="top3-list"></ul>
+          </div>
+
+          <div class="result-block">
+            <div class="result-head">Top 3 – CMAT</div>
+            <ul id="marketTop3CmatList" class="top3-list"></ul>
+          </div>
+
+                    <div class="small-note" id="sellZonesNote">
+            Ces informations proviennent du site UEX et reflètent les meilleurs terminaux de vente actuels. (Actualisé 2 fois par jour)
+          </div>
+        </div>
+
+      </div></div>
+    </div>
+
+    <div class="market-panel">
+      <div id="graphTitle" class="graph-title">Analyse du marché – Historique RMC &amp; CMAT</div>
+      <div id="graphSub" class="graph-sub">
+        Données issues d’UEX via ton Worker. L’axe X montre les dates (JJ/MM) des dernières mises à jour de prix.
+      </div>
+
+      <div class="market-grid">
+        <div class="market-graph-col">
+          <canvas id="cmatChart" height="300"></canvas>
+          <div id="graphMessage"></div>
+        </div>
+
+        
+      </div>
+    </div>
+
+    
+    </section>
+
+<div id="appVersion" class="app-version"><span></span></div>
+    <div class="app-footer-brand">
+      Powered by <span>Shog Salvage Tools</span>
+    </div>
+  
+<section id="activity-hauling" class="activity-panel">
+  <div class="panel hauling-panel">
+    <div class="panel-title">Hauling – Calcul de rentabilité</div>
+
+    <!-- Toggle Mode Débutant / Avancé (comme Recyclage) -->
+    <div class="mode-toggle hauling-mode-toggle">
+      <button
+        type="button"
+        class="mode-btn active"
+        data-hauling-mode="beginner"
+      >
+        Mode Débutant
+      </button>
+      <button
+        type="button"
+        class="mode-btn"
+        data-hauling-mode="expert"
+      >
+        Mode Avancé
+      </button>
+    </div>
+
+    <!-- MODE DÉBUTANT -->
+    <div id="haulingBeginnerMode" class="hauling-mode-section active">
+      <div class="hauling-beginner-grid">
+        <div class="hauling-beginner-inputs">
+          <div class="field-label">Vaisseau (cargo)</div>
+          <div>
+            <select id="haulingBegShipSelect" class="input-standard">
+              <option value="freelancer_max">Freelancer MAX (120 SCU)</option>
+              <option value="freelancer">Freelancer (66 SCU)</option>
+              <option value="cutlass_black">Cutlass Black (46 SCU)</option>
+              <option value="nomad">Nomad (24 SCU)</option>
+              <option value="cutter">Cutter (4 SCU)</option>
+              <option value="mercury">Mercury Star Runner (114 SCU)</option>
+              <option value="raft">ARGO RAFT (192 SCU)</option>
+              <option value="c2">C2 Hercules (696 SCU)</option>
+              <option value="m2">M2 Hercules (522 SCU)</option>
+              <option value="caterpillar">Caterpillar (576 SCU)</option>
+              <option value="hull_a">Hull A (64 SCU)</option>
+              <option value="hull_b">Hull B (384 SCU)</option>
+              <option value="hull_c">Hull C (4608 SCU)</option>
+              <option value="mpu_cargo">MPUV Cargo (2 SCU)</option>
+              <option value="mustang_alpha">Mustang Alpha (4 SCU)</option>
+              <option value="constellation_andromeda">Constellation Andromeda (96 SCU)</option>
+              <option value="constellation_taurus">Constellation Taurus (174 SCU)</option>
+              <option value="merchantman">Banu Merchantman (2880 SCU)</option>
+              <option value="other">Autre (SCU manuelle)</option>
+            </select>
+          </div>
+          <div class="field-hint">
+            Capacité théorique : <span id="haulingBegShipCapacityValue">—</span> SCU
+          </div>
+
+          <div class="field-label">SCU chargées</div>
+          <div class="hauling-scu-row">
+            <input id="haulingBegScuInput" class="input-standard" type="number" min="0" value="0" />
+            <button type="button" id="haulingBegFillMaxBtn" class="btn-ghost small">
+              Remplir max
+            </button>
+          </div>
+
+          <div class="field-label">Prix d'achat (aUEC / SCU)</div>
+          <div>
+            <input id="haulingBegBuyPriceInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div class="field-label">Prix de vente (aUEC / SCU)</div>
+          <div>
+            <input id="haulingBegSellPriceInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div class="field-label">Durée du run (minutes)</div>
+          <div>
+            <input id="haulingBegTimeMinutesInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div style="margin-top:1rem; text-align:center;">
+            <button id="haulingBegCalcBtn" class="btn-calc" type="button">
+              Calculer la rentabilité
+            </button>
+          </div>
+
+          <div class="hint" style="margin-top:0.75rem;">
+            Choisis ton vaisseau ou saisis manuellement les SCU, puis la durée totale de ta boucle (A → B → vente).
+          </div>
+        </div>
+
+        <div class="hauling-beginner-results">
+          <div class="result-block">
+            <div class="result-head">Résumé rapide</div>
+            <div class="result-values">
+              <div>Profit / run : <span id="haulingBegProfitRun">–</span> aUEC</div>
+              <div>Profit / heure : <span id="haulingBegProfitPerHour">–</span> aUEC / h</div>
+              <div>ROI : <span id="haulingBegRoi">–</span> %</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODE AVANCÉ -->
+    <div id="haulingExpertMode" class="hauling-mode-section">
+      <div class="hauling-grid">
+        <div class="hauling-inputs">
+          <div class="field-label">Vaisseau (cargo)</div>
+          <div>
+            <select id="haulingShipSelect" class="input-standard">
+              <option value="freelancer_max">Freelancer MAX (120 SCU)</option>
+              <option value="freelancer">Freelancer (66 SCU)</option>
+              <option value="cutlass_black">Cutlass Black (46 SCU)</option>
+              <option value="nomad">Nomad (24 SCU)</option>
+              <option value="cutter">Cutter (4 SCU)</option>
+              <option value="mercury">Mercury Star Runner (114 SCU)</option>
+              <option value="raft">ARGO RAFT (192 SCU)</option>
+              <option value="c2">C2 Hercules (696 SCU)</option>
+              <option value="m2">M2 Hercules (522 SCU)</option>
+              <option value="caterpillar">Caterpillar (576 SCU)</option>
+              <option value="hull_a">Hull A (64 SCU)</option>
+              <option value="hull_b">Hull B (384 SCU)</option>
+              <option value="hull_c">Hull C (4608 SCU)</option>
+              <option value="mpu_cargo">MPUV Cargo (2 SCU)</option>
+              <option value="mustang_alpha">Mustang Alpha (4 SCU)</option>
+              <option value="constellation_andromeda">Constellation Andromeda (96 SCU)</option>
+              <option value="constellation_taurus">Constellation Taurus (174 SCU)</option>
+              <option value="merchantman">Banu Merchantman (2880 SCU)</option>
+              <option value="other">Autre (SCU manuelle)</option>
+            </select>
+          </div>
+          <div class="field-hint" id="haulingShipCapacityHint">
+            Capacité théorique : <span id="haulingShipCapacityValue">—</span> SCU
+          </div>
+
+          <div class="field-label">SCU chargées</div>
+          <div class="hauling-scu-row">
+            <input id="haulingScuInput" class="input-standard" type="number" min="0" value="0" />
+            <button type="button" id="haulingFillMaxBtn" class="btn-ghost small">
+              Remplir max
+            </button>
+          </div>
+
+          <div class="field-label">Prix d'achat (aUEC / SCU)</div>
+          <div>
+            <input id="haulingBuyPriceInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div class="field-label">Prix de vente (aUEC / SCU)</div>
+          <div>
+            <input id="haulingSellPriceInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div class="field-label">Durée du run (minutes)</div>
+          <div>
+            <input id="haulingTimeMinutesInput" class="input-standard" type="number" min="0" value="0" />
+          </div>
+
+          <div style="margin-top:1rem; text-align:center;">
+            <button id="haulingCalcBtn" class="btn-calc" type="button">
+              Calculer la rentabilité (avancé)
+            </button>
+          </div>
+        </div>
+
+        <div class="hauling-results">
+          <div class="result-block">
+            <div class="result-head">Résumé du run</div>
+            <div class="result-values">
+              <div>Total investi : <span id="haulingInvested">–</span> aUEC</div>
+              <div>Total récupéré : <span id="haulingReturned">–</span> aUEC</div>
+              <div class="neon-total">
+                Profit total : <span id="haulingProfitTotal">–</span> aUEC
+              </div>
+            </div>
+          </div>
+
+          <div class="result-block">
+            <div class="result-head">Détails de rentabilité</div>
+            <div class="result-values">
+              <div>Profit / SCU : <span id="haulingProfitPerScu">–</span> aUEC / SCU</div>
+              <div>Profit / heure : <span id="haulingProfitPerHour">–</span> aUEC / h</div>
+              <div>ROI : <span id="haulingExpertRoi">–</span> %</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP 3 ROUTES FRET -->
+    <div class="panel hauling-top-routes-panel">
+      <div class="hauling-top-routes-panel-header">
+        <div class="panel-title">Top 3 routes Fret (ROI)</div>
+        <div class="top-routes-filter">
+          <label for="haulingCommodityFilter">Marchandise :</label>
+          <select id="haulingCommodityFilter" class="input-standard">
+            <option value="__all__">Toutes marchandises</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="haulingTopRoutesList" class="top-routes-list"></div>
+
+      <div class="small-note">
+        Ces routes sont calculées grâce aux données UEX récupérées via ton Worker,
+        puis triées par ROI (profit / investissement).
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="onlineLeaderboardModal" class="modal-backdrop">
+  <div class="modal modal-leaderboard" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2 id="onlineLeaderboardTitle">Leaderboard Salvage (online)</h2>
+      <button id="onlineLeaderboardCloseBtn" class="modal-close-btn" type="button">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="onlineLeaderboardSub" class="leaderboard-sub">
+        Classement complet basé sur les runs envoyés par les joueurs.
+      </div>
+
+      <div class="leaderboard-controls leaderboard-controls-modal">
+        <div class="leaderboard-control-group">
+          <label id="leaderboardSortLabel" for="leaderboardSortSelect">Tri :</label>
+          <select id="leaderboardSortSelect">
+            <option value="profit">Profit total</option>
+            <option value="runs">Nombre de runs</option>
+            <option value="name">Pseudo</option>
+          </select>
+        </div>
+        <div class="leaderboard-control-group">
+          <label id="leaderboardShipFilterLabel" for="leaderboardShipFilter">Vaisseau :</label>
+          <select id="leaderboardShipFilter">
+            <option value="all">Tous les vaisseaux</option>
+            <option value="vulture">Vulture</option>
+            <option value="salvation">Salvation</option>
+            <option value="fortune">Fortune</option>
+            <option value="reclaimer">Reclaimer</option>
+          </select>
+        </div>
+      </div>
+
+      <ul id="onlineLeaderboardFullList" class="leaderboard-list"></ul>
+      <div id="onlineLeaderboardFullEmpty" class="leaderboard-empty" style="display:none;">
+        Aucun run en ligne pour l'instant.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="profileModal" class="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>Profil Salvage Calculator</h2>
+      <button id="modalCloseBtn" class="modal-close-btn" type="button">×</button>
+    </div>
+    <div class="modal-tabs">
+      <button id="tabCreateProfile" class="active" type="button">Créer un profil</button>
+      <button id="tabImportProfile" type="button">Importer un profil</button>
+    </div>
+
+    <div id="modalCreateSection" class="modal-section active">
+      <label for="createNickname">Pseudo</label>
+      <input id="createNickname" type="text" placeholder="Ex : Salvager_001" />
+      <div class="modal-small">
+        Un profil utilisera ce pseudo et une clé privée générée automatiquement.
+      </div>
+      <button id="createProfileBtn" class="action" type="button">
+        Créer le profil
+      </button>
+      <div id="createdKeyDisplay" class="key-display" style="display:none;"></div>
+    </div>
+
+    <div id="modalImportSection" class="modal-section">
+      <label for="importNickname">Pseudo</label>
+      <input id="importNickname" type="text" placeholder="Ton pseudo" />
+      <label for="importSecret">Clé privée (6 chiffres)</label>
+      <input id="importSecret" type="text" maxlength="6" placeholder="123456" />
+      <div class="modal-small">
+        Utilise le pseudo + la clé fournie lors de la création de ton profil.
+      </div>
+      <button id="importProfileBtn" class="action" type="button">
+        Importer ce profil
+      </button>
+    </div>
+
+    <div id="modalMessage" class="modal-message"></div>
+
+    <div class="app-version"><span id="app-version-pill"></span></div>
+    <div class="app-footer-brand">Powered by <span>Shog Salvage Tools</span></div>
+  </div>
+</div>
+
+
+  <div id="leaderboardSideTab" class="leaderboard-side-tab">
+    <button
+      id="openOnlineLeaderboardBtn"
+      type="button"
+      class="leaderboard-side-btn"
+      title="Leaderboard en ligne"
+    >
+      🏆
+    </button>
+  </div>
+
+
+  <!-- Scripts JS -->
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/salvage.js"></script>
+  <script src="../assets/js/hauling.js"></script>
+</body>
+</html>
