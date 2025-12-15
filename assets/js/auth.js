@@ -1,67 +1,64 @@
-// auth.js - Module d'authentification Discord (Version 1.0.0)
-// Centralise le stockage de l'utilisateur Discord et notifie les modules.
+/* auth.js — Discord session helper (front-only)
+   Version: V1.0.0
+   Storage: localStorage (shared across all pages on the same domain)
+*/
 
-const Auth = (() => {
-  const STORAGE_KEY = "salvageDiscordUser"; // compatibilité avec l'existant
-  let currentUser = null;
-  const listeners = [];
+(() => {
+  const STORAGE_KEY = "shog.discord.user";
 
-  function init() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        currentUser = JSON.parse(raw);
-        console.log("[auth.js] Utilisateur chargé depuis le storage :", currentUser);
-      }
-    } catch (err) {
-      console.error("[auth.js] Erreur lors de la lecture du storage :", err);
-    }
+  function safeJsonParse(s){
+    try { return JSON.parse(s); } catch(_) { return null; }
   }
 
-  function persist(user) {
-    currentUser = user;
-    try {
-      if (user) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch (err) {
-      console.error("[auth.js] Erreur lors de l'écriture du storage :", err);
-    }
-    listeners.forEach((cb) => {
-      try { cb(currentUser); } catch (e) { console.error(e); }
-    });
+  function getUser(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const u = raw ? safeJsonParse(raw) : null;
+    return u && typeof u === "object" ? u : null;
   }
 
-  return {
-    init,
-    getUser() {
-      return currentUser;
-    },
-    isLoggedIn() {
-      return !!currentUser;
-    },
-    onAuthChange(cb) {
-      if (typeof cb === "function") {
-        listeners.push(cb);
-      }
-    },
-    setUserFromDiscord(userObj) {
-      console.log("[auth.js] setUserFromDiscord :", userObj);
-      if (!userObj || !userObj.id) {
-        console.warn("[auth.js] setUserFromDiscord appelé sans id");
-        return;
-      }
-      persist(userObj);
-    },
-    logout() {
-      console.log("[auth.js] logout");
-      persist(null);
-    },
+  function isLoggedIn(){
+    const u = getUser();
+    return !!(u && u.discordId && (u.username || u.globalName));
+  }
+
+  function getDisplayName(u){
+    if(!u) return "";
+    return (u.globalName && String(u.globalName).trim()) || (u.username && String(u.username).trim()) || "";
+  }
+
+  function getAvatarUrl(u){
+    if(!u || !u.discordId || !u.avatar) return "";
+    // Discord CDN
+    return `https://cdn.discordapp.com/avatars/${u.discordId}/${u.avatar}.png?size=64`;
+  }
+
+  function logout(){
+    localStorage.removeItem(STORAGE_KEY);
+    notify();
+  }
+
+  function notify(){
+    try {
+      window.dispatchEvent(new CustomEvent("shog:auth", { detail: { user: getUser(), loggedIn: isLoggedIn() } }));
+    } catch(_) {}
+  }
+
+  // Expose minimal API
+  window.ShogAuth = {
+    STORAGE_KEY,
+    getUser,
+    isLoggedIn,
+    getDisplayName,
+    getAvatarUrl,
+    logout,
+    notify,
   };
-})();
 
-document.addEventListener("DOMContentLoaded", () => {
-  Auth.init();
-});
+  // Notify once on load
+  notify();
+
+  // Cross-tab sync
+  window.addEventListener("storage", (e) => {
+    if(e && e.key === STORAGE_KEY) notify();
+  });
+})();

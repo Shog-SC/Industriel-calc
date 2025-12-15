@@ -1,81 +1,125 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Discord Bridge – Salvage Calculator</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Connexion Discord — Bridge</title>
+  <meta name="robots" content="noindex,nofollow" />
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #020617;
-      color: #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .box {
-      text-align: center;
-      padding: 1.5rem 2rem;
-      border-radius: 0.75rem;
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      background: radial-gradient(circle at top, #0f172a, #020617);
-      box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
-      max-width: 480px;
-    }
-    .small {
-      font-size: 0.8rem;
-      opacity: 0.8;
-    }
+    html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0b1118; color:#e7ecff;}
+    .wrap{height:100%; display:flex; align-items:center; justify-content:center; padding:24px;}
+    .card{max-width:720px; width:100%; border:1px solid rgba(231,236,255,.12); background:rgba(255,255,255,.03);
+      border-radius:16px; padding:18px 18px; box-shadow:0 8px 40px rgba(0,0,0,.35);}
+    .h1{font-weight:900; font-size:18px; margin:0 0 8px;}
+    .p{opacity:.9; margin:0 0 12px; line-height:1.45;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px; opacity:.85; white-space:pre-wrap;}
+    .row{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+    .btn{appearance:none; border:1px solid rgba(0,229,255,.22); background:rgba(0,229,255,.08); color:rgba(0,229,255,.95);
+      font-weight:900; padding:10px 12px; border-radius:999px; cursor:pointer;}
+    .btn.secondary{border-color:rgba(231,236,255,.14); background:rgba(255,255,255,.03); color:rgba(231,236,255,.92);}
+    .small{font-size:12px; opacity:.75;}
   </style>
 </head>
 <body>
-  <div class="box">
-    <h1>Connexion Discord</h1>
-    <p>Traitement de la réponse Discord, merci de patienter…</p>
-    <p class="small">
-      Tu peux fermer cette page si rien ne se passe au bout de quelques secondes.
-    </p>
+  <div class="wrap">
+    <div class="card">
+      <div class="h1">Connexion Discord…</div>
+      <p class="p" id="statusLine">Traitement en cours.</p>
+      <div class="mono" id="debugLine" style="display:none;"></div>
+      <div class="row" id="actions" style="display:none;">
+        <button class="btn" id="goHub">Retour au HUB</button>
+        <button class="btn secondary" id="clearSession">Effacer la session</button>
+      </div>
+      <p class="small" style="margin-top:12px;">Cette page sert uniquement de passerelle OAuth (Discord → HUB). Tu peux la garder telle quelle.</p>
+    </div>
   </div>
 
-  <script src="core/auth.js"></script>
-  <script>
-    (function () {
-      // On récupère les paramètres de l'URL (renvoyés par ton Worker OAuth)
-      const params = new URLSearchParams(window.location.search);
-      const userParam = params.get("user"); // Ex: JSON encodé
-      if (!userParam) {
-        console.warn("[discord-bridge] Aucun paramètre 'user' dans l'URL.");
-        // On renvoie quand même vers Salvage
-        window.location.href = "pages/salvage.html";
-        return;
-      }
+<script>
+(() => {
+  const STORAGE_KEY = "shog.discord.user";
 
-      let user = null;
-      try {
-        user = JSON.parse(decodeURIComponent(userParam));
-      } catch (e) {
-        console.error("[discord-bridge] Erreur de parsing JSON user:", e);
-      }
+  const statusLine = document.getElementById("statusLine");
+  const debugLine  = document.getElementById("debugLine");
+  const actions    = document.getElementById("actions");
 
-      if (user) {
-        try {
-          // Si le module Auth existe, on l'utilise
-          if (window.Auth && typeof Auth.setUserFromDiscord === "function") {
-            Auth.setUserFromDiscord(user);
-          } else {
-            // Fallback : même clé qu'avant, pour compatibilité
-            localStorage.setItem("salvageDiscordUser", JSON.stringify(user));
-          }
-        } catch (e) {
-          console.error("[discord-bridge] Impossible de stocker l'utilisateur:", e);
-        }
-      }
+  const goHubBtn   = document.getElementById("goHub");
+  const clearBtn   = document.getElementById("clearSession");
 
-      // Redirection vers le module Salvage (local ou prod)
-      window.location.href = "pages/salvage.html";
-    })();
-  </script>
+  function setStatus(msg){ statusLine.textContent = msg; }
+  function showDebug(msg){
+    debugLine.style.display = "";
+    debugLine.textContent = msg;
+  }
+  function showActions(){
+    actions.style.display = "flex";
+  }
+
+  function safeParseDiscordPayload(base64){
+    // Worker encodes with: btoa(unescape(encodeURIComponent(str)))
+    // Decode with: decodeURIComponent(escape(atob(b64)))
+    const json = decodeURIComponent(escape(atob(base64)));
+    const user = JSON.parse(json);
+    return user;
+  }
+
+  function cleanUrl(){
+    // Remove querystring with payload from history
+    try { history.replaceState({}, "", location.pathname); } catch(_) {}
+  }
+
+  function redirectToHub(){
+    // Assume bridge lives at repo root: /salvage-calc/discord-bridge.html
+    // So HUB = ./index.html
+    location.replace("./index.html");
+  }
+
+  // Buttons (fallback)
+  goHubBtn.addEventListener("click", redirectToHub);
+  clearBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    setStatus("Session effacée. Redirection vers le HUB…");
+    cleanUrl();
+    setTimeout(redirectToHub, 350);
+  });
+
+  // Main
+  const params = new URLSearchParams(location.search);
+  const d = params.get("d"); // IMPORTANT: worker sends ?d=<base64>
+
+  if(!d){
+    setStatus("Aucune donnée reçue. Redirection vers le HUB…");
+    cleanUrl();
+    setTimeout(redirectToHub, 350);
+    return;
+  }
+
+  try {
+    const user = safeParseDiscordPayload(d);
+
+    // Minimal validation
+    if(!user || !user.discordId || !user.username){
+      throw new Error("Payload Discord invalide (champs manquants).");
+    }
+
+    const stored = {
+      discordId: String(user.discordId),
+      username: String(user.username),
+      globalName: user.globalName ?? null,
+      avatar: user.avatar ?? null,
+      ts: Date.now()
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+
+    setStatus(`Connecté : ${stored.globalName || stored.username}. Redirection vers le HUB…`);
+    cleanUrl();
+    setTimeout(redirectToHub, 450);
+  } catch (e) {
+    setStatus("Erreur pendant la connexion. Tu peux retourner au HUB.");
+    showDebug(String(e && e.message ? e.message : e));
+    showActions();
+  }
+})();
+</script>
 </body>
 </html>

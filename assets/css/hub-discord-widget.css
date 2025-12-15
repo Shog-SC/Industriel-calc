@@ -1,0 +1,47 @@
+/* hub-discord-widget.css — scoped styles for HUB Discord widget
+   Version: V1.0.0
+   Note: does NOT modify global layout/classes.
+*/
+
+.shog-discord-auth{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.shog-discord-userbox{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,229,255,.18);
+  background: rgba(0,0,0,.18);
+  backdrop-filter: blur(8px);
+}
+
+.shog-discord-avatar{
+  width:34px;
+  height:34px;
+  border-radius: 999px;
+  border: 1px solid rgba(231,236,255,.14);
+  object-fit: cover;
+}
+
+.shog-discord-usertext{
+  display:flex;
+  flex-direction:column;
+  line-height:1.1;
+}
+
+.shog-discord-userlabel{
+  font-size: 11px;
+  font-weight: 900;
+  opacity: .8;
+}
+
+.shog-discord-username{
+  font-size: 13px;
+  font-weight: 1000;
+  letter-spacing: .01em;
+}

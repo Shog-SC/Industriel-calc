@@ -1,2232 +1,960 @@
-/* =============================================================
- * Salvage Module - V7.0.1 (structure only, logic unchanged)
- * Organisation interne :
- *  1. Constantes & configuration globale
- *  2. I18N (textes FR / EN spécifiques Salvage)
- *  3. Utilitaires génériques (formatage, maths simples, helpers)
- *  4. Gestion des prix (UEX / Worker) + Top 3 RMC / CMAT
- *  5. Calculs Salvage (débutant + avancé, RMC / CMAT)
- *  6. Leaderboard Salvage (local + online)
- *  7. Mise à jour UI Salvage (panneaux, tags, graph, messages)
- *  8. Initialisation & gestion des événements (DOMContentLoaded)
- *
- *  NOTE : Cette version ne modifie PAS la logique existante.
- *         Elle ajoute uniquement une structure de commentaires
- *         pour faciliter les futurs refactors, sans risque.
- * ============================================================= */
+/* salvage.js - Version V1.4.8b
+   - Split ships: Salvation / Vulture+Fortune
+   - Top ventes: parsing robuste multi-formats (sans casser le script)
+   - Garde : prix UEX, aUEC/h, configs, presets
 
+   Notes rendement :
+   - Les valeurs "boucle (minutes)" sont des presets modifiables.
+     Si tu veux que je colle exactement à la transcription YouTube, envoie-moi le texte ou le lien/timestamp.
+*/
 
-function toggleMoreInfo() {
-  const el = document.getElementById("infoMore");
-  if (!el) return;
-  el.style.display = (el.style.display === "none" || el.style.display === "") ? "block" : "none";
-}
+(() => {
+  const LS_KEY  = "salvage.module.state.v1_4_8b";
+  const CFG_KEY = "salvage.module.configs.v1_4_8b";
 
-const REND_RECLAIMER = 0.15;
-const APP_VERSION = "V6.4.26";
-const ACTIVITY_VERSIONS = {
-  salvage: { label: "Salvage", version: "V6.4.26" },
-  hauling: { label: "Hauling", version: "V1.2.0" },
-  mining:  { label: "Mining",  version: "V0.0" },
-};
+  // Proxy Worker (UEX)
+  const WORKER_URL = "https://salvage-uex-proxy.yoyoastico74.workers.dev/";
 
+  const $ = (id) => document.getElementById(id);
 
-const LEADERBOARD_API_BASE = "https://salvage-leaderboard.yoyoastico74.workers.dev";
-const LEADERBOARD_REFRESH_MS = 60000;
-const LEADERBOARD_RUN_COOLDOWN_MS = 30000;
-let lastOnlineRunTs = Number(localStorage.getItem("salvageCalcLastOnlineRunTs") || 0);
-let lastLeaderboardFetch = 0;
-let cachedLeaderboardUsers = [];
+async function copyToClipboard(text){
+  const t = String(text || "").trim();
+  if(!t) return false;
 
-
-
-let antiSpamIntervalId = null;
-
-function updateAntiSpamMessage(remainingMs) {
-  const el = document.getElementById("antiSpamMessage");
-  if (!el) return;
-  if (!remainingMs || remainingMs <= 0) {
-    el.textContent = "";
-    return;
-  }
-  const seconds = Math.ceil(remainingMs / 1000);
-  el.textContent = `⚠ Anti-Spam : ${seconds}s restantes`;
-}
-
-function startAntiSpamCountdown() {
-  if (!LEADERBOARD_RUN_COOLDOWN_MS) return;
-  if (!lastOnlineRunTs) return;
-  if (antiSpamIntervalId) {
-    clearInterval(antiSpamIntervalId);
-    antiSpamIntervalId = null;
-  }
-  const target = lastOnlineRunTs + LEADERBOARD_RUN_COOLDOWN_MS;
-
-  function tick() {
-    const remaining = target - Date.now();
-    if (remaining <= 0) {
-      updateAntiSpamMessage(0);
-      if (antiSpamIntervalId) {
-        clearInterval(antiSpamIntervalId);
-        antiSpamIntervalId = null;
-      }
-      return;
+  try{
+    await navigator.clipboard.writeText(t);
+    return true;
+  }catch(_){
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = t;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return !!ok;
+    }catch(__){
+      return false;
     }
-    updateAntiSpamMessage(remaining);
   }
-
-  tick();
-  antiSpamIntervalId = setInterval(tick, 1000);
 }
 
-let leaderboardSortKey = localStorage.getItem("salvageLbSort") || "profit";
-let leaderboardShipFilterKey = localStorage.getItem("salvageLbShipFilter") || "all";
+  const num = (v) => {
+    const x = Number(String(v ?? "").replace(",", "."));
+    return Number.isFinite(x) ? x : 0;
+  };
 
-function getFilteredSortedLeaderboardUsers(users) {
-  if (!Array.isArray(users)) return [];
-  let arr = users.slice();
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-  const filterKey = (leaderboardShipFilterKey || "all").toLowerCase();
-  if (filterKey && filterKey !== "all") {
-    arr = arr.filter((u) => {
-      const fav = (u.favShip || "").toLowerCase();
-      return fav.includes(filterKey);
-    });
-  }
+  const fmt = (n) => `${Math.round(num(n)).toLocaleString("fr-FR")} aUEC`;
+  const fmtH = (n) => `${Math.round(num(n)).toLocaleString("fr-FR")} aUEC/h`;
 
-  arr.sort((a, b) => {
-    const profitA = Number(a.totalProfit || 0);
-    const profitB = Number(b.totalProfit || 0);
-    const runsA = Number(a.totalRuns || 0);
-    const runsB = Number(b.totalRuns || 0);
-    const nameA = (a.nickname || "").toLowerCase();
-    const nameB = (b.nickname || "").toLowerCase();
+  function setText(id, v){ const el = $(id); if(el) el.textContent = v; }
 
-    switch (leaderboardSortKey) {
-      case "runs":
-        if (runsB !== runsA) return runsB - runsA;
-        if (profitB !== profitA) return profitB - profitA;
-        return nameA.localeCompare(nameB);
-      case "name":
-        if (nameA !== nameB) return nameA.localeCompare(nameB);
-        if (profitB !== profitA) return profitB - profitA;
-        return runsB - runsA;
-      case "profit":
-      default:
-        if (profitB !== profitA) return profitB - profitA;
-        if (runsB !== runsA) return runsB - runsA;
-        return nameA.localeCompare(nameB);
-    }
-  });
+  // Preset raffinage (mode Débutant)
+  let begRefineMode = "refine"; // refine | sell
+  let begRefineYield = 0.30;
+  let begRefineLabel = "CMR (≈30% après raffinage)";
 
-  return arr;
-}
 
-function rerenderOnlineLeaderboardFromCache() {
-  const t = i18n[currentLang] || i18n.fr;
-  if (!cachedLeaderboardUsers || !cachedLeaderboardUsers.length) return;
-  renderOnlineLeaderboard(cachedLeaderboardUsers, t);
-}
-
-let currentLang = localStorage.getItem("salvageCalcLang") || "fr";
-let currentTheme = localStorage.getItem("salvageCalcTheme") || "neon";
-if (currentTheme === "dark") currentTheme = "neon";
-
-const i18n = {
-  fr: {
-    titleMain: "SALVAGE CALCULATOR 4.4",
-    subText: "Détermine la valeur générée par ton salvage selon la boucle de ton vaisseau (RMC ou CMAT).",
-    entriesTitle: "Entrées",
-    labelPrixRmc: "Prix RMC (aUEC / SCU)",
-    hintPrixRmc: "RMC : matériau recyclé issu du hull scraping.",
-    labelPrixCmat: "Prix CMAT (aUEC / SCU)",
-    hintPrixCmat: "CMAT : matériaux de construction (Reclaimer → raffinage).",
-    sellRmcLabel: "Point de vente RMC :",
-    sellCmatLabel: "Point de vente CMAT :",
-    labelScuLight: "SCU de salvage traitées – Salvation / Vulture / Fortune (ces vaisseaux ne produisent que du RMC)",
-    labelScuReclaimer: "SCU de salvage traitées – Reclaimer (valeur BRUTE récoltée, avant raffinage RMC → CMAT).",
-    tagLight: "Vaisseaux légers : hull scraping → RMC uniquement",
-    tagReclaimer: "Reclaimer : Hull Scraping → RMC vendable · Construction Salvage → CMAT (~15 %, raffinage obligatoire).",
-    smallNote: "Pour chaque SCU saisie:\n- Light ships : RMC uniquement (hull scraping).\n- Reclaimer : RMC pour le hull scraping, CMAT (~15 %) pour le Construction Salvage (raffinage obligatoire, pas de vente directe du RMC CS).",
-    apiFetching: "Récupération des prix UEX…",
-    apiErrorPrefix: "Erreur API : ",
-    apiUpdated: () => "",
-    rmcPanelTitle: "Loop RMC – Vendre en Recycled Material Composite",
-    cmatPanelTitle: "Loop CMAT – Transformer en Construction Materials",
-    rmcLightHead: "Salvation / Vulture / Fortune (RMC uniquement)",
-    rmcRecHead: "Reclaimer – Loop Reclaimer : raffinage obligatoire (RMC désactivé)",
-    cmatLightHead: "Salvation / Vulture / Fortune",
-    cmatRecHead: "Reclaimer (15 % de conversion en CMAT)",
-    graphTitle: "Analyse du marché – Historique RMC & CMAT",
-    graphSub: "Données issues d’UEX via ton Worker. L’axe X montre les dates (JJ/MM) des dernières mises à jour de prix. Les prix RMC / CMAT peuvent varier fortement selon le marché et les patchs.",
-    graphNoData: "Aucune donnée historique disponible.",
-    graphError: "Impossible de charger l'historique.",
-    langSwitchLabel: "Langue :",
-    themeLabel: "Thème :",
-    lightShipsInfo: "ℹ Vaisseaux légers : RMC uniquement (pas de CMAT).",
-    lightShipsNoCmatText: "Les vaisseaux légers ne génèrent pas de Construction Materials (CMAT). Seul le Reclaimer (et futurs heavy salvage) peuvent produire du CMAT via Construction Salvage.",
-    loopCmatBetter: diff => `🟢 Loop CMAT (Construction Materials) plus rentable que RMC (+${diff} aUEC).`,
-    loopRmcBetter: diff => `🟢 Loop RMC plus rentable que CMAT (+${diff} aUEC).`,
-    loopsEqual: "ℹ Les deux loops rapportent la même chose.",
-    rmcLightValues: (sl, rmcVal) => `SCU de salvage utilisées : ${sl} SCU\nValeur si tu vends tout en RMC : ${rmcVal} aUEC`,
-    rmcRecValues: () => "Loop Reclaimer : raffinage obligatoire.\nLe Reclaimer peut vendre le RMC issu du hull scraping.\nLe RMC issu du Construction Salvage n’est plus vendable : tu dois le raffiner en CMAT avant la vente.",
-    cmatRecValues: (scuCmat, valCmat) => `SCU de salvage converties en CMAT (rendement 15 %) : ${scuCmat} SCU\nValeur si tu vends en CMAT : ${valCmat} aUEC`,
-    cmatRecExtra: (scuRec, scuCmat, pctCmat, pctTotal) =>
-      `Sur ${scuRec} SCU du Reclaimer, ${scuCmat} SCU partent en CMAT (~${pctCmat}% du salvage Reclaimer, ~${pctTotal}% du total salvage).`,
-    leaderboardEmpty: "Aucun joueur dans le leaderboard en ligne pour l'instant.",
-    leaderboardLoading: "Chargement du leaderboard en ligne…",
-    leaderboardErrorPrefix: "Erreur leaderboard : ",
-    leaderboardLine: (nickname, runs, profit, favShip, totalRmc, badgesHtml, isAdmin) =>
-      `<span class="leaderboard-line-main">
-        ${nickname} – ${profit} aUEC${isAdmin ? " (ADMIN)" : ""} 
-        ${badgesHtml ? `<span class="leaderboard-badges">${badgesHtml}</span>` : ""}
-      </span>
-      <span class="leaderboard-line-meta">
-        ${runs} runs · Ship fav : ${favShip} · Total RMC : ${totalRmc} SCU
-      </span>`,
-        leaderboardYou: "Vous",
-    leaderboardSortLabel: "Tri :",
-    leaderboardFilterLabel: "Filtre vaisseau :",
-    leaderboardSortProfit: "Profit total",
-    leaderboardSortRuns: "Nombre de runs",
-    leaderboardSortName: "Pseudo",
-    leaderboardFilterAll: "Tous les vaisseaux",
-    leaderboardFilterVulture: "Vulture",
-    leaderboardFilterSalvation: "Salvation",
-    leaderboardFilterFortune: "Fortune",
-    leaderboardFilterReclaimer: "Reclaimer",
-labelShipSelect: "Vaisseau utilisé pour ce run",
-    saveRunBtn: "Envoyer ce run au leaderboard en ligne",
-    saveRunSuccess: "Run envoyé au leaderboard en ligne.",
-    saveRunNoUser: "Crée ou importe un profil avant d'enregistrer un run.",
-    saveRunNoScu: "Merci de saisir au moins une SCU de salvage avant d'enregistrer un run.",
-    clearMyRunsBtn: "Supprimer mes runs",
-    clearAllRunsBtn: "Reset de mes données locales",
-    clearMyRunsNoUser: "Aucun profil chargé. Crée ou importe un profil pour supprimer uniquement tes runs.",
-    clearMyRunsDone: "Tes runs locaux ont été supprimés de cette liste (leaderboard en ligne non modifié).",
-    clearAllRunsDone: "Toutes tes données locales ont été réinitialisées (leaderboard en ligne non modifié).",
-    leaderboardAdminOnly: "Action réservée à l'admin.",
-    leaderboardResetLoading: "Reset du leaderboard en ligne en cours…",
-    leaderboardResetDone: (count) => `Leaderboard en ligne nettoyé (${count} profil(s) supprimé(s)).`,
-    leaderboardResetError: "Erreur pendant le reset du leaderboard en ligne.",
-    myRunsBtn: "Voir mes runs détaillés",
-    myRunsTitle: "Mes runs enregistrés",
-    myRunsActiveTitle: "En attente de vente",
-    myRunsSoldTitle: "Runs vendus",
-    myRunsActiveEmpty: "Aucun run en attente de vente.",
-    myRunsSoldEmpty: "Aucun run vendu pour l'instant.",
-    myRunsNoUser: "Crée ou importe un profil pour voir tes runs détaillés.",
-    myRunsSoldLabel: "Vente validée",
-    myRunsLine: (index, ship, scuText, rmcText, cmatText, profitText, dateStr) => {
-      let parts = [`#${index} – ${dateStr}`, ship];
-      if (scuText) parts.push(scuText);
-      if (rmcText) parts.push(rmcText);
-      if (cmatText) parts.push(cmatText);
-      if (profitText) parts.push(profitText);
-      return parts.join(" · ");
-    }
+  // ---------------------------------------------------------------------------
+  // Ships (split Salvation vs Vulture/Fortune)
+  // ---------------------------------------------------------------------------
+  const SHIPS = [
+  {
+    id:"salvation",
+    name:"Salvation",
+    note:"Collecte très rapide.",
+    beginner:{ loopMin:40, refineMode:"refine", refineYield:0.30 },
+    advanced:{ loopMin:40, feesPct:0, refineMode:"refine", refineYield:0.30 }
   },
-  en: {
-    titleMain: "SALVAGE CALCULATOR 4.4",
-    subText: "Determine the value generated by your salvage depending on your ship’s loop (RMC or CMAT).",
-    entriesTitle: "Inputs",
-    labelPrixRmc: "RMC price (aUEC / SCU)",
-    hintPrixRmc: "RMC : matériau recyclé issu du hull scraping.",
-    labelPrixCmat: "CMAT price (aUEC / SCU)",
-    hintPrixCmat: "CMAT : matériaux de construction (Reclaimer → raffinage).",
-    sellRmcLabel: "RMC sell point:",
-    sellCmatLabel: "CMAT sell point:",
-    labelScuLight: "Processed salvage SCU – Salvation / Vulture / Fortune (these ships only produce RMC)",
-    labelScuReclaimer: "Processed salvage SCU – Reclaimer (RAW amount harvested, before refining RMC → CMAT).",
-    tagLight: "Light salvage ships: hull scraping → RMC only",
-    tagReclaimer: "Reclaimer: Hull Scraping → sellable RMC · Construction Salvage → CMAT (~15%, refining required).",
-    smallNote: "For each SCU value:\n- Light ships: RMC only (hull scraping).\n- Reclaimer: RMC for hull scraping, CMAT (~15%) for Construction Salvage (refining required, no direct sale of CS RMC).",
-    apiFetching: "Fetching UEX prices…",
-    apiErrorPrefix: "API error: ",
-    apiUpdated: () => "",
-    rmcPanelTitle: "RMC loop – Selling as Recycled Material Composite",
-    cmatPanelTitle: "CMAT loop – Processing into Construction Materials",
-    rmcLightHead: "Salvation / Vulture / Fortune (RMC only)",
-    rmcRecHead: "Reclaimer – Reclaimer loop: refining only (RMC disabled)",
-    cmatLightHead: "Salvation / Vulture / Fortune",
-    cmatRecHead: "Reclaimer (15% conversion to CMAT)",
-    graphTitle: "Market analysis – RMC & CMAT history",
-    graphSub: "Data from UEX via your Worker. X-axis shows dates (DD/MM) of the latest price updates. RMC / CMAT prices can vary significantly with the market and patches.",
-    graphNoData: "No historical data available.",
-    graphError: "Unable to load history.",
-    langSwitchLabel: "Language:",
-    themeLabel: "Theme:",
-    lightShipsInfo: "ℹ Light ships: RMC only (no CMAT).",
-    lightShipsNoCmatText: "Light ships do not generate Construction Materials (CMAT). Only the Reclaimer (and future heavy salvage) can produce CMAT via Construction Salvage.",
-    loopCmatBetter: diff => `🟢 CMAT loop (Construction Materials) is more profitable than RMC (+${diff} aUEC).`,
-    loopRmcBetter: diff => `🟢 RMC loop is more profitable than CMAT (+${diff} aUEC).`,
-    loopsEqual: "ℹ Both loops yield the same profit.",
-    rmcLightValues: (sl, rmcVal) => `Salvage SCU used: ${sl} SCU\nValue if sold entirely as RMC: ${rmcVal} aUEC`,
-    rmcRecValues: () => "Reclaimer loop: refining is mandatory.\nThe Reclaimer can sell RMC obtained from hull scraping.\nRMC from Construction Salvage is no longer sellable: you must refine it into CMAT before selling.",
-    cmatRecValues: (scuCmat, valCmat) => `Salvage SCU converted to CMAT (15% yield): ${scuCmat} SCU\nValue if sold as CMAT: ${valCmat} aUEC`,
-    cmatRecExtra: (scuRec, scuCmat, pctCmat, pctTotal) =>
-      `Out of ${scuRec} Reclaimer SCU, ${scuCmat} SCU become CMAT (~${pctCmat}% of Reclaimer salvage, ~${pctTotal}% of total salvage).`,
-    leaderboardEmpty: "No player in the online leaderboard yet.",
-    leaderboardLoading: "Loading online leaderboard…",
-    leaderboardErrorPrefix: "Leaderboard error: ",
-    leaderboardLine: (nickname, runs, profit, favShip, totalRmc, isAdmin) =>
-      `<span class="leaderboard-line-main">${nickname} – ${profit} aUEC</span><span class="leaderboard-line-meta">${runs} runs · Fav ship: ${favShip} · Total RMC: ${totalRmc} SCU</span>`,
-        leaderboardYou: "You",
-    leaderboardSortLabel: "Sort:",
-    leaderboardFilterLabel: "Ship filter:",
-    leaderboardSortProfit: "Total profit",
-    leaderboardSortRuns: "Run count",
-    leaderboardSortName: "Nickname",
-    leaderboardFilterAll: "All ships",
-    leaderboardFilterVulture: "Vulture",
-    leaderboardFilterSalvation: "Salvation",
-    leaderboardFilterFortune: "Fortune",
-    leaderboardFilterReclaimer: "Reclaimer",
-labelShipSelect: "Ship used for this run",
-    saveRunBtn: "Send this run to the online leaderboard",
-    saveRunSuccess: "Run sent to the online leaderboard.",
-    saveRunNoUser: "Please create/import a profile before saving a run.",
-    saveRunNoScu: "Please enter at least one salvage SCU before saving a run.",
-    clearMyRunsBtn: "Delete my runs",
-    clearAllRunsBtn: "Reset my local data",
-    clearMyRunsNoUser: "No profile loaded. Create or import a profile to delete only your runs.",
-    clearMyRunsDone: "Your local runs have been removed from this list (online leaderboard unchanged).",
-    clearAllRunsDone: "All your local data has been reset (online leaderboard unchanged).",
-    leaderboardAdminOnly: "This action is reserved for admin.",
-    leaderboardResetLoading: "Resetting online leaderboard…",
-    leaderboardResetDone: (count) => `Online leaderboard cleared (${count} profile(s) removed).`,
-    leaderboardResetError: "Error while resetting the online leaderboard.",
-    myRunsBtn: "View my detailed runs",
-    myRunsTitle: "My saved runs",
-    myRunsActiveTitle: "Pending sale",
-    myRunsSoldTitle: "Sold runs",
-    myRunsActiveEmpty: "No pending run.",
-    myRunsSoldEmpty: "No sold run yet.",
-    myRunsNoUser: "Create or import a profile to see your detailed runs.",
-    myRunsSoldLabel: "Sale confirmed",
-    myRunsLine: (index, ship, scuText, rmcText, cmatText, profitText, dateStr) => {
-      let parts = [`#${index} – ${dateStr}`, ship];
-      if (scuText) parts.push(scuText);
-      if (rmcText) parts.push(rmcText);
-      if (cmatText) parts.push(cmatText);
-      if (profitText) parts.push(profitText);
-      return parts.join(" · ");
+  {
+    id:"vulture_fortune",
+    name:"Vulture / Fortune",
+    note:"Collecte très rapide.",
+    beginner:{ loopMin:55, refineMode:"refine", refineYield:0.30 },
+    advanced:{ loopMin:55, feesPct:0, refineMode:"refine", refineYield:0.30 }
+  },
+  {
+    id:"reclaimer",
+    name:"Reclaimer",
+    note:"Équipage conseillé.",
+    beginner:{ loopMin:60, refineMode:"refine", refineYield:0.15 },
+    advanced:{ loopMin:60, feesPct:0, refineMode:"refine", refineYield:0.15 }
+  },
+  {
+    id:"custom",
+    name:"Custom",
+    note:"Tes propres valeurs."
+  }
+];
+
+  function populateShips(){
+    const sel = $("shipSelect");
+    if(!sel) return;
+    sel.innerHTML = "";
+    for(const s of SHIPS){
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.name;
+      sel.appendChild(opt);
     }
   }
-};
 
-const prixRmcInput  = document.getElementById("prixRmc");
-const prixCmatInput = document.getElementById("prixCmat");
-const scuLightInput = document.getElementById("scuLight");
-const scuRecInput   = document.getElementById("scuReclaimer");
-const apiStatusEl   = document.getElementById("apiStatus");
-const rmcLightValuesEl = document.getElementById("rmcLightValues");
-const rmcLightExtraEl = document.getElementById("rmcLightExtra");
-const rmcLightDecisionEl = document.getElementById("rmcLightDecision");
-const rmcRecValuesEl = document.getElementById("rmcRecValues");
-const rmcRecExtraEl = document.getElementById("rmcRecExtra");
-const rmcRecDecisionEl = document.getElementById("rmcRecDecision");
-const cmatLightValuesEl = document.getElementById("cmatLightValues");
-const cmatLightExtraEl = document.getElementById("cmatLightExtra");
-const cmatLightDecisionEl = document.getElementById("cmatLightDecision");
-const cmatRecValuesEl = document.getElementById("cmatRecValues");
-const cmatRecExtraEl = document.getElementById("cmatRecExtra");
-const cmatRecDecisionEl = document.getElementById("cmatRecDecision");
-const graphMessage  = document.getElementById("graphMessage");
-const chartCanvas   = document.getElementById("cmatChart");
-const rmcTerminalEl = document.getElementById("rmcTerminal");
-const cmatTerminalEl = document.getElementById("cmatTerminal");
-const debTopRmcLabelEl = document.getElementById("debTopRmcLabel");
-const debTopCmatLabelEl = document.getElementById("debTopCmatLabel");
-const debTopRmcEl = document.getElementById("debTopRmc");
-const debTopCmatEl = document.getElementById("debTopCmat");
-const top3RmcTitleEl = document.getElementById("top3RmcTitle");
-const top3CmatTitleEl = document.getElementById("top3CmatTitle");
-const top3RmcListEl = document.getElementById("top3RmcList");
-const top3CmatListEl = document.getElementById("top3CmatList");
-const marketTop3RmcTitleEl = document.getElementById("marketTop3RmcTitle");
-const marketTop3CmatTitleEl = document.getElementById("marketTop3CmatTitle");
-const marketTop3RmcListEl = document.getElementById("marketTop3RmcList");
-const marketTop3CmatListEl = document.getElementById("marketTop3CmatList");
+  function applyShipPreset(){
+    const id = $("shipSelect")?.value || "custom";
+    const ship = SHIPS.find(s => s.id === id) || SHIPS[SHIPS.length - 1];
 
-const titleMainEl = document.getElementById("titleMain");
-const subTextEl = document.getElementById("subText");
-const entriesTitleEl = document.getElementById("entriesTitle");
-const labelPrixRmcEl = document.getElementById("labelPrixRmc");
-const hintPrixRmcEl = document.getElementById("hintPrixRmc");
-const labelPrixCmatEl = document.getElementById("labelPrixCmat");
-const hintPrixCmatEl = document.getElementById("hintPrixCmat");
-const sellRmcLabelEl = document.getElementById("sellRmcLabel");
-const sellCmatLabelEl = document.getElementById("sellCmatLabel");
-const labelScuLightEl = document.getElementById("labelScuLight");
-const labelScuReclaimerEl = document.getElementById("labelScuReclaimer");
-const tagLightEl = document.getElementById("tagLight");
-const tagReclaimerEl = document.getElementById("tagReclaimer");
-const smallNoteEl = document.getElementById("smallNote");
-const rmcPanelTitleEl = document.getElementById("rmcPanelTitle");
-const cmatPanelTitleEl = document.getElementById("cmatPanelTitle");
-const rmcLightHeadEl = document.getElementById("rmcLightHead");
-const rmcRecHeadEl = document.getElementById("rmcRecHead");
-const cmatLightHeadEl = document.getElementById("cmatLightHead");
-const cmatRecHeadEl = document.getElementById("cmatRecHead");
-const graphTitleEl = document.getElementById("graphTitle");
-const graphSubEl = document.getElementById("graphSub");
-const langSwitchLabelEl = document.getElementById("langSwitchLabel");
-const themeSelectEl = document.getElementById("themeSelect");
-const langSelectEl = document.getElementById("langSelect");
-const appVersionEl = document.getElementById("appVersion");
+    if($("shipNote")) $("shipNote").textContent = ship.note || "";
 
-const leaderboardListEl = document.getElementById("leaderboardList");
-const leaderboardEmptyEl = document.getElementById("leaderboardEmpty");
-const openOnlineLeaderboardBtnEl = document.getElementById("openOnlineLeaderboardBtn");
-const onlineLeaderboardModalEl = document.getElementById("onlineLeaderboardModal");
-const onlineLeaderboardFullListEl = document.getElementById("onlineLeaderboardFullList");
-const onlineLeaderboardFullEmptyEl = document.getElementById("onlineLeaderboardFullEmpty");
-const onlineLeaderboardCloseBtnEl = document.getElementById("onlineLeaderboardCloseBtn");
-const clearMyRunsBtnEl = document.getElementById("clearMyRunsBtn");
-const clearAllRunsBtnEl = document.getElementById("clearAllRunsBtn");
-const resetOnlineBtnEl = document.getElementById("resetOnlineBtn");
-const leaderboardActionMsgEl = document.getElementById("leaderboardActionMsg");
-const leaderboardSubEl = document.getElementById("leaderboardSub");
-const leaderboardSortSelectEl = document.getElementById("leaderboardSortSelect");
-const leaderboardShipFilterEl = document.getElementById("leaderboardShipFilter");
-const leaderboardSortLabelEl = document.getElementById("leaderboardSortLabel");
-const leaderboardShipFilterLabelEl = document.getElementById("leaderboardShipFilterLabel");
+    if(ship.beginner?.loopMin && $("begLoopMinutes")) $("begLoopMinutes").value = String(ship.beginner.loopMin);
+    if(ship.advanced?.loopMin && $("loopMinutes")) $("loopMinutes").value = String(ship.advanced.loopMin);
+    if(ship.advanced?.feesPct != null && $("feesPct")) $("feesPct").value = String(ship.advanced.feesPct);
 
-const toggleMyRunsBtnEl = document.getElementById("toggleMyRunsBtn");
-const myRunsPanelEl = document.getElementById("myRunsPanel");
-const myRunsActiveListEl = document.getElementById("myRunsActiveList");
-const myRunsSoldListEl = document.getElementById("myRunsSoldList");
-const myRunsActiveEmptyEl = document.getElementById("myRunsActiveEmpty");
-const myRunsSoldEmptyEl = document.getElementById("myRunsSoldEmpty");
-const myRunsTitleEl = document.getElementById("myRunsTitle");
-const myRunsActiveTitleEl = document.getElementById("myRunsActiveTitle");
-const myRunsSoldTitleEl = document.getElementById("myRunsSoldTitle");
 
-const userInfoEl = document.getElementById("userInfo");
-const changeUserBtn = document.getElementById("changeUserBtn");
-const discordLoginBtn = document.getElementById("discordLoginBtn");
+// Preset raffinage (CMR/CMS -> CMAT)
+const presetMode = ship.beginner?.refineMode || ship.advanced?.refineMode;
+const presetYield = ship.beginner?.refineYield ?? ship.advanced?.refineYield;
 
-const profileModal = document.getElementById("profileModal");
-const modalCloseBtn = document.getElementById("modalCloseBtn");
-const tabCreateProfile = document.getElementById("tabCreateProfile");
-const tabImportProfile = document.getElementById("tabImportProfile");
-const modalCreateSection = document.getElementById("modalCreateSection");
-const modalImportSection = document.getElementById("modalImportSection");
-const createNicknameInput = document.getElementById("createNickname");
-const createProfileBtn = document.getElementById("createProfileBtn");
-const createdKeyDisplay = document.getElementById("createdKeyDisplay");
-const importNicknameInput = document.getElementById("importNickname");
-const importSecretInput = document.getElementById("importSecret");
-const importProfileBtn = document.getElementById("importProfileBtn");
-const modalMessageEl = document.getElementById("modalMessage");
-
-const shipSelectEl = document.getElementById("shipSelect");
-const saveRunBtnEl = document.getElementById("saveRunBtn");
-const saveRunMessageEl = document.getElementById("saveRunMessage");
-const labelShipSelectEl = document.getElementById("labelShipSelect");
-const advancedScuLightGroupEl = document.getElementById("advancedScuLightGroup");
-const advancedScuReclaimerGroupEl = document.getElementById("advancedScuReclaimerGroup");
-const loopRmcLightPanelEl = document.getElementById("loopRmcLightPanel");
-const loopRmcReclaimerPanelEl = document.getElementById("loopRmcReclaimerPanel");
-const loopCmatLightPanelEl = document.getElementById("loopCmatLightPanel");
-const loopCmatReclaimerPanelEl = document.getElementById("loopCmatReclaimerPanel");
-const debShipSelectEl = document.getElementById("debShipSelect");
-const labelScuHullDebEl = document.getElementById("labelScuHullDeb");
-const fieldScuHullDebEl = document.getElementById("fieldScuHullDeb");
-const labelScuCsDebEl = document.getElementById("labelScuCsDeb");
-const fieldScuCsDebEl = document.getElementById("fieldScuCsDeb");
-const hintScuCsDebEl = document.getElementById("hintScuCsDeb");
-
-let currentUser = null;
-
-// Admin
-const ADMIN_NICKNAME = "Shog";
-const ADMIN_SECRET = "130890";
-
-function isAdminUser(user) {
-  return !!user && user.nickname === ADMIN_NICKNAME && user.secret === ADMIN_SECRET;
+if(presetMode && $("cmatRefineMode")) $("cmatRefineMode").value = presetMode;
+if(presetYield != null && $("cmatRefineYield")) {
+  const y = Number(presetYield);
+  // Backward compatible: old presets used 0.30 / 1.00; UI now expects percent (15, 30, 100)
+  $("cmatRefineYield").value = (Number.isFinite(y) && y <= 1.0) ? String(Math.round(y * 100)) : String(y);
 }
 
-function updateAdminUI() {
-  const isAdmin = isAdminUser(currentUser);
+// Badge profil joueur (Débutant)
+const badge = $("shipProfileBadge");
+const meta = $("shipMetaHint");
+if(badge){
+  badge.classList.remove("ship-badge-off","ship-badge-solo","ship-badge-stable","ship-badge-multi");
+  let label = "—";
+  let metaTxt = "Profil : —";
 
-  if (clearAllRunsBtnEl) {
-    clearAllRunsBtnEl.style.display = isAdmin ? "block" : "none";
-  }
-
-  if (resetOnlineBtnEl) {
-    resetOnlineBtnEl.style.display = isAdmin ? "block" : "none";
-  }
-
-  if (userInfoEl && currentUser && isAdmin) {
-    if (!userInfoEl.querySelector(".admin-badge-inline")) {
-      const badge = document.createElement("span");
-      badge.className = "admin-badge-inline";
-      badge.textContent = "ADMIN";
-      userInfoEl.appendChild(badge);
-    }
-  }
-}
-
-function generateSecret() {
-  const n = Math.floor(Math.random() * 1000000);
-  return String(n).padStart(6, "0");
-}
-
-function computeUserId(nickname, secret) {
-  const base = (nickname || "").trim() + "#" + secret;
-  let hash = 0;
-  for (let i = 0; i < base.length; i++) {
-    hash = (hash * 31 + base.charCodeAt(i)) >>> 0;
-  }
-  return "user_" + hash.toString(16);
-}
-
-function loadUserProfile() {
-  try {
-    const raw = localStorage.getItem("salvageCalcUser");
-    if (!raw) return null;
-    const u = JSON.parse(raw);
-    if (!u || !u.id || !u.nickname || !u.secret) return null;
-    return u;
-  } catch (_) {
-    return null;
-  }
-}
-
-function saveUserProfile(user) {
-  currentUser = user;
-  try {
-    localStorage.setItem("salvageCalcUser", JSON.stringify(user));
-  } catch (_) {}
-  updateUserUI();
-  updateAdminUI();
-  updateLocalLeaderboard();
-  buildMyRunsList();
-}
-
-function updateUserUI() {
-  let discordUser = null;
-
-  // On privilégie le module Auth si disponible
-  if (window.Auth && typeof Auth.getUser === "function") {
-    discordUser = Auth.getUser();
+  if(id === "salvation"){
+    label = "SOLO / RAPIDE";
+    metaTxt = "Profil : boucle courte, collecte rapide";
+    badge.classList.add("ship-badge-solo");
+  } else if(id === "vulture_fortune"){
+    label = "SOLO STABLE";
+    metaTxt = "Profil : solo, rendement régulier";
+    badge.classList.add("ship-badge-stable");
+  } else if(id === "reclaimer"){
+    label = "MULTI / LOGISTIQUE";
+    metaTxt = "Profil : équipage conseillé, logistique lourde";
+    badge.classList.add("ship-badge-multi");
   } else {
-    // Fallback : tentative de récupération via le localStorage (compatibilité)
-    try {
-      const rawDiscord = localStorage.getItem("salvageDiscordUser");
-      if (rawDiscord) {
-        discordUser = JSON.parse(rawDiscord);
-      }
-    } catch (_) {
-      // ignore storage / JSON errors
-    }
+    label = "CUSTOM";
+    metaTxt = "Profil : valeurs personnalisées";
+    badge.classList.add("ship-badge-off");
   }
 
-  const discordBtn = typeof discordLoginBtn !== "undefined" ? discordLoginBtn : null;
-
-  if (discordUser && discordUser.nickname) {
-    // Affichage dans la zone profil (si présent dans le DOM)
-    if (userInfoEl) {
-      userInfoEl.textContent = "Connecté via Discord : " + discordUser.nickname;
-    }
-
-    // Mise à jour du bouton dans la top-bar (reste cliquable pour permettre la déconnexion)
-    if (discordBtn) {
-      discordBtn.textContent = "Connecté via Discord";
-      discordBtn.classList.add("connected");
-      discordBtn.disabled = false;
-    }
-    return;
-  }
-
-  // Si pas d'utilisateur Discord, on remet le bouton en mode connexion
-  if (discordBtn) {
-    discordBtn.textContent = "Connexion Discord";
-    discordBtn.classList.remove("connected");
-    discordBtn.disabled = false;
-  }
-
-  // Fallback : ancien système de profil local, uniquement si la zone profil existe
-  if (!userInfoEl) return;
-
-  if (!currentUser) {
-    userInfoEl.textContent = "Profil : —";
-  } else {
-    userInfoEl.textContent =
-      "Profil : " + currentUser.nickname + " (clé : " + currentUser.secret + ")";
-  }
-}
-function setActiveModalTab(tab) {
-  if (tab === "import") {
-    tabImportProfile.classList.add("active");
-    tabCreateProfile.classList.remove("active");
-    modalImportSection.classList.add("active");
-    modalCreateSection.classList.remove("active");
-  } else {
-    tabCreateProfile.classList.add("active");
-    tabImportProfile.classList.remove("active");
-    modalCreateSection.classList.add("active");
-    modalImportSection.classList.remove("active");
-  }
-  modalMessageEl.textContent = "";
+  badge.textContent = label;
+  if(meta) meta.textContent = metaTxt;
 }
 
-function openProfileModal(initialTab) {
-  if (!profileModal) return;
-  profileModal.classList.add("open");
-  createdKeyDisplay.style.display = "none";
-  createdKeyDisplay.textContent = "";
-  modalMessageEl.textContent = "";
-  createNicknameInput.value = currentUser ? currentUser.nickname : "";
-  importNicknameInput.value = "";
-  importSecretInput.value = "";
-  setActiveModalTab(initialTab === "import" ? "import" : "create");
-}
-
-function closeProfileModal() {
-  if (!profileModal) return;
-  profileModal.classList.remove("open");
-}
-
-function ensureUserProfile() {
-  const existing = loadUserProfile();
-  if (existing) {
-    currentUser = existing;
-    updateUserUI();
-    updateAdminUI();
-    return;
-  }
-}
-
-function handleCreateProfile() {
-  const t = i18n[currentLang] || i18n.fr;
-  let nickname = (createNicknameInput.value || "").trim();
-  if (!nickname) nickname = "Salvager";
-  const secret = generateSecret();
-  const id = computeUserId(nickname, secret);
-  const user = { id, nickname, secret };
-  saveUserProfile(user);
-  createdKeyDisplay.style.display = "block";
-  createdKeyDisplay.textContent =
-    "Profil créé !\nPseudo : " + nickname +
-    "\nClé privée : " + secret +
-    "\n\nNote bien cette clé pour récupérer ton profil sur un autre navigateur.";
-  modalMessageEl.textContent = "";
-}
-
-function handleImportProfile() {
-  const t = i18n[currentLang] || i18n.fr;
-  const nickname = (importNicknameInput.value || "").trim();
-  const secret = (importSecretInput.value || "").trim();
-
-  if (!nickname) {
-    modalMessageEl.textContent = "Merci de renseigner un pseudo.";
-    return;
-  }
-  if (!/^[0-9]{6}$/.test(secret)) {
-    modalMessageEl.textContent = "La clé doit contenir exactement 6 chiffres.";
-    return;
+    calcBeginner();
+    calcAdvanced();
   }
 
-  const id = computeUserId(nickname, secret);
-  const user = { id, nickname, secret };
-  saveUserProfile(user);
-  modalMessageEl.textContent = "Profil importé avec succès.";
-}
-
-function getRuns() {
-  try {
-    return JSON.parse(localStorage.getItem("salvageCalcRuns") || "[]");
-  } catch (_) {
-    return [];
-  }
-}
-
-function saveRuns(runs) {
-  try {
-    localStorage.setItem("salvageCalcRuns", JSON.stringify(runs));
-  } catch (_) {}
-}
-
-function format(val) {
-  if (val == null || isNaN(val)) return "0";
-  return Number(val).toLocaleString(currentLang === "fr" ? "fr-FR" : "en-US", {
-    maximumFractionDigits: 0
-  });
-}
-
-async function updateLocalLeaderboard(force = false) {
-  const t = i18n[currentLang] || i18n.fr;
-  if (!leaderboardListEl || !leaderboardEmptyEl) return;
-
-  const now = Date.now();
-  if (!force && cachedLeaderboardUsers.length && (now - lastLeaderboardFetch) < LEADERBOARD_REFRESH_MS) {
-    renderOnlineLeaderboard(cachedLeaderboardUsers, t);
-    return;
+  // ---------------------------------------------------------------------------
+  // Status thresholds
+  // ---------------------------------------------------------------------------
+  function thresholds(){
+    const ok = num($("thrOk")?.value);
+    const good = num($("thrGood")?.value);
+    return { ok: Math.min(ok, good), good: Math.max(ok, good) };
   }
 
-  leaderboardEmptyEl.style.display = "block";
-  leaderboardEmptyEl.textContent = t.leaderboardLoading || "Chargement du leaderboard en ligne…";
+  function setStatus(el, perHour){
+    if(!el) return;
+    const v = num(perHour);
+    const { ok, good } = thresholds();
 
-  try {
-    const resp = await fetch(LEADERBOARD_API_BASE + "/api/leaderboard", {
-      method: "GET",
-      headers: {
-        "Accept": "application/json"
-      }
-    });
-    if (!resp.ok) {
-      throw new Error("HTTP " + resp.status);
-    }
-    const data = await resp.json();
-    const users = Array.isArray(data.users) ? data.users : [];
-    cachedLeaderboardUsers = users;
-    lastLeaderboardFetch = Date.now();
-    renderOnlineLeaderboard(users, t);
-  } catch (err) {
-    console.error("Leaderboard fetch error:", err);
-    leaderboardListEl.innerHTML = "";
-    leaderboardEmptyEl.style.display = "block";
-    const prefix = t.leaderboardErrorPrefix || "Erreur leaderboard : ";
-    leaderboardEmptyEl.textContent = prefix + String(err.message || err);
-  }
-}
+    el.classList.remove("status-off","status-bad","status-ok","status-good");
 
-
-function computeBadges(user) {
-  if (!user) return [];
-  const badges = [];
-  const totalProfit = user.totalProfit || 0;
-  const runs = user.totalRuns || 0;
-  const favShip = (user.favShip || "").toLowerCase();
-
-  // Profit-based badges
-  if (totalProfit >= 500000000) {
-    badges.push("🚀 Galactic Salvager");
-  } else if (totalProfit >= 100000000) {
-    badges.push("💎 Platinum Salvager");
-  } else if (totalProfit >= 50000000) {
-    badges.push("🥇 Gold Salvager");
-  } else if (totalProfit >= 10000000) {
-    badges.push("🥈 Silver Salvager");
-  } else if (totalProfit >= 1000000) {
-    badges.push("🥉 Bronze Salvager");
-  }
-
-  // Runs-based badges
-  if (runs >= 500) {
-    badges.push("🏭 Mega Salvager");
-  } else if (runs >= 250) {
-    badges.push("🚨 Industrial Scrapper");
-  } else if (runs >= 100) {
-    badges.push("🛠️ Salvage Engineer");
-  } else if (runs >= 25) {
-    badges.push("⚙️ Senior Operator");
-  } else if (runs >= 5) {
-    badges.push("🔧 Junior Operator");
-  }
-
-  // Favourite ship badges
-  if (favShip.includes("vulture")) {
-    badges.push("🦅 Vulture Master");
-  } else if (favShip.includes("salvation")) {
-    badges.push("☀️ Salvation Specialist");
-  } else if (favShip.includes("fortune")) {
-    badges.push("🌀 Fortune Operator");
-  } else if (favShip.includes("reclaimer")) {
-    badges.push("👑 Reclaimer Commander");
-  }
-
-  return badges;
-}
-
-function computeBadgesHtml(user) {
-  const badges = computeBadges(user);
-  if (!badges || !badges.length) return "";
-  return badges.map(label => `<span class="lb-badge">${label}</span>`).join(" ");
-}
-
-function renderOnlineLeaderboard(users, t) {
-  if (!leaderboardListEl || !leaderboardEmptyEl) return;
-
-  // Top 3 + liste complète dans la modale
-  const hasUsers = Array.isArray(users) && users.length > 0;
-
-  // Gère les états "vide" côté Top 3
-  if (!hasUsers) {
-    leaderboardListEl.innerHTML = "";
-    leaderboardEmptyEl.style.display = "block";
-    leaderboardEmptyEl.textContent = t.leaderboardEmpty;
-    if (onlineLeaderboardFullListEl && onlineLeaderboardFullEmptyEl) {
-      onlineLeaderboardFullListEl.innerHTML = "";
-      onlineLeaderboardFullEmptyEl.style.display = "block";
-      onlineLeaderboardFullEmptyEl.textContent = t.leaderboardEmpty;
-    }
-    return;
-  }
-
-  leaderboardEmptyEl.style.display = "none";
-  if (onlineLeaderboardFullEmptyEl) {
-    onlineLeaderboardFullEmptyEl.style.display = "none";
-  }
-
-  const sorted = getFilteredSortedLeaderboardUsers(users);
-
-  // --- TOP 3 (page principale) ---
-  leaderboardListEl.innerHTML = "";
-  const top3 = sorted.slice(0, 3);
-  top3.forEach((u, index) => {
-    const profitStr = format(u.totalProfit);
-    const totalRmcStr = format(u.totalRmcScu || 0);
-    const favShip = u.favShip || "N/A";
-
-    const isCurrent =
-      currentUser &&
-      currentUser.nickname &&
-      u.nickname &&
-      u.nickname.toLowerCase() === currentUser.nickname.toLowerCase();
-
-    const rank = index + 1;
-
-    let html = "";
-    if (isCurrent) {
-      html += `<span class="leaderboard-badge-you">${t.leaderboardYou}</span> `;
-    }
-
-    html += `<span class="leaderboard-rank">#${rank}</span>`;
-    html += t.leaderboardLine(
-      u.nickname || "Unknown",
-      u.totalRuns || 0,
-      profitStr,
-      favShip,
-      totalRmcStr,
-      computeBadgesHtml(u),
-      false
-    );
-
-    const li = document.createElement("li");
-    li.innerHTML = html;
-
-    if (isCurrent) {
-      li.classList.add("leaderboard-item-current");
-    }
-
-    leaderboardListEl.appendChild(li);
-  });
-
-  // --- LISTE COMPLÈTE dans la modale ---
-  if (onlineLeaderboardFullListEl) {
-    onlineLeaderboardFullListEl.innerHTML = "";
-    sorted.slice(0, 20).forEach((u, index) => {
-      const profitStr = format(u.totalProfit);
-      const totalRmcStr = format(u.totalRmcScu || 0);
-      const favShip = u.favShip || "N/A";
-
-      const isCurrent =
-        currentUser &&
-        currentUser.nickname &&
-        u.nickname &&
-        u.nickname.toLowerCase() === currentUser.nickname.toLowerCase();
-
-      const rank = index + 1;
-
-      let html = "";
-      if (isCurrent) {
-        html += `<span class="leaderboard-badge-you">${t.leaderboardYou}</span> `;
-      }
-
-      html += `<span class="leaderboard-rank">#${rank}</span>`;
-      html += t.leaderboardLine(
-        u.nickname || "Unknown",
-        u.totalRuns || 0,
-        profitStr,
-        favShip,
-        totalRmcStr,
-        computeBadgesHtml(u),
-        false
-      );
-
-      const li = document.createElement("li");
-      li.innerHTML = html;
-
-      if (isCurrent) {
-        li.classList.add("leaderboard-item-current");
-      }
-
-      onlineLeaderboardFullListEl.appendChild(li);
-    });
-  }
-}
-
-
-
-async function pushRunToOnlineLeaderboard(run) {
-  try {
-    if (!run || !run.nickname || !run.ship) return;
-
-    const now = Date.now();
-    if (LEADERBOARD_RUN_COOLDOWN_MS > 0 && lastOnlineRunTs && (now - lastOnlineRunTs) < LEADERBOARD_RUN_COOLDOWN_MS) {
-      const t = i18n[currentLang] || i18n.fr;
-      if (saveRunMessageEl) {
-        saveRunMessageEl.textContent = t.saveRunCooldown || "Tu viens d'envoyer un run. Merci d'attendre quelques secondes avant de renvoyer un nouveau run.";
-      }
-      startAntiSpamCountdown();
+    if(v <= 0){
+      el.textContent = "—";
+      el.classList.add("status-off");
       return;
     }
-
-    lastOnlineRunTs = now;
-    try {
-      localStorage.setItem("salvageCalcLastOnlineRunTs", String(lastOnlineRunTs));
-    } catch (e) {
-      // ignore storage errors
-    }
-    startAntiSpamCountdown();
-
-    const payload = {
-      nickname: run.nickname,
-      ship: run.ship,
-      profit: Math.round(Number(run.profit) || 0),
-      rmcScu: Math.round(Number(run.rmc) || 0),
-      totalScu: Math.round((Number(run.scuLight) || 0) + (Number(run.scuRec) || 0))
-    };
-
-    const resp = await fetch(LEADERBOARD_API_BASE + "/api/run", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!resp.ok) {
-      const t = i18n[currentLang] || i18n.fr;
-      if (saveRunMessageEl) {
-        saveRunMessageEl.textContent = t.saveRunError || "Erreur lors de l'envoi au leaderboard en ligne.";
-      }
-      console.error("pushRunToOnlineLeaderboard HTTP error:", resp.status, await resp.text());
+    if(v >= good){
+      el.textContent = "BON";
+      el.classList.add("status-good");
       return;
     }
-
-    // Refresh leaderboard cache after a new run is sent
-    updateLocalLeaderboard(true);
-  } catch (err) {
-    console.error("pushRunToOnlineLeaderboard error:", err);
-    const t = i18n[currentLang] || i18n.fr;
-    if (saveRunMessageEl) {
-      saveRunMessageEl.textContent = t.saveRunError || "Erreur lors de l'envoi au leaderboard en ligne.";
-    }
-  }
-}
-
-
-function openOnlineLeaderboardModal() {
-  if (!onlineLeaderboardModalEl) return;
-  onlineLeaderboardModalEl.classList.add("open");
-}
-
-function closeOnlineLeaderboardModal() {
-  if (!onlineLeaderboardModalEl) return;
-  onlineLeaderboardModalEl.classList.remove("open");
-}
-
-
-function updateScuAdvancedVisibility() {
-  // Partie avancée : basée sur le sélecteur de vaisseau principal
-  let isReclaimerAdv = false;
-  if (shipSelectEl) {
-    const ship = (shipSelectEl.value || "").toLowerCase();
-    isReclaimerAdv = ship.includes("reclaimer");
-  }
-
-  // Partie débutant : basée sur le sélecteur dédié
-  let isReclaimerDeb = false;
-  if (debShipSelectEl) {
-    const v = (debShipSelectEl.value || "").toLowerCase();
-    isReclaimerDeb = v === "reclaimer";
-  }
-
-  // Mode avancé : SCU et panneaux détaillés
-  if (advancedScuLightGroupEl) {
-    advancedScuLightGroupEl.style.display = isReclaimerAdv ? "none" : "";
-  }
-  if (advancedScuReclaimerGroupEl) {
-    advancedScuReclaimerGroupEl.style.display = isReclaimerAdv ? "" : "none";
-  }
-
-  if (loopRmcLightPanelEl) {
-    loopRmcLightPanelEl.style.display = isReclaimerAdv ? "none" : "";
-  }
-  if (loopRmcReclaimerPanelEl) {
-    loopRmcReclaimerPanelEl.style.display = isReclaimerAdv ? "" : "none";
-  }
-  if (loopCmatLightPanelEl) {
-    loopCmatLightPanelEl.style.display = isReclaimerAdv ? "none" : "";
-  }
-  if (loopCmatReclaimerPanelEl) {
-    loopCmatReclaimerPanelEl.style.display = isReclaimerAdv ? "" : "none";
-  }
-
-  // Mode débutant : champs SCU simplifiés
-  if (labelScuHullDebEl && fieldScuHullDebEl) {
-    const showLight = !isReclaimerDeb;
-    labelScuHullDebEl.style.display = showLight ? "" : "none";
-    fieldScuHullDebEl.style.display = showLight ? "" : "none";
-  }
-  if (labelScuCsDebEl && fieldScuCsDebEl && hintScuCsDebEl) {
-    labelScuCsDebEl.style.display = isReclaimerDeb ? "" : "none";
-    fieldScuCsDebEl.style.display = isReclaimerDeb ? "" : "none";
-    hintScuCsDebEl.style.display = isReclaimerDeb ? "" : "none";
-  }
-}
-
-function handleSaveRun() {
-  const t = i18n[currentLang] || i18n.fr;
-
-  if (!currentUser) {
-    saveRunMessageEl.textContent = t.saveRunNoUser;
-    return;
-  }
-
-  const prixRMC  = Number(prixRmcInput.value)  || 0;
-  const prixCMAT = Number(prixCmatInput.value) || 0;
-  const sl = Number(scuLightInput.value) || 0;
-  const sr = Number(scuRecInput.value)   || 0;
-
-  if (sl <= 0 && sr <= 0) {
-    saveRunMessageEl.textContent = t.saveRunNoScu;
-    return;
-  }
-
-  const ship = shipSelectEl.value || (sr > 0 ? "Reclaimer" : "Vulture");
-  localStorage.setItem("salvageCalcLastShip", ship);
-
-  const rmcLightVal = sl * prixRMC;
-  const rmcRecVal   = sr * prixRMC;
-  const cmatRecScu  = sr * REND_RECLAIMER;
-  const cmatRecVal  = cmatRecScu * prixCMAT;
-
-  // Profit logic:
-  // - Light ships: RMC value.
-  // - Reclaimer (or any run with Reclaimer SCU): CMAT-only (RMC disabled).
-  let profit = 0;
-  if (ship === "Reclaimer" || sr > 0) {
-    profit = cmatRecVal;
-  } else {
-    profit = rmcLightVal;
-  }
-
-  const totalRmcScu = sl + sr;
-
-  const newRun = {
-    userId: currentUser.id,
-    nickname: currentUser.nickname,
-    profit,
-    rmc: totalRmcScu,
-    ship,
-    ts: Date.now(),
-    scuLight: sl,
-    scuRec: sr,
-    prixRMC: prixRMC,
-    prixCMAT: prixCMAT,
-    rmcLightVal: rmcLightVal,
-    rmcRecVal: rmcRecVal,
-    cmatRecVal: cmatRecVal,
-    cmatScu: cmatRecScu,
-    isAdmin: isAdminUser(currentUser),
-    sold: false
-  };
-
-  const runs = getRuns();
-  runs.push(newRun);
-  saveRuns(runs);
-  buildMyRunsList();
-  pushRunToOnlineLeaderboard(newRun);
-
-  saveRunMessageEl.textContent = t.saveRunSuccess;
-  saveRunMessageEl.style.opacity = "1";
-  setTimeout(() => {
-    saveRunMessageEl.style.transition = "opacity 0.4s ease-out";
-    saveRunMessageEl.style.opacity = "0";
-    setTimeout(() => {
-      saveRunMessageEl.textContent = "";
-      saveRunMessageEl.style.transition = "";
-      saveRunMessageEl.style.opacity = "";
-    }, 400);
-  }, 2500);
-}
-
-function clearMyRuns() {
-  const t = i18n[currentLang] || i18n.fr;
-  leaderboardActionMsgEl.textContent = "";
-
-  if (!currentUser) {
-    leaderboardActionMsgEl.textContent = t.clearMyRunsNoUser;
-    return;
-  }
-
-  const stored = getRuns();
-  const filtered = stored.filter(r => r.userId !== currentUser.id);
-  saveRuns(filtered);
-  updateLocalLeaderboard();
-  buildMyRunsList();
-  leaderboardActionMsgEl.textContent = t.clearMyRunsDone;
-}
-
-function clearAllRuns() {
-  const t = i18n[currentLang] || i18n.fr;
-  leaderboardActionMsgEl.textContent = "";
-  saveRuns([]);
-  updateLocalLeaderboard();
-  buildMyRunsList();
-  leaderboardActionMsgEl.textContent = t.clearAllRunsDone;
-}
-
-
-async function resetOnlineLeaderboard() {
-  const t = i18n[currentLang] || i18n.fr;
-
-  if (!currentUser || !isAdminUser(currentUser)) {
-    leaderboardActionMsgEl.textContent =
-      t.leaderboardAdminOnly || "Action réservée à l'admin.";
-    return;
-  }
-
-  leaderboardActionMsgEl.textContent =
-    t.leaderboardResetLoading || "Reset du leaderboard en ligne en cours…";
-
-  try {
-    const res = await fetch(`${LEADERBOARD_API_BASE}/api/admin/reset-leaderboard`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        profileKey: currentUser.secret,
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-
-    // Cas quota Cloudflare atteint (ex: "KV put() limit exceeded for the day.")
-    if (data && typeof data.details === "string" &&
-        data.details.toLowerCase().includes("limit exceeded")) {
-      if (currentLang === "en") {
-        leaderboardActionMsgEl.textContent =
-          "⚠️ Cloudflare daily write limit reached. The reset will be available again tomorrow.";
-      } else {
-        leaderboardActionMsgEl.textContent =
-          "⚠️ Limite Cloudflare atteinte aujourd’hui. Le reset sera possible demain.";
-      }
+    if(v >= ok){
+      el.textContent = "OK";
+      el.classList.add("status-ok");
       return;
     }
-
-    if (!res.ok || !data || !data.ok) {
-      const errText = (data && data.error) ? data.error : "Erreur inconnue";
-      leaderboardActionMsgEl.textContent =
-        (t.leaderboardResetError || "Erreur pendant le reset du leaderboard en ligne.") +
-        ` (${errText})`;
-      return;
-    }
-
-    const count = data.deleted || 0;
-    if (t.leaderboardResetDone) {
-      leaderboardActionMsgEl.textContent = t.leaderboardResetDone(count);
-    } else {
-      leaderboardActionMsgEl.textContent =
-        `Leaderboard en ligne nettoyé (${count} profil(s) supprimé(s)).`;
-    }
-
-    // Rafraîchit le leaderboard global
-    cachedLeaderboardUsers = [];
-    lastLeaderboardFetch = 0;
-    if (typeof refreshLeaderboard === "function") {
-      refreshLeaderboard();
-    }
-  } catch (e) {
-    console.error(e);
-    const msg = String(e && e.message ? e.message : e || "");
-    if (msg.toLowerCase().includes("limit exceeded")) {
-      if (currentLang === "en") {
-        leaderboardActionMsgEl.textContent =
-          "⚠️ Cloudflare daily write limit reached. The reset will be available again tomorrow.";
-      } else {
-        leaderboardActionMsgEl.textContent =
-          "⚠️ Limite Cloudflare atteinte aujourd’hui. Le reset sera possible demain.";
-      }
-    } else {
-      leaderboardActionMsgEl.textContent =
-        t.leaderboardResetError || "Erreur réseau pendant le reset du leaderboard en ligne.";
-    }
+    el.textContent = "FAIBLE";
+    el.classList.add("status-bad");
   }
-}
 
-function updateRunSold(ts, sold) {
-  const runs = getRuns();
-  let changed = false;
-  runs.forEach(r => {
-    if (r.ts === ts) {
-      r.sold = !!sold;
-      changed = true;
-    }
-  });
-  if (changed) {
-    saveRuns(runs);
-    updateLocalLeaderboard();
+  // ---------------------------------------------------------------------------
+  // Calculs
+  // ---------------------------------------------------------------------------
+  function calcBeginner(){
+    const scuR = num($("scuRmc")?.value);
+    const scuC = num($("scuCmat")?.value);
+    const pR = num($("priceRmc")?.value);
+    const pC = num($("priceCmat")?.value);
+    const loopMin = clamp(num($("begLoopMinutes")?.value), 1, 9999);
+
+    const vR = scuR * pR;
+
+    let vC = scuC * pC;
+    if(begRefineMode === "refine") vC = vC * begRefineYield;
+    const total = vR + vC;
+
+    const hours = loopMin / 60;
+    const perHour = hours > 0 ? total / hours : 0;
+
+    setText("outRmc", fmt(vR));
+    setText("outCmat", fmt(vC));
+    setText("outTotal", fmt(total));
+    setText("outPerHour", fmtH(perHour));
+    setText("outPerHourBig", fmtH(perHour));
+    setStatus($("outStatus"), perHour);
+
+    persist();
   }
-}
 
-function buildMyRunsList() {
-  const t = i18n[currentLang] || i18n.fr;
-  if (!myRunsPanelEl ||
-      !myRunsActiveListEl || !myRunsSoldListEl ||
-      !myRunsActiveEmptyEl || !myRunsSoldEmptyEl) return;
+  function calcAdvanced(){
+    const scuR = num($("advScuRmc")?.value);
+    const scuC = num($("advScuCmat")?.value);
+    const pR = num($("advPriceRmc")?.value);
+    const pC = num($("advPriceCmat")?.value);
 
-  myRunsActiveListEl.innerHTML = "";
-  myRunsSoldListEl.innerHTML = "";
+    const feesPct = clamp(num($("feesPct")?.value), 0, 100);
+    const loopMin = clamp(num($("loopMinutes")?.value), 1, 9999);
 
-  if (!currentUser) {
-    myRunsActiveEmptyEl.style.display = "block";
-    myRunsSoldEmptyEl.style.display = "none";
-    myRunsActiveEmptyEl.textContent = t.myRunsNoUser;
+    const mode = $("cmatRefineMode")?.value || "sell";
+    const yieldInput = clamp(num($("cmatRefineYield")?.value), 0, 100);
+    // UI expects percent (15/30/100). Backward compatible with legacy fraction (0.15/0.30/1.0).
+    const yieldFactor = (yieldInput <= 1.0) ? yieldInput : (yieldInput / 100);
+
+    const vR = scuR * pR;
+    let vC = scuC * pC;
+    if(mode === "refine") vC = vC * yieldFactor;
+
+    const gross = vR + vC;
+    const net = gross * (1 - feesPct / 100);
+
+    const hours = loopMin / 60;
+    const perHour = hours > 0 ? net / hours : 0;
+
+    setText("advValRmc", fmt(vR));
+    setText("advValCmat", fmt(vC));
+    setText("advGross", fmt(gross));
+    setText("advNet", fmt(net));
+    setText("advPerHour", fmtH(perHour));
+
+    setText("sumNet", fmt(net));
+    setText("sumHours", hours.toFixed(2) + " h");
+    setText("sumPerHour", fmtH(perHour));
+    setStatus($("sumStatus"), perHour);
+
+    const rb = $("refineBlock");
+    if(rb) rb.style.display = (mode === "refine") ? "" : "none";
+
+    persist();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Top ventes – rendu
+  // ---------------------------------------------------------------------------
+  function renderTopList(containerId, items, opts){
+  const el = $(containerId);
+  if(!el) return;
+  el.innerHTML = "";
+
+  const o = opts || {};
+  const showApply = !!o.showApply;
+  const kind = o.kind || ""; // "rmc" | "cmat"
+
+  if(!items || !items.length){
+    el.innerHTML = '<div class="panel-note">—</div>';
     return;
   }
 
-  const stored = getRuns();
-  const mine = stored
-    .filter(r => r.userId === currentUser.id)
-    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  for(const it of items.slice(0,3)){
+    const card = document.createElement("div");
+    card.className = "sale-item";
 
-  const active = mine.filter(r => !r.sold);
-  const sold = mine.filter(r => r.sold);
-  const maxToShow = 20;
+    const main = document.createElement("div");
+    main.className = "sale-main";
 
-  if (!active.length) {
-    myRunsActiveEmptyEl.style.display = "block";
-    myRunsActiveEmptyEl.textContent = t.myRunsActiveEmpty;
+    const term = document.createElement("div");
+    term.className = "sale-terminal";
+    term.textContent = it.terminal || "Terminal";
+
+    const loc = document.createElement("div");
+    loc.className = "sale-location";
+    loc.textContent = it.location || "";
+
+    main.appendChild(term);
+    main.appendChild(loc);
+
+    const actions = document.createElement("div");
+    actions.className = "sale-actions";
+
+    const price = document.createElement("div");
+    price.className = "sale-price";
+    price.textContent = `${Math.round(num(it.price)).toLocaleString("fr-FR")} aUEC/SCU`;
+
+    actions.appendChild(price);
+
+    if(showApply){
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sale-apply";
+      btn.textContent = "Appliquer";
+      btn.addEventListener("click", () => applyTopSale(kind, it));
+      actions.appendChild(btn);
+    }
+
+    card.appendChild(main);
+    card.appendChild(actions);
+    el.appendChild(card);
+  }
+}
+
+
+function pickFirst(it, keys){
+  for(const k of keys){
+    const v = it?.[k];
+    if(v == null) continue;
+    const s = String(v).trim();
+    if(s) return s;
+  }
+  return "";
+}
+
+function formatSalePoint(it){
+  // Normalize UEX fields (various naming conventions)
+  const terminal = pickFirst(it, ["name","terminal","terminalName","terminal_name","station","stationName","station_name","port","outpost"]);
+  const planet   = pickFirst(it, ["location","location_name","planet","planetName","planet_name","body","body_name","system","system_name"]);
+  const zone     = pickFirst(it, ["zone", "zoneName", "zone_name", "area", "area_name"]);
+
+  const parts = [terminal, zone, planet].filter(Boolean);
+
+  // If nothing usable, still return a placeholder (so user understands data is missing)
+  return parts.length ? parts.join(" • ") : "Point de vente non fourni par UEX";
+}
+
+function applyTopSale(kind, it){
+  // Mode Avancé uniquement : applique le prix + affiche la source
+  const price = Math.round(num(it?.price));
+  if(!Number.isFinite(price) || price <= 0) return;
+
+  const term = (it?.terminal || "Terminal").trim();
+  const loc  = (it?.location || "").trim();
+
+  if(kind === "rmc"){
+    const inp = $("advPriceRmc");
+    if(inp) inp.value = String(price);
+  } else if(kind === "cmat"){
+    const inp = $("advPriceCmat");
+    if(inp) inp.value = String(price);
   } else {
-    myRunsActiveEmptyEl.style.display = "none";
-    active.slice(0, maxToShow).forEach((r, idx) => {
-      const li = document.createElement("li");
-      const main = document.createElement("div");
-      main.className = "my-run-mainline";
-
-      const profitStr = format(Number(r.profit) || 0);
-
-      const scuLight = Number(r.scuLight || 0);
-      const scuRec = Number(r.scuRec || 0);
-      const scuTotal = scuLight || scuRec ? (scuLight + scuRec) : null;
-
-      const rmcValRaw = (r.rmcLightVal || 0) + (r.rmcRecVal || 0);
-      const rmcValStr = rmcValRaw ? format(rmcValRaw) : "";
-      const cmatValRaw = r.cmatRecVal || 0;
-      const cmatValStr = cmatValRaw ? format(cmatValRaw) : "";
-      const cmatScu = r.cmatScu || 0;
-
-      const scuTotalStr = scuTotal != null ? format(scuTotal) : "";
-      const scuLightStr = scuTotal != null ? format(scuLight) : "";
-      const scuRecStr = scuTotal != null ? format(scuRec) : "";
-
-      const d = r.ts ? new Date(r.ts) : null;
-      const dateStr = d
-        ? d.toLocaleString(currentLang === "fr" ? "fr-FR" : "en-US", {
-            day: "2-digit",
-            month: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit"
-          })
-        : "-";
-
-      const scuText = scuTotalStr
-        ? `SCU: ${scuTotalStr} (L: ${scuLightStr} / R: ${scuRecStr})`
-        : "";
-      const rmcText = rmcValStr ? `RMC: ${rmcValStr} aUEC` : "";
-      const cmatText = cmatValStr ? `CMAT: ${cmatValStr} aUEC` : "";
-      const profitText = profitStr ? `Profit: ${profitStr} aUEC` : "";
-
-      main.textContent = t.myRunsLine(
-        idx + 1,
-        r.ship || "?",
-        scuText,
-        rmcText,
-        cmatText,
-        profitText,
-        dateStr
-      );
-
-      const toggle = document.createElement("label");
-      toggle.className = "my-run-sold-toggle";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !!r.sold;
-      cb.addEventListener("change", () => {
-        updateRunSold(r.ts, cb.checked);
-        buildMyRunsList();
-      });
-      const span = document.createElement("span");
-      span.textContent = t.myRunsSoldLabel;
-
-      toggle.appendChild(cb);
-      toggle.appendChild(span);
-
-      li.appendChild(main);
-      li.appendChild(toggle);
-
-      myRunsActiveListEl.appendChild(li);
-    });
-  }
-
-  if (!sold.length) {
-    myRunsSoldEmptyEl.style.display = "block";
-    myRunsSoldEmptyEl.textContent = t.myRunsSoldEmpty;
-  } else {
-    myRunsSoldEmptyEl.style.display = "none";
-    sold.slice(0, maxToShow).forEach((r, idx) => {
-      const li = document.createElement("li");
-      li.classList.add("my-run-row-sold");
-
-      const main = document.createElement("div");
-      main.className = "my-run-mainline";
-
-      const profitStr = format(Number(r.profit) || 0);
-
-      const scuLight = Number(r.scuLight || 0);
-      const scuRec = Number(r.scuRec || 0);
-      const scuTotal = scuLight || scuRec ? (scuLight + scuRec) : null;
-
-      const rmcValRaw = (r.rmcLightVal || 0) + (r.rmcRecVal || 0);
-      const rmcValStr = rmcValRaw ? format(rmcValRaw) : "";
-      const cmatValRaw = r.cmatRecVal || 0;
-      const cmatValStr = cmatValRaw ? format(cmatValRaw) : "";
-      const cmatScu = r.cmatScu || 0;
-
-      const scuTotalStr = scuTotal != null ? format(scuTotal) : "";
-      const scuLightStr = scuTotal != null ? format(scuLight) : "";
-      const scuRecStr = scuTotal != null ? format(scuRec) : "";
-
-      const d = r.ts ? new Date(r.ts) : null;
-      const dateStr = d
-        ? d.toLocaleString(currentLang === "fr" ? "fr-FR" : "en-US", {
-            day: "2-digit",
-            month: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit"
-          })
-        : "-";
-
-      const scuText = scuTotalStr
-        ? `SCU: ${scuTotalStr} (L: ${scuLightStr} / R: ${scuRecStr})`
-        : "";
-      const rmcText = rmcValStr ? `RMC: ${rmcValStr} aUEC` : "";
-      const cmatText = cmatValStr ? `CMAT: ${cmatValStr} aUEC` : "";
-      const profitText = profitStr ? `Profit: ${profitStr} aUEC` : "";
-
-      main.textContent = t.myRunsLine(
-        idx + 1,
-        r.ship || "?",
-        scuText,
-        rmcText,
-        cmatText,
-        profitText,
-        dateStr
-      );
-
-      const toggle = document.createElement("label");
-      toggle.className = "my-run-sold-toggle";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !!r.sold;
-      cb.addEventListener("change", () => {
-        updateRunSold(r.ts, cb.checked);
-        buildMyRunsList();
-      });
-      const span = document.createElement("span");
-      span.textContent = t.myRunsSoldLabel;
-
-      toggle.appendChild(cb);
-      toggle.appendChild(span);
-
-      li.appendChild(main);
-      li.appendChild(toggle);
-
-      myRunsSoldListEl.appendChild(li);
-    });
-  }
-}
-
-function toggleMyRunsPanel() {
-  if (!myRunsPanelEl) return;
-  const isOpen = myRunsPanelEl.classList.contains("open");
-  if (!isOpen) {
-    myRunsPanelEl.classList.add("open");
-    buildMyRunsList();
-  } else {
-    myRunsPanelEl.classList.remove("open");
-  }
-}
-
-function applyTheme() {
-  const body = document.body;
-  body.classList.remove("theme-neon", "theme-light");
-  if (currentTheme === "dark") {
-    body.classList.add("theme-dark");
-  } else if (currentTheme === "light") {
-    body.classList.add("theme-light");
-  } else {
-    body.classList.add("theme-neon");
-    currentTheme = "neon";
-  }
-  if (themeSelectEl) themeSelectEl.value = currentTheme;
-}
-
-function applyLanguage() {
-  const t = i18n[currentLang] || i18n.fr;
-  document.documentElement.lang = currentLang;
-
-  titleMainEl.textContent = t.titleMain;
-  subTextEl.innerHTML = t.subText;
-  entriesTitleEl.textContent = t.entriesTitle;
-  labelPrixRmcEl.textContent = t.labelPrixRmc;
-  hintPrixRmcEl.textContent = t.hintPrixRmc;
-  labelPrixCmatEl.textContent = t.labelPrixCmat;
-  hintPrixCmatEl.textContent = t.hintPrixCmat;
-  sellRmcLabelEl.textContent = t.sellRmcLabel;
-  sellCmatLabelEl.textContent = t.sellCmatLabel;
-  labelScuLightEl.textContent = t.labelScuLight;
-  labelScuReclaimerEl.textContent = t.labelScuReclaimer;
-  tagLightEl.textContent = t.tagLight;
-  tagReclaimerEl.textContent = t.tagReclaimer;
-  smallNoteEl.textContent = t.smallNote;
-  rmcPanelTitleEl.textContent = t.rmcPanelTitle;
-  cmatPanelTitleEl.textContent = t.cmatPanelTitle;
-  rmcLightHeadEl.textContent = t.rmcLightHead;
-  rmcRecHeadEl.textContent = t.rmcRecHead;
-  cmatLightHeadEl.textContent = t.cmatLightHead;
-  cmatRecHeadEl.textContent = t.cmatRecHead;
-  graphTitleEl.textContent = t.graphTitle;
-  graphSubEl.textContent = t.graphSub;
-  langSwitchLabelEl.textContent = t.langSwitchLabel;
-  labelShipSelectEl.textContent = t.labelShipSelect;
-  leaderboardEmptyEl.textContent = t.leaderboardEmpty;
-  if (saveRunBtnEl) saveRunBtnEl.textContent = t.saveRunBtn;
-  clearMyRunsBtnEl.textContent = t.clearMyRunsBtn;
-  clearAllRunsBtnEl.textContent = t.clearAllRunsBtn;
-
-  if (leaderboardSortLabelEl) {
-    leaderboardSortLabelEl.textContent = t.leaderboardSortLabel;
-  }
-  if (leaderboardShipFilterLabelEl) {
-    leaderboardShipFilterLabelEl.textContent = t.leaderboardFilterLabel;
-  }
-
-  if (leaderboardSortSelectEl) {
-    const optProfit = leaderboardSortSelectEl.querySelector('option[value="profit"]');
-    const optRuns = leaderboardSortSelectEl.querySelector('option[value="runs"]');
-    const optName = leaderboardSortSelectEl.querySelector('option[value="name"]');
-    if (optProfit) optProfit.textContent = t.leaderboardSortProfit;
-    if (optRuns) optRuns.textContent = t.leaderboardSortRuns;
-    if (optName) optName.textContent = t.leaderboardSortName;
-    leaderboardSortSelectEl.value = leaderboardSortKey;
-  }
-
-  if (leaderboardShipFilterEl) {
-    const optAll = leaderboardShipFilterEl.querySelector('option[value="all"]');
-    const optVulture = leaderboardShipFilterEl.querySelector('option[value="vulture"]');
-    const optSalvation = leaderboardShipFilterEl.querySelector('option[value="salvation"]');
-    const optFortune = leaderboardShipFilterEl.querySelector('option[value="fortune"]');
-    const optReclaimer = leaderboardShipFilterEl.querySelector('option[value="reclaimer"]');
-    if (optAll) optAll.textContent = t.leaderboardFilterAll;
-    if (optVulture) optVulture.textContent = t.leaderboardFilterVulture;
-    if (optSalvation) optSalvation.textContent = t.leaderboardFilterSalvation;
-    if (optFortune) optFortune.textContent = t.leaderboardFilterFortune;
-    if (optReclaimer) optReclaimer.textContent = t.leaderboardFilterReclaimer;
-    leaderboardShipFilterEl.value = leaderboardShipFilterKey;
-  }
-
-  if (leaderboardSubEl) {
-    leaderboardSubEl.textContent = t.leaderboardSub;
-  }
-  if (toggleMyRunsBtnEl) {
-    toggleMyRunsBtnEl.textContent = t.myRunsBtn;
-  }
-  if (myRunsTitleEl) {
-    myRunsTitleEl.textContent = t.myRunsTitle;
-  }
-  if (myRunsActiveTitleEl) {
-    myRunsActiveTitleEl.textContent = t.myRunsActiveTitle;
-  }
-  if (myRunsSoldTitleEl) {
-    myRunsSoldTitleEl.textContent = t.myRunsSoldTitle;
-  }
-  if (myRunsActiveEmptyEl) {
-    myRunsActiveEmptyEl.textContent = t.myRunsActiveEmpty;
-  }
-  if (myRunsSoldEmptyEl) {
-    myRunsSoldEmptyEl.textContent = t.myRunsSoldEmpty;
-  }
-
-  if (appVersionEl) {
-    const span = appVersionEl.querySelector("span") || appVersionEl;
-    span.textContent = "Version " + APP_VERSION;
-  }
-
-  updateAdminUI();
-  recalc();
-  updateLocalLeaderboard();
-  buildMyRunsList();
-}
-
-function saveState() {
-  const state = {
-    scuLight: Number(scuLightInput.value) || 0,
-    scuReclaimer: Number(scuRecInput.value) || 0
-  };
-  localStorage.setItem("salvageCalcState", JSON.stringify(state));
-  localStorage.setItem("salvageCalcLang", currentLang);
-  localStorage.setItem("salvageCalcTheme", currentTheme);
-}
-
-function updateComparison(rmcValue, cmatValue, rmcDecEl, cmatDecEl) {
-  const t = i18n[currentLang] || i18n.fr;
-  const diff = Math.abs(cmatValue - rmcValue);
-  const diffStr = format(diff);
-
-  if (rmcValue === 0 && cmatValue === 0) {
-    rmcDecEl.textContent = "";
-    cmatDecEl.textContent = "";
-    rmcDecEl.className = "decision";
-    cmatDecEl.className = "decision";
     return;
   }
 
-  if (cmatValue > rmcValue) {
-    const text = t.loopCmatBetter(diffStr);
-    rmcDecEl.textContent = text;
-    cmatDecEl.textContent = text;
-    rmcDecEl.className = "decision bad";
-    cmatDecEl.className = "decision good";
-  } else if (rmcValue > cmatValue) {
-    const text = t.loopRmcBetter(diffStr);
-    rmcDecEl.textContent = text;
-    cmatDecEl.textContent = text;
-    rmcDecEl.className = "decision good";
-    cmatDecEl.className = "decision bad";
-  } else {
-    const text = t.loopsEqual;
-    rmcDecEl.textContent = text;
-    cmatDecEl.textContent = text;
-    rmcDecEl.className = "decision";
-    cmatDecEl.className = "decision";
+  // Force mode Advanced visible
+  setMode("advanced");
+
+  // Recalc
+  calcAdvanced();
+
+  // Status line
+  const s = $("uexStatusLineAdv");
+  if(s){
+    const label = (kind === "rmc") ? "RMC" : "CMAT";
+    s.textContent = `UEX : appliqué (${label}) — ${term}${loc ? " • " + loc : ""}`;
   }
 }
 
-function resetDecision(el) {
-  if (!el) return;
-  el.textContent = "";
-  el.className = "decision";
-}
+function spotParts(o){
+    if(!o || typeof o !== "object") return { terminal:"—", location:"" };
 
-function updateLightShipsLoop(t, prixRMC, prixCMAT, sl) {
-  // Light ships: RMC loop
-  const rmcLightVal = sl * prixRMC;
-  rmcLightValuesEl.textContent = t.rmcLightValues(format(sl), format(rmcLightVal));
-  rmcLightExtraEl.textContent = sl > 0 ? t.lightShipsInfo : "";
-  resetDecision(rmcLightDecisionEl);
+    const terminal = String(o.name || o.terminal || o.terminal_name || o.kiosk || o.trade_terminal || o.location_name || "").trim();
+    const area    = String(o.city || o.outpost || o.station || o.zone || o.area || o.location || o.place || "").trim();
+    const planet  = String(o.planet || o.planet_name || o.body || o.celestial || "").trim();
+    const system  = String(o.system || o.system_name || "").trim();
 
-  // Light ships: no CMAT loop
-  cmatLightValuesEl.textContent = t.lightShipsNoCmatText;
-  cmatLightExtraEl.textContent = "";
-  resetDecision(cmatLightDecisionEl);
-}
+    const loc = [];
+    if(area && area.toLowerCase() !== terminal.toLowerCase()) loc.push(area);
+    if(planet && system) loc.push(`${planet} (${system})`);
+    else if(planet) loc.push(planet);
+    else if(system) loc.push(system);
 
-function updateReclaimerLoop(t, prixCMAT, sl, sr) {
-  // Reclaimer: RMC sale disabled – informational block only
-  rmcRecValuesEl.textContent = t.rmcRecValues();
-  rmcRecExtraEl.textContent = "";
-  resetDecision(rmcRecDecisionEl);
-
-  // Reclaimer: CMAT loop (15% yield)
-  const cmatRecScu = sr * REND_RECLAIMER;
-  const cmatRecVal = cmatRecScu * prixCMAT;
-  cmatRecValuesEl.textContent = t.cmatRecValues(
-    format(cmatRecScu),
-    format(cmatRecVal)
-  );
-
-  const totalScu = sl + sr;
-  const pctCmatReclaimer = sr > 0 ? (cmatRecScu / sr) * 100 : 0;
-  const pctCmatTotal = totalScu > 0 ? (cmatRecScu / totalScu) * 100 : 0;
-
-  if (sr > 0) {
-    cmatRecExtraEl.textContent = t.cmatRecExtra(
-      format(sr),
-      format(cmatRecScu),
-      pctCmatReclaimer.toFixed(1),
-      pctCmatTotal.toFixed(1)
-    );
-  } else {
-    cmatRecExtraEl.textContent = "";
+    return { terminal: terminal || (area || "—"), location: loc.join(" — ") };
   }
 
-  // No explicit RMC vs CMAT decision for Reclaimer in 4.4+
-  resetDecision(cmatRecDecisionEl);
-}
-
-function recalc() {
-  const t = i18n[currentLang] || i18n.fr;
-  const prixRMC  = Number(prixRmcInput.value)  || 0;
-  const prixCMAT = Number(prixCmatInput.value) || 0;
-
-  const sl = Number(scuLightInput.value) || 0;
-  const sr = Number(scuRecInput.value)   || 0;
-
-  updateLightShipsLoop(t, prixRMC, prixCMAT, sl);
-  updateReclaimerLoop(t, prixCMAT, sl, sr);
-}
-
-
-[scuLightInput, scuRecInput].forEach(el =>
-  el.addEventListener("input", () => {
-    recalc();
-    saveState();
-  })
-);
-
-langSelectEl.addEventListener("change", () => {
-  currentLang = langSelectEl.value || "fr";
-  saveState();
-  applyLanguage();
-  myRunsPanelEl.classList.remove("open");
-});
-
-if (themeSelectEl) {
-  themeSelectEl.addEventListener("change", () => {
-  currentTheme = themeSelectEl.value || "neon";
-  if (currentTheme === "dark") currentTheme = "neon";
-  applyTheme();
-  saveState();
-});
-}
-
-if (changeUserBtn) {
-  changeUserBtn.addEventListener("click", () => openProfileModal("create"));
-}
-
-if (discordLoginBtn) {
-  discordLoginBtn.addEventListener("click", () => {
-    // Si le module Auth est disponible, on délègue entièrement la logique Discord
-    if (window.Auth && typeof Auth.isLoggedIn === "function" &&
-        typeof Auth.logout === "function" &&
-        typeof Auth.loginWithDiscord === "function") {
-      if (Auth.isLoggedIn()) {
-        // Déconnexion via le module Auth
-        Auth.logout();
-        updateUserUI();
-      } else {
-        // Connexion via le module Auth (flow OAuth classique)
-        Auth.loginWithDiscord();
-      }
-      return;
-    }
-
-    // Fallback : ancien comportement basé directement sur le localStorage
-    let hasDiscord = false;
-    try {
-      const rawDiscord = localStorage.getItem("salvageDiscordUser");
-      if (rawDiscord) {
-        const du = JSON.parse(rawDiscord);
-        if (du && du.id) {
-          hasDiscord = true;
-        }
-      }
-    } catch (_) {
-      hasDiscord = false;
-    }
-
-    if (hasDiscord) {
-      // Déconnexion Discord : on supprime l'entrée et on met à jour l'UI
-      localStorage.removeItem("salvageDiscordUser");
-      updateUserUI();
-      return;
-    }
-
-    // Pas encore connecté : on lance le flow Discord
-    window.location.href = "https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login";
-  });
-}
-
-if (modalCloseBtn) {
-  modalCloseBtn.addEventListener("click", closeProfileModal);
-}
-
-if (profileModal) {
-  profileModal.addEventListener("click", (e) => {
-    if (e.target === profileModal) {
-      closeProfileModal();
-    }
-  });
-}
-
-tabCreateProfile.addEventListener("click", () => setActiveModalTab("create"));
-tabImportProfile.addEventListener("click", () => setActiveModalTab("import"));
-
-createProfileBtn.addEventListener("click", handleCreateProfile);
-importProfileBtn.addEventListener("click", handleImportProfile);
-
-if (saveRunBtnEl) {
-  saveRunBtnEl.addEventListener("click", handleSaveRun);
-}
-
-if (toggleMyRunsBtnEl) {
-  toggleMyRunsBtnEl.addEventListener("click", toggleMyRunsPanel);
-}
-
-if (clearMyRunsBtnEl) {
-  clearMyRunsBtnEl.addEventListener("click", clearMyRuns);
-}
-
-if (clearAllRunsBtnEl) {
-  clearAllRunsBtnEl.addEventListener("click", clearAllRuns);
-}
-
-if (resetOnlineBtnEl) {
-  resetOnlineBtnEl.addEventListener("click", resetOnlineLeaderboard);
-}
-
-let cmatChart = null;
-
-function renderChart(rmcHist, cmatHist) {
-  const maxLen = Math.max(rmcHist.length, cmatHist.length);
-  const labels = [];
-  const rmcValues = [];
-  const cmatValues = [];
-
-  for (let i = 0; i < maxLen; i++) {
-    const rEntry = rmcHist[i] || null;
-    const cEntry = cmatHist[i] || null;
-    const src = cEntry || rEntry;
-
-    if (src && src.date) {
-      let d;
-      if (typeof src.date === "number") {
-        d = new Date(src.date * 1000);
-      } else {
-        d = new Date(src.date);
-      }
-      const label = d.toLocaleDateString(
-        currentLang === "fr" ? "fr-FR" : "en-GB",
-        { day: "2-digit", month: "2-digit" }
-      );
-      labels.push(label);
-    } else {
-      labels.push(`P${i + 1}`);
-    }
-
-    rmcValues.push(rEntry ? rEntry.sell : null);
-    cmatValues.push(cEntry ? cEntry.sell : null);
-  }
-
-  if (cmatChart) cmatChart.destroy();
-
-  cmatChart = new Chart(chartCanvas, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "CMAT (aUEC / SCU)",
-          data: cmatValues,
-          borderWidth: 2,
-          spanGaps: true
-        },
-        {
-          label: "RMC (aUEC / SCU)",
-          data: rmcValues,
-          borderWidth: 2,
-          spanGaps: true
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          labels: {
-            color: getComputedStyle(document.body).getPropertyValue("--text-main") || "#e9fbff",
-            font: { size: 11 }
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: {
-            color: getComputedStyle(document.body).getPropertyValue("--accent-strong") || "#00f0ff",
-            maxRotation: 60,
-            minRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8
-          },
-          grid: { display: false }
-        },
-        y: {
-          ticks: {
-            color: getComputedStyle(document.body).getPropertyValue("--accent-strong") || "#00f0ff"
-          },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        }
-      }
-    }
-  });
-}
-
-
-let lastTop3Rmc = [];
-let lastTop3Cmat = [];
-
-function classifyTerminalType(terminal) {
-  const typeRaw = (terminal && terminal.type ? String(terminal.type) : "").toLowerCase();
-  const locRaw = (terminal && terminal.location ? String(terminal.location) : "").toLowerCase();
-  let icon = "📍";
-  let cssClass = "terminal-generic";
-
-  if (typeRaw.includes("commodity")) {
-    icon = "📦";
-    cssClass = "terminal-commodity";
-  } else if (typeRaw.includes("refinery")) {
-    icon = "🏭";
-    cssClass = "terminal-refinery";
-  } else if (typeRaw.includes("admin")) {
-    icon = "🏢";
-    cssClass = "terminal-admin";
-  } else if (typeRaw.includes("outpost") || typeRaw.includes("mining") || locRaw.includes("outpost")) {
-    icon = "⛏️";
-    cssClass = "terminal-outpost";
-  }
-
-  return { icon, cssClass };
-}
-
-function renderTop3List(listEl, items) {
-  if (!listEl) return;
-  listEl.innerHTML = "";
-
-  if (!items || !items.length) {
-    const li = document.createElement("li");
-    li.className = "top3-item";
-    li.textContent = "—";
-    listEl.appendChild(li);
-    return;
-  }
-
-  items.slice(0, 3).forEach((terminal, idx) => {
-    const li = document.createElement("li");
-    const info = classifyTerminalType(terminal);
-    li.className = "top3-item " + info.cssClass;
-
-    const row = document.createElement("div");
-    row.className = "top3-row-inner";
-
-    const left = document.createElement("div");
-    left.className = "top3-main";
-
-    const iconSpan = document.createElement("span");
-    iconSpan.className = "top3-icon";
-    iconSpan.textContent = info.icon;
-
-    const rankSpan = document.createElement("span");
-    rankSpan.className = "top3-rank";
-    rankSpan.textContent = (idx + 1) + ".";
-
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "top3-name";
-    nameSpan.textContent = terminal.name || "—";
-
-    const mainLine = document.createElement("div");
-    mainLine.className = "top3-name-line";
-    mainLine.appendChild(rankSpan);
-    mainLine.appendChild(nameSpan);
-
-    if (terminal.location) {
-      const locSpan = document.createElement("div");
-      locSpan.className = "top3-location";
-      locSpan.textContent = terminal.location;
-      left.appendChild(locSpan);
-    }
-
-    left.insertBefore(mainLine, left.firstChild);
-
-    const priceDiv = document.createElement("div");
-    priceDiv.className = "top3-meta";
-    const sellVal = typeof terminal.sell === "number" ? terminal.sell : 0;
-    priceDiv.textContent = sellVal ? (format(sellVal) + " aUEC / SCU") : "—";
-
-    left.insertBefore(iconSpan, left.firstChild);
-    row.appendChild(left);
-    row.appendChild(priceDiv);
-
-    li.appendChild(row);
-    listEl.appendChild(li);
-  });
-}
-
-function updateTop3UIFromData(data) {
-  const rmcTop = (data && data.rmc && Array.isArray(data.rmc.topTerminals))
-    ? data.rmc.topTerminals.slice(0, 3)
-    : [];
-  const cmatTop = (data && data.cmat && Array.isArray(data.cmat.topTerminals))
-    ? data.cmat.topTerminals.slice(0, 3)
-    : [];
-
-  lastTop3Rmc = rmcTop;
-  lastTop3Cmat = cmatTop;
-
-  if (top3RmcListEl) renderTop3List(top3RmcListEl, rmcTop);
-  if (top3CmatListEl) renderTop3List(top3CmatListEl, cmatTop);
-  if (marketTop3RmcListEl) renderTop3List(marketTop3RmcListEl, rmcTop);
-  if (marketTop3CmatListEl) renderTop3List(marketTop3CmatListEl, cmatTop);
-
-  if (debTopRmcEl) {
-    if (rmcTop.length > 0) {
-      const t1 = rmcTop[0];
-      debTopRmcEl.textContent = t1.name || "—";
-    } else {
-      debTopRmcEl.textContent = "—";
-    }
-  }
-
-  if (debTopCmatEl) {
-    if (cmatTop.length > 0) {
-      const t1 = cmatTop[0];
-      debTopCmatEl.textContent = t1.name || "—";
-    } else {
-      debTopCmatEl.textContent = "—";
-    }
-  }
-}
-
-async function fetchUexPrices() {
-  const t = i18n[currentLang] || i18n.fr;
-  try {
-    apiStatusEl.textContent = t.apiFetching;
-    const url = "https://salvage-uex-proxy.yoyoastico74.workers.dev/";
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Worker non accessible");
-    const data = await res.json();
-
-    const rmcHist  = data.rmc.history  ?? [];
-    const cmatHist = data.cmat.history ?? [];
-
-    let rmcPrice  = data.rmc.price  ?? 0;
-    let cmatPrice = data.cmat.price ?? 0;
-
-    if (rmcHist.length && typeof rmcHist[rmcHist.length - 1].sell === "number") {
-      rmcPrice = rmcHist[rmcHist.length - 1].sell;
-    }
-    if (cmatHist.length && typeof cmatHist[cmatHist.length - 1].sell === "number") {
-      cmatPrice = cmatHist[cmatHist.length - 1].sell;
-    }
-
-    prixRmcInput.value  = rmcPrice;
-    prixCmatInput.value = cmatPrice;
-
-    rmcTerminalEl.textContent  = data.rmc.bestTerminal?.name  ?? "N/A";
-    cmatTerminalEl.textContent = data.cmat.bestTerminal?.name ?? "N/A";
-
-    updateTop3UIFromData(data);
-
-    if (!rmcHist.length && !cmatHist.length) {
-      graphMessage.textContent = t.graphNoData;
-    } else {
-      graphMessage.textContent = "";
-      renderChart(rmcHist, cmatHist);
-    }
-
-    apiStatusEl.textContent = t.apiUpdated(
-      data.rmc.bestTerminal?.name ?? "N/A",
-      data.cmat.bestTerminal?.name ?? "N/A"
-    );
-
-    recalc();
-  } catch (err) {
-    const tt = i18n[currentLang] || i18n.fr;
-    apiStatusEl.textContent = tt.apiErrorPrefix + err.message;
-    apiStatusEl.classList.add("error");
-    graphMessage.textContent = tt.graphError;
-  }
-}
-
-window.addEventListener("load", () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem("salvageCalcState") || "{}");
-    if (typeof saved.scuLight === "number") {
-      scuLightInput.value = saved.scuLight;
-    }
-    if (typeof saved.scuReclaimer === "number") {
-      scuRecInput.value = saved.scuReclaimer;
-    }
-  } catch (_) {}
-
-  const savedLastShip = localStorage.getItem("salvageCalcLastShip");
-  if (savedLastShip && shipSelectEl.querySelector(`option[value="${savedLastShip}"]`)) {
-    shipSelectEl.value = savedLastShip;
-  }
-
-  updateScuAdvancedVisibility();
-  currentLang = localStorage.getItem("salvageCalcLang") || currentLang;
-  currentTheme = localStorage.getItem("salvageCalcTheme") || currentTheme;
-
-  langSelectEl.value = currentLang;
-  if (themeSelectEl) themeSelectEl.value = currentTheme;
-
-  applyTheme();
-  ensureUserProfile();
-  updateUserUI();
-  updateAdminUI();
-
-  applyLanguage();
-  updateLocalLeaderboard();
-  buildMyRunsList();
-
-  fetchUexPrices();
-});
-
-function setModeDebutant(isDeb) {
-  const deb = document.getElementById("modeDebutant");
-  const adv = document.getElementById("modeAvance");
-  const btnDeb = document.getElementById("btnModeDebutant");
-  const btnAdv = document.getElementById("btnModeAvance");
-  if (!deb || !adv || !btnDeb || !btnAdv) return;
-  if (isDeb) {
-    deb.classList.remove("hidden");
-    adv.classList.add("hidden");
-    btnDeb.classList.add("active");
-    btnAdv.classList.remove("active");
-  } else {
-    deb.classList.add("hidden");
-    adv.classList.remove("hidden");
-    btnDeb.classList.remove("active");
-    btnAdv.classList.add("active");
-  }
-}
-
-function refreshDebutantPrices() {
-  if (typeof prixRmcInput === "undefined" || typeof prixCmatInput === "undefined") return;
-  const prixRMC  = Number(prixRmcInput.value)  || 0;
-  const prixCMAT = Number(prixCmatInput.value) || 0;
-  const debPrixRmcEl  = document.getElementById("debPrixRmc");
-  const debPrixCmatEl = document.getElementById("debPrixCmat");
-  if (debPrixRmcEl)  debPrixRmcEl.textContent  = prixRMC ? format(prixRMC) : "–";
-  if (debPrixCmatEl) debPrixCmatEl.textContent = prixCMAT ? format(prixCMAT) : "–";
-
-  const srcRmcTerminal  = document.getElementById("rmcTerminal");
-  const srcCmatTerminal = document.getElementById("cmatTerminal");
-  const debRmcTermEl    = document.getElementById("debRmcTerminal");
-  const debCmatTermEl   = document.getElementById("debCmatTerminal");
-
-  if (debRmcTermEl && srcRmcTerminal) {
-    debRmcTermEl.textContent = srcRmcTerminal.textContent || "—";
-  }
-  if (debCmatTermEl && srcCmatTerminal) {
-    debCmatTermEl.textContent = srcCmatTerminal.textContent || "—";
-  }
-}
-
-
-function calcDebutant() {
-  const hullEl = document.getElementById("scuHullDeb");
-  const csEl   = document.getElementById("scuCsDeb");
-  const scuHull = hullEl ? Number(hullEl.value) || 0 : 0;
-  const scuCs   = csEl ? Number(csEl.value) || 0 : 0;
-
-  if (typeof prixRmcInput === "undefined" || typeof prixCmatInput === "undefined") return;
-  const prixRMC  = Number(prixRmcInput.value)  || 0;
-  const prixCMAT = Number(prixCmatInput.value) || 0;
-
-  refreshDebutantPrices();
-
-  const valRmc   = scuHull * prixRMC;
-  const cmatScu  = scuCs * REND_RECLAIMER;
-  const valCmat  = cmatScu * prixCMAT;
-  const total    = valRmc + valCmat;
-
-  const debResRmcEl   = document.getElementById("debResRmc");
-  const debResCmatEl  = document.getElementById("debResCmat");
-  const debResTotalEl = document.getElementById("debResTotal");
-
-  if (debResRmcEl)   debResRmcEl.textContent   = format(valRmc);
-  if (debResCmatEl)  debResCmatEl.textContent  = format(valCmat);
-  if (debResTotalEl) debResTotalEl.textContent = format(total);
-
-  // Synchronise avec le mode avancé
-  if (typeof scuLightInput !== "undefined" && scuLightInput) {
-    scuLightInput.value = String(scuHull);
-  }
-  if (typeof scuRecInput !== "undefined" && scuRecInput) {
-    scuRecInput.value = String(scuCs);
-  }
-  if (typeof recalc === "function") {
-    recalc();
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-
-  const activitySalvageBtn = document.getElementById("activitySalvageBtn");
-  const activityHaulingBtn = document.getElementById("activityHaulingBtn");
-  const activityMiningBtn = document.getElementById("activityMiningBtn");
-  const activityPanels = document.querySelectorAll(".activity-panel");
-  const activityPills = document.querySelectorAll(".activity-pill");
-
-  function setActivity(activityKey) {
-  activityPanels.forEach((panel) => {
-    panel.classList.toggle("active", panel.id === `activity-${activityKey}`);
-  });
-  activityPills.forEach((pill) => {
-    pill.classList.toggle("active", pill.dataset.activity === activityKey);
-  });
-
-  // Show main Salvage header & intro only on Salvage activity
-  const titleEl = document.getElementById("titleMain");
-  const subEl = document.getElementById("subText");
-  if (titleEl && subEl) {
-    if (activityKey === "salvage") {
-      const t = i18n[currentLang] || i18n.fr;
-      titleEl.textContent = t.titleMain || "SALVAGE CALCULATOR 4.4";
-      subEl.textContent =
-        t.subText ||
-        "Détermine la valeur générée par ton salvage selon la boucle de ton vaisseau (RMC ou CMAT).";
-      titleEl.style.display = "";
-      subEl.style.display = "";
-    } else {
-      titleEl.style.display = "none";
-      subEl.style.display = "none";
-    }
-  }
-
-  // Update version display per activity
-  const versionInfo =
-    ACTIVITY_VERSIONS[activityKey] || ACTIVITY_VERSIONS.salvage;
-  const versionText = `VERSION ${versionInfo.label.toUpperCase()} ${versionInfo.version}`;
-  const verPill = document.getElementById("app-version-pill");
-  if (verPill) {
-    verPill.textContent = versionText;
-  }
-  const footerSpan = document.querySelector("#appVersion span");
-  if (footerSpan) {
-    footerSpan.textContent = versionText;
-  }
-
-  // Affiche le graphique RMC / CMAT uniquement sur l'onglet Recyclage
-  const marketPanel = document.querySelector(".market-panel");
-  if (marketPanel) {
-    if (activityKey === "salvage") {
-      marketPanel.classList.remove("hidden");
-    } else {
-      marketPanel.classList.add("hidden");
-    }
-  }
-
-  try {
-    localStorage.setItem("scActivity", activityKey);
-  } catch (err) {
-    console.warn("Unable to persist activity selection", err);
-  }
-}
-let initialActivity = "salvage";
-  try {
-    const stored = localStorage.getItem("scActivity");
-    if (stored === "salvage" || stored === "hauling" || stored === "mining") {
-      initialActivity = stored;
-    }
-  } catch (err) {}
-
-  setActivity(initialActivity);
-
-  // Anti-spam UI restore on reload
-  if (LEADERBOARD_RUN_COOLDOWN_MS > 0 && lastOnlineRunTs) {
-    const remaining = LEADERBOARD_RUN_COOLDOWN_MS - (Date.now() - lastOnlineRunTs);
-    if (remaining > 0) {
-      updateAntiSpamMessage(remaining);
-      startAntiSpamCountdown();
-    }
-  }
-
-  if (activitySalvageBtn) {
-    activitySalvageBtn.addEventListener("click", () => setActivity("salvage"));
-  }
-  if (activityHaulingBtn) {
-    activityHaulingBtn.addEventListener("click", () => setActivity("hauling"));
-  }
-  if (activityMiningBtn) {
-    activityMiningBtn.addEventListener("click", () => setActivity("mining"));
-  }
-
-  const btnDeb = document.getElementById("btnModeDebutant");
-  const btnAdv = document.getElementById("btnModeAvance");
-  const btnCalcDeb = document.getElementById("btnCalcDebutant");
-
-  if (btnDeb && btnAdv) {
-    btnDeb.addEventListener("click", () => setModeDebutant(true));
-    btnAdv.addEventListener("click", () => setModeDebutant(false));
-  }
-  if (btnCalcDeb) {
-    btnCalcDeb.addEventListener("click", calcDebutant);
+  // ---------------------------------------------------------------------------
+  // UEX status lines
+  // ---------------------------------------------------------------------------
+  function setUexLine(which, ok, msg){
+    const id = which === "adv" ? "uexStatusLineAdv" : "uexStatusLine";
+    const el = $(id);
+    if(!el) return;
+    el.textContent = msg;
+    el.style.opacity = ok ? "1" : "0.85";
   }
 
   
-    if (shipSelectEl) {
-    shipSelectEl.addEventListener("change", () => {
-      updateScuAdvancedVisibility();
-    });
+function setUexLock(isOn){
+  const badge = $("uexLockBadge");
+  const wrap = $("priceRmc")?.closest(".form-row");
+  if(badge) badge.style.display = isOn ? "inline-flex" : "none";
+  if(wrap) wrap.classList.toggle("uex-locked", !!isOn);
+}
+
+function setUexUpdated(ts){
+    const el = $("uexLastUpdate");
+    if(!el) return;
+    if(!ts){ el.textContent = "Dernière MAJ UEX : —"; return; }
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    el.textContent = `Dernière MAJ UEX : ${hh}:${mm}`;
   }
 
+  // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+// Top ventes – parsing (payload Worker v6.x : rmc.topTerminals / cmat.topTerminals)
+// ---------------------------------------------------------------------------
+function isObject(v){ return v && typeof v === "object" && !Array.isArray(v); }
 
-  if (debShipSelectEl) {
-    debShipSelectEl.addEventListener("change", () => {
-      updateScuAdvancedVisibility();
+function extractPrice(o){
+  if(!o || typeof o !== "object") return 0;
+  return num(
+    o.sell ?? o.sell_price ?? o.sellPrice ?? o.price ?? o.value ?? o.unit_price ?? o.unitPrice ?? 0
+  );
+}
+
+function looksLikeTerminalObj(o){
+  if(!o || typeof o !== "object") return false;
+  const p = extractPrice(o);
+  if(!(p > 0)) return false;
+
+  // Worker payload uses "name" + "location" (+ sell)
+  const hasName = !!(o.terminal || o.terminal_name || o.kiosk || o.trade_terminal || o.name || o.location_name);
+  const hasLoc  = !!(o.location || o.place || o.city || o.station || o.outpost || o.planet || o.system || o.zone || o.area);
+  return hasName || hasLoc;
+}
+
+function pickTopArray(data, kind){
+  // Primary (Worker format)
+  const node = (kind === "rmc") ? data?.rmc : data?.cmat;
+
+  if(Array.isArray(node?.topTerminals) && node.topTerminals.length) return node.topTerminals;
+  if(Array.isArray(node?.top3) && node.top3.length) return node.top3;
+  if(Array.isArray(node?.top) && node.top.length) return node.top;
+  if(Array.isArray(node?.best) && node.best.length) return node.best;
+  if(Array.isArray(node?.terminals) && node.terminals.length) return node.terminals;
+
+  // Sometimes bestTerminal is a single object
+  if(isObject(node?.bestTerminal)) return [node.bestTerminal];
+
+  // Fallback deep scan: first array that resembles terminals
+  return deepScanForTop(data);
+}
+
+function deepScanForTop(data){
+  const seen = new Set();
+  const stack = [data];
+
+  while(stack.length){
+    const cur = stack.pop();
+    if(!cur || typeof cur !== "object") continue;
+    if(seen.has(cur)) continue;
+    seen.add(cur);
+
+    if(Array.isArray(cur)){
+      if(cur.length >= 3 && looksLikeTerminalObj(cur[0])) return cur;
+      for(const v of cur) if(v && typeof v === "object") stack.push(v);
+      continue;
+    }
+    for(const k of Object.keys(cur)){
+      const v = cur[k];
+      if(v && typeof v === "object") stack.push(v);
+    }
+  }
+  return [];
+}
+
+function normalizeTopList(arr){
+  const items = (Array.isArray(arr) ? arr : []).slice()
+    .filter(looksLikeTerminalObj)
+    .sort((a,b) => extractPrice(b) - extractPrice(a))
+    .slice(0,3)
+    .map(o => {
+      const p = spotParts(o);
+      return { terminal: p.terminal, location: p.location, price: extractPrice(o) };
     });
+  return items;
+}
+
+  // UEX refresh (prix + top ventes)
+  // ---------------------------------------------------------------------------
+  
+function extractSeries(historyArr){
+  if(!Array.isArray(historyArr)) return [];
+  const out = [];
+  for(const it of historyArr){
+    if(!it) continue;
+    const v = (it.sell != null) ? Number(it.sell) : ((it.price != null) ? Number(it.price) : NaN);
+    if(!Number.isFinite(v)) continue;
+    out.push({ v });
+  }
+  return out;
+}
+
+function fmtNum(n){
+  try { return Intl.NumberFormat("fr-FR").format(Math.round(n)); } catch(_) { return String(Math.round(n)); }
+}
+
+function renderAdvPriceHistoryChart(payload){
+  const canvas = $("advPriceHistoryChart");
+  const status = $("advChartStatus");
+  if(!canvas) return;
+
+  const rmc = payload?.rmc ? extractSeries(payload.rmc.history) : [];
+  const cmat = payload?.cmat ? extractSeries(payload.cmat.history) : [];
+
+  if(status){
+    const rN = rmc.length, cN = cmat.length;
+    status.textContent = (rN || cN) ? `RMC: ${rN} points • CMAT: ${cN} points` : "Aucune donnée d’historique.";
   }
 
-if (openOnlineLeaderboardBtnEl && onlineLeaderboardModalEl) {
-    openOnlineLeaderboardBtnEl.addEventListener("click", () => {
-      openOnlineLeaderboardModal();
-    });
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+
+  const cssW = canvas.clientWidth || 640;
+  const cssH = canvas.clientHeight || 260;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  ctx.clearRect(0,0,cssW,cssH);
+  ctx.fillStyle = "rgba(0,0,0,.08)";
+  ctx.fillRect(0,0,cssW,cssH);
+
+  const padL = 46, padR = 14, padT = 14, padB = 28;
+  const W = cssW - padL - padR;
+  const H = cssH - padT - padB;
+
+  const all = [...rmc.map(x=>x.v), ...cmat.map(x=>x.v)];
+  if(all.length === 0){
+      lastChartPoints = null;
+    ctx.strokeStyle = "rgba(231,236,255,.12)";
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + H/2);
+    ctx.lineTo(padL + W, padT + H/2);
+    ctx.stroke();
+    return;
   }
 
-  if (onlineLeaderboardCloseBtnEl && onlineLeaderboardModalEl) {
-    onlineLeaderboardCloseBtnEl.addEventListener("click", () => {
-      closeOnlineLeaderboardModal();
-    });
+  let vMin = Math.min(...all);
+  let vMax = Math.max(...all);
+  if(vMin === vMax){ vMin = vMin * 0.95; vMax = vMax * 1.05; }
 
-    onlineLeaderboardModalEl.addEventListener("click", (e) => {
-      if (e.target === onlineLeaderboardModalEl) {
-        closeOnlineLeaderboardModal();
+  function yScale(v){
+    const t = (v - vMin) / (vMax - vMin);
+    return padT + (1 - t) * H;
+  }
+
+  // grid (3 ticks)
+  ctx.strokeStyle = "rgba(231,236,255,.10)";
+  ctx.fillStyle = "rgba(231,236,255,.55)";
+  ctx.lineWidth = 1;
+  ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+
+  for(let i=0;i<3;i++){
+    const tt = i/2;
+    const v = vMax - tt*(vMax-vMin);
+    const y = yScale(v);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + W, y);
+    ctx.stroke();
+    ctx.fillText(fmtNum(v), 8, y + 4);
+  }
+
+  function drawSeries(series, strokeStyle){
+    if(series.length < 2) return;
+    const n = series.length;
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const x = padL + (i/(n-1))*W;
+      const y = yScale(series[i].v);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = strokeStyle;
+    for(let i=0;i<n;i++){
+      const x = padL + (i/(n-1))*W;
+      const y = yScale(series[i].v);
+      ctx.beginPath();
+      ctx.arc(x,y,2.2,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  drawSeries(rmc, "rgba(0,229,255,.92)");
+  drawSeries(cmat, "rgba(231,236,255,.85)");
+
+  ctx.strokeStyle = "rgba(231,236,255,.14)";
+  ctx.beginPath();
+  ctx.moveTo(padL, padT + H);
+  ctx.lineTo(padL + W, padT + H);
+  ctx.stroke();
+}
+
+function bindChartHover(){
+  const canvas = $("advPriceHistoryChart");
+  const tip = $("advChartTooltip");
+  if(!canvas || !tip) return;
+
+  function hide(){
+    tip.classList.remove("is-on");
+    tip.setAttribute("aria-hidden","true");
+  }
+
+  function show(x,y,seriesName,val){
+    tip.style.left = `${x}px`;
+    tip.style.top  = `${y}px`;
+    const dotClass = (seriesName === "RMC") ? "lg-rmc" : "lg-cmat";
+    const dotColor = (seriesName === "RMC") ? "rgba(0,229,255,.92)" : "rgba(231,236,255,.85)";
+    tip.innerHTML = `
+      <div class="tt-title"><span class="tt-dot" style="background:${dotColor}"></span>${seriesName}</div>
+      <div class="tt-line"><span>Valeur</span><span class="tt-val">${fmtMoney(val)} aUEC</span></div>
+    `;
+    tip.classList.add("is-on");
+    tip.setAttribute("aria-hidden","false");
+  }
+
+  canvas.addEventListener("mousemove", (ev) => {
+    if(!lastChartPoints) return hide();
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left;
+    const my = ev.clientY - rect.top;
+
+    const { padL, padT, W, H, vMin, vMax, rmc, cmat } = lastChartPoints;
+
+    function yScale(v){
+      const t = (v - vMin) / (vMax - vMin);
+      return padT + (1 - t) * H;
+    }
+
+    function nearest(series){
+      if(!series || series.length < 2) return null;
+      const n = series.length;
+      const xi = Math.round(((mx - padL) / W) * (n-1));
+      if(xi < 0 || xi >= n) return null;
+      const x = padL + (xi/(n-1))*W;
+      const y = yScale(series[xi].v);
+      const dx = mx - x, dy = my - y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      return { xi, x, y, v: series[xi].v, dist };
+    }
+
+    const a = nearest(rmc);
+    const b = nearest(cmat);
+    const best = [a,b].filter(Boolean).sort((p,q)=>p.dist-q.dist)[0];
+
+    // threshold in px
+    if(!best || best.dist > 18) return hide();
+
+    const seriesName = (best === a) ? "RMC" : "CMAT";
+    show(best.x, best.y, seriesName, best.v);
+  });
+
+  canvas.addEventListener("mouseleave", hide);
+}
+
+async function refreshUex(){
+  try{
+    setUexLine("beg", true, "UEX : actualisation…");
+    setUexLine("adv", true, "UEX : actualisation…");
+
+    const r = await fetch(WORKER_URL, { cache: "no-store" });
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+
+    lastUexPayload = data;
+    renderAdvPriceHistoryChart(data);
+lastUexPayload = data;
+    renderAdvPriceHistoryChart(data);
+
+    // ---------------- Prices (Worker format: rmc.price / cmat.price + bestTerminal.sell + history[].sell)
+    const rNode = data?.rmc || {};
+    const cNode = data?.cmat || {};
+
+    const rHist = Array.isArray(rNode.history) ? rNode.history : [];
+    const cHist = Array.isArray(cNode.history) ? cNode.history : [];
+
+    const lastR = rHist.length ? rHist[rHist.length - 1] : null;
+    const lastC = cHist.length ? cHist[cHist.length - 1] : null;
+
+    let pR = (typeof rNode.price === "number") ? rNode.price : 0;
+    let pC = (typeof cNode.price === "number") ? cNode.price : 0;
+
+    // Prefer explicit bestTerminal.sell if present
+    if(typeof rNode?.bestTerminal?.sell === "number") pR = rNode.bestTerminal.sell;
+    if(typeof cNode?.bestTerminal?.sell === "number") pC = cNode.bestTerminal.sell;
+
+    // Or last history sell
+    if(lastR && typeof lastR.sell === "number") pR = lastR.sell;
+    if(lastC && typeof lastC.sell === "number") pC = lastC.sell;
+
+    if($("priceRmc")) $("priceRmc").value = String(pR || 0);
+    if($("advPriceRmc")) $("advPriceRmc").value = String(pR || 0);
+
+    if($("priceCmat")) $("priceCmat").value = String(pC || 0);
+    if($("advPriceCmat")) $("advPriceCmat").value = String(pC || 0);
+
+    // ---------------- Top ventes
+    const topRraw = pickTopArray(data, "rmc");
+    const topCraw = pickTopArray(data, "cmat");
+
+    const topR = normalizeTopList(topRraw);
+    const topC = normalizeTopList(topCraw);
+
+    renderTopList("topRmc", topR);
+    // Mode Avancé (avec bouton Appliquer)
+    renderTopList("topRmcAdv", topR, { showApply:true, kind:"rmc" });
+    renderTopList("topCmat", topC);
+    renderTopList("topCmatAdv", topC, { showApply:true, kind:"cmat" });
+
+    const hasAnyTop = topR.length || topC.length;
+    if(hasAnyTop){
+      setUexLine("beg", true, "UEX : opérationnel (prix & top ventes)");
+    } else {
+      setUexLine("beg", true, "UEX : opérationnel (prix) — top ventes indisponible");
+    }
+    setUexLine("adv", true, "UEX : opérationnel (prix à jour)");
+    setUexUpdated(Date.now());
+
+      setUexLock(true);
+
+    calcBeginner();
+    calcAdvanced();
+  }catch(e){
+    setUexLine("beg", false, "UEX : indisponible (saisie manuelle)");
+    setUexLine("adv", false, "UEX : indisponible (saisie manuelle)");
+    renderTopList("topRmc", []);
+      renderTopList("topRmcAdv", [], { showApply:true, kind:"rmc" });
+    renderTopList("topCmat", []);
+      renderTopList("topCmatAdv", [], { showApply:true, kind:"cmat" });
+    setUexUpdated(null);
+      setUexLock(false);
+    lastUexPayload = null;
+    renderAdvPriceHistoryChart(null);
+}
+}
+
+  // ---------------------------------------------------------------------------
+  // Configs
+  // ---------------------------------------------------------------------------
+  function readConfigs(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY) || "{}") || {}; }catch(_){ return {}; } }
+  function writeConfigs(c){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(c || {})); }catch(_){ } }
+  function currentSlot(){ return $("configSlot")?.value || "slot1"; }
+
+  function fillConfigMeta(){
+    const cfg = readConfigs();
+    const s = cfg?.[currentSlot()];
+    if($("configName")) $("configName").value = s?.name || "";
+  }
+
+  function snapshotState(){
+    return {
+      mode: $("btnBeginner")?.classList.contains("is-active") ? "beginner" : "advanced",
+      beginner: {
+        ship: $("shipSelect")?.value || "vulture_fortune",
+        loopMin: $("begLoopMinutes")?.value || "45",
+        scuRmc: $("scuRmc")?.value || "0",
+        scuCmat: $("scuCmat")?.value || "0",
+        priceRmc: $("priceRmc")?.value || "0",
+        priceCmat: $("priceCmat")?.value || "0",
+      },
+      advanced: {
+        loopMinutes: $("loopMinutes")?.value || "45",
+        feesPct: $("feesPct")?.value || "0",
+        thrOk: $("thrOk")?.value || "250000",
+        thrGood: $("thrGood")?.value || "500000",
+        refineMode: $("cmatRefineMode")?.value || "sell",
+        refineYield: $("cmatRefineYield")?.value || "1.00",
+        scuRmc: $("advScuRmc")?.value || "0",
+        scuCmat: $("advScuCmat")?.value || "0",
+        priceRmc: $("advPriceRmc")?.value || "0",
+        priceCmat: $("advPriceCmat")?.value || "0",
       }
-    });
+    };
   }
 
-
-  if (leaderboardSortSelectEl) {
-    leaderboardSortSelectEl.addEventListener("change", () => {
-      leaderboardSortKey = leaderboardSortSelectEl.value || "profit";
-      localStorage.setItem("salvageLbSort", leaderboardSortKey);
-      rerenderOnlineLeaderboardFromCache();
-    });
+  function applyState(s){
+    if(s?.beginner){
+      if($("shipSelect")) $("shipSelect").value = s.beginner.ship ?? "vulture_fortune";
+      if($("begLoopMinutes")) $("begLoopMinutes").value = s.beginner.loopMin ?? "45";
+      if($("scuRmc")) $("scuRmc").value = s.beginner.scuRmc ?? "0";
+      if($("scuCmat")) $("scuCmat").value = s.beginner.scuCmat ?? "0";
+      if($("priceRmc")) $("priceRmc").value = s.beginner.priceRmc ?? "0";
+      if($("priceCmat")) $("priceCmat").value = s.beginner.priceCmat ?? "0";
+    }
+    if(s?.advanced){
+      if($("loopMinutes")) $("loopMinutes").value = s.advanced.loopMinutes ?? "45";
+      if($("feesPct")) $("feesPct").value = s.advanced.feesPct ?? "0";
+      if($("thrOk")) $("thrOk").value = s.advanced.thrOk ?? "250000";
+      if($("thrGood")) $("thrGood").value = s.advanced.thrGood ?? "500000";
+      if($("cmatRefineMode")) $("cmatRefineMode").value = s.advanced.refineMode ?? "sell";
+      if($("cmatRefineYield")) $("cmatRefineYield").value = s.advanced.refineYield ?? "1.00";
+      if($("advScuRmc")) $("advScuRmc").value = s.advanced.scuRmc ?? "0";
+      if($("advScuCmat")) $("advScuCmat").value = s.advanced.scuCmat ?? "0";
+      if($("advPriceRmc")) $("advPriceRmc").value = s.advanced.priceRmc ?? "0";
+      if($("advPriceCmat")) $("advPriceCmat").value = s.advanced.priceCmat ?? "0";
+    }
+    setMode(s?.mode === "advanced" ? "advanced" : "beginner");
+    applyShipPreset();
   }
-  if (leaderboardShipFilterEl) {
-    leaderboardShipFilterEl.addEventListener("change", () => {
-      leaderboardShipFilterKey = leaderboardShipFilterEl.value || "all";
-      localStorage.setItem("salvageLbShipFilter", leaderboardShipFilterKey);
-      rerenderOnlineLeaderboardFromCache();
-    });
+
+  function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(snapshotState())); }catch(_){ } }
+  function restore(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return;
+      applyState(JSON.parse(raw));
+    }catch(_){ }
   }
 
-const verPill = document.getElementById("app-version-pill");
-  if (verPill) {
-    verPill.textContent = `VERSION ${APP_VERSION}`;
+  function saveConfig(){
+    const cfg = readConfigs();
+    cfg[currentSlot()] = { name: ($("configName")?.value || "").trim(), ts: Date.now(), state: snapshotState() };
+    writeConfigs(cfg);
+    fillConfigMeta();
   }
 
-  // Démarre en mode débutant
-  setModeDebutant(true);
-  updateScuAdvancedVisibility();
-  refreshDebutantPrices();
+  function loadConfig(){
+    const cfg = readConfigs();
+    const s = cfg?.[currentSlot()]?.state;
+    if(!s) return;
+    applyState(s);
+    fillConfigMeta();
+    calcBeginner();
+    calcAdvanced();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modes
+  // ---------------------------------------------------------------------------
+  function setMode(mode){
+    const isBeg = mode === "beginner";
+    if($("modeBeginner")) $("modeBeginner").style.display = isBeg ? "" : "none";
+    if($("modeAdvanced")) $("modeAdvanced").style.display = isBeg ? "none" : "";
+    $("btnBeginner")?.classList.toggle("is-active", isBeg);
+    $("btnAdvanced")?.classList.toggle("is-active", !isBeg);
+    persist();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Wiring
+  // ---------------------------------------------------------------------------
+  function bind(){
+    $("btnBeginner")?.addEventListener("click", () => setMode("beginner"));
+    $("btnAdvanced")?.addEventListener("click", () => setMode("advanced"));
+
+    $("shipSelect")?.addEventListener("change", applyShipPreset);
+
+["scuRmc","scuCmat","begLoopMinutes","priceRmc","priceCmat"].forEach(id => {
+  $(id)?.addEventListener("input", () => {
+    if(id === "priceRmc" || id === "priceCmat") setUexLock(false);
+    lastUexPayload = null;
+    renderAdvPriceHistoryChart(null);
+calcBeginner();
+  });
+  $(id)?.addEventListener("change", () => {
+    if(id === "priceRmc" || id === "priceCmat") setUexLock(false);
+    lastUexPayload = null;
+    renderAdvPriceHistoryChart(null);
+calcBeginner();
+  });
+
+// Copie terminal sélectionné (Mode Avancé)
+$("btnCopySale")?.addEventListener("click", async () => {
+  const t = (lastSelectedSaleText && String(lastSelectedSaleText).trim()) || ($("advSelectedSale")?.textContent || "").trim();
+  const ok = await copyToClipboard(t);
+  const sum = $("sumStatus");
+  if(sum && t){
+    sum.textContent = ok ? `Copié : ${t}` : `Copie impossible : ${t}`;
+  }
+
+// Recalcul live — Mode Avancé uniquement
+["advScuRmc","advScuCmat","advLoopMinutes","advPriceRmc","advPriceCmat","cmatRefineYield"].forEach(id => {
+  $(id)?.addEventListener("input", () => { calcAdvanced(); });
 });
+});
+});
+
+    ["advScuRmc","advScuCmat","advPriceRmc","advPriceCmat","feesPct","loopMinutes","thrOk","thrGood","cmatRefineMode","cmatRefineYield"].forEach(id => {
+      $(id)?.addEventListener("input", calcAdvanced);
+      $(id)?.addEventListener("change", calcAdvanced);
+    });
+
+    $("btnRefreshUex")?.addEventListener("click", refreshUex);
+    $("btnRefreshUexAdv")?.addEventListener("click", refreshUex);
+
+    // Historique des prix (UEX) — Mode Avancé
+    $("btnChartRefreshAdv")?.addEventListener("click", refreshUex);
+    window.addEventListener("resize", () => { if(lastUexPayload) renderAdvPriceHistoryChart(lastUexPayload); });
+
+    $("btnSaveConfig")?.addEventListener("click", saveConfig);
+    $("btnLoadConfig")?.addEventListener("click", loadConfig);
+    $("configSlot")?.addEventListener("change", fillConfigMeta);
+
+    $("btnResetBeginner")?.addEventListener("click", () => {
+      if($("shipSelect")) $("shipSelect").value = "vulture_fortune";
+      if($("scuRmc")) $("scuRmc").value = "0";
+      if($("scuCmat")) $("scuCmat").value = "0";
+      if($("begLoopMinutes")) $("begLoopMinutes").value = "45";
+      applyShipPreset();
+      calcBeginner();
+    });
+
+    $("btnResetAdvanced")?.addEventListener("click", () => {
+      if($("loopMinutes")) $("loopMinutes").value = "45";
+      if($("feesPct")) $("feesPct").value = "0";
+      if($("thrOk")) $("thrOk").value = "250000";
+      if($("thrGood")) $("thrGood").value = "500000";
+      if($("cmatRefineMode")) $("cmatRefineMode").value = "sell";
+      if($("cmatRefineYield")) $("cmatRefineYield").value = "1.00";
+      if($("advScuRmc")) $("advScuRmc").value = "0";
+      if($("advScuCmat")) $("advScuCmat").value = "0";
+      calcAdvanced();
+    });
+  }
+
+  function init(){
+    populateShips();
+    bind();
+    restore();
+    fillConfigMeta();
+
+    if($("shipSelect") && !$("shipSelect").value) $("shipSelect").value = "vulture_fortune";
+    applyShipPreset();
+
+    calcBeginner();
+    calcAdvanced();
+    refreshUex();
+  }
+
+  window.addEventListener("DOMContentLoaded", init);
+})();

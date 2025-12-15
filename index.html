@@ -2,41 +2,314 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Salvage Calculator – Hub</title>
-  <!-- Redirection automatique vers le module Salvage -->
-  <meta http-equiv="refresh" content="0; url=pages/salvage.html" />
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #020617;
-      color: #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .box {
-      text-align: center;
-      padding: 1.5rem 2rem;
-      border-radius: 0.75rem;
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      background: radial-gradient(circle at top, #0f172a, #020617);
-      box-shadow: 0 0 25px rgba(15, 118, 255, 0.35);
-    }
-    a {
-      color: #38bdf8;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HUB</title>
+
+  <link rel="icon" href="./assets/img/favicon.ico" />
+  <link rel="stylesheet" href="./assets/css/core.css" />
+  <link rel="stylesheet" href="./assets/css/hub-discord-widget.css" />
 </head>
-<body>
-  <div class="box">
-    <h1>Salvage Calculator – Hub</h1>
-    <p>Redirection vers le module Salvage...</p>
-    <p>
-      Si rien ne se passe, clique ici :
-      <a href="pages/salvage.html">Ouvrir le module Salvage</a>
-    </p>
+
+<body class="theme-neon">
+  <div class="overlay">
+    <div class="container">
+
+      <!-- Header actions -->
+      <div class="header-actions">
+        <a class="btn-primary" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener noreferrer">
+          <span class="badge badge-h">DISCORD</span>
+          Rejoindre Discord
+        </a>
+<div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login">
+  <button id="shogDiscordLoginBtn" class="btn-ghost" type="button">Connexion Discord</button>
+
+  <div id="shogDiscordUserBox" class="shog-discord-userbox" style="display:none;">
+    <img id="shogDiscordAvatar" class="shog-discord-avatar" alt="Avatar Discord" />
+    <div class="shog-discord-usertext">
+      <div class="shog-discord-userlabel">Connecté</div>
+      <div id="shogDiscordUsername" class="shog-discord-username">—</div>
+    </div>
+    <button id="shogDiscordLogoutBtn" class="btn-ghost" type="button">Logout</button>
   </div>
+</div>
+</div>
+
+      <h1 class="page-title">HUB</h1>
+      <div class="sub">Centre de contrôle des outils</div>
+
+      
+
+      <!-- État du HUB -->
+      <div class="panel section section-first">
+        <div class="panel-title">État du HUB</div>
+        <div class="panel-note" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+          <span class="badge badge-h">HUB : Stable</span>
+          <span class="badge badge-h badge-tech" id="uexStatusBadge">UEX : …</span>
+          <span class="badge badge-h">Discord : Disponible</span>
+          <span class="badge badge-h">MAJ : 14/12/2025</span>
+          <span class="badge badge-h badge-tech" id="ghStatusBadge">GitHub : …</span>
+        </div>
+      </div>
+
+      <!-- Modules -->
+      <div class="panel section">
+        <div class="panel-title">Modules</div>
+        <div class="card-grid" style="margin-top:10px;">
+          <div class="card card-clickable" role="link" tabindex="0" data-href="./pages/salvage.html">
+            <div class="card-title">Recyclage</div>
+            <div class="chip-row">
+              <span class="chip">Rentabilité</span>
+              <span class="chip">Volumes</span>
+              <span class="chip">Vente</span>
+            </div>
+<div class="card-desc">Calculs de rentabilité salvage, volumes et routes de vente.</div>
+            <div class="card-actions">
+              <a class="btn-ghost" href="./pages/salvage.html">Ouvrir</a>
+            </div>
+          </div>
+          <div class="card card-clickable" role="link" tabindex="0" data-href="./pages/hauling.html">
+            <div class="card-title">Fret</div>
+            <div class="chip-row">
+              <span class="chip">Routes</span>
+              <span class="chip">Profits</span>
+              <span class="chip">Config</span>
+            </div>
+<div class="card-desc">Optimisation de routes cargo, profits et configurations.</div>
+            <div class="card-actions">
+              <a class="btn-ghost" href="./pages/hauling.html">Ouvrir</a>
+            </div>
+          </div>
+          <div class="card card-clickable" role="link" tabindex="0" data-href="./pages/mining.html">
+            <div class="card-title">Minage</div>
+            <div class="chip-row">
+              <span class="chip">Rendement</span>
+              <span class="chip">Raffinage</span>
+              <span class="chip">Estimation</span>
+            </div>
+<div class="card-desc">Rendements, raffinage et estimations de revenus selon vos paramètres.</div>
+            <div class="card-actions">
+              <a class="btn-ghost" href="./pages/mining.html">Ouvrir</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Twitch -->
+      <div class="panel collapsible section" id="twitchCard" data-open="false">
+        <div class="collapsible-head" role="button" tabindex="0" aria-expanded="false">
+          <div class="collapsible-title">
+            <span>Twitch</span>
+            <span class="badge badge-h badge-off" id="liveBadge" style="cursor:pointer;">
+              <span class="dot" style="display:none;"></span>
+              <span id="liveText">OFFLINE</span>
+            </span>
+          </div>
+          <div class="twitch-head-actions">
+            <a class="collapsible-toggle" href="https://www.twitch.tv/artics001" target="_blank" rel="noopener noreferrer">
+              Voir la chaîne
+            </a>
+            <span class="collapse-icon" aria-hidden="true">▾</span>
+          </div>
+        </div>
+
+        <div class="collapsible-body" style="margin-top:12px;">
+          <div class="embed-frame">
+            <iframe src="" data-src="https://player.twitch.tv/?channel=artics001&parent=shog-sc.github.io&parent=localhost&parent=127.0.0.1" height="420"
+              allowfullscreen="true">
+            </iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version (centrée sous Twitch) -->
+      <div class="panel section-narrow">
+        <div class="panel-title">Version</div>
+        <div class="panel-note">
+          <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;">
+            <span class="badge badge-h"><strong>HUB</strong> : V1.0.3</span>
+            <span class="badge badge-h" id="coreCssVersion" class="badge-tech badge-h">core.css : —</span>
+            <span class="badge badge-h">PU : 4.4 (support)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-footer-brand">Powered by Shog Salvage Tools</div>
+    </div>
+  </div>
+
+  <script src="./assets/js/auth.js" defer></script>
+  <script src="./assets/js/hub-discord-widget.js" defer></script>
+  <script src="./assets/js/core.js" defer></script>
+
+  <script>
+    // Collapsible Twitch card
+    (function(){
+      const card = document.getElementById('twitchCard');
+      const head = card?.querySelector('.collapsible-head');
+      if(!card || !head) return;
+      head.addEventListener('click', (e) => {
+        if(e.target.closest('button') || e.target.closest('a')) return;
+        card.dataset.open = card.dataset.open === "true" ? "false" : "true";
+      });
+    })();
+
+    // LIVE badge (statique, sans API)
+    (function(){
+      const badge = document.getElementById('liveBadge');
+      const dot = badge?.querySelector('.dot');
+      const text = document.getElementById('liveText');
+      if(!badge || !text) return;
+      // OFFLINE par défaut
+      badge.classList.add('badge-off');
+      text.textContent = "OFFLINE";
+      if(dot) dot.style.display = "none";
+    })();
+
+    // Read core.css version
+    (function(){
+      const el = document.getElementById('coreCssVersion');
+      const coreLink = document.querySelector('link[href*="core.css"]');
+      if(!el || !coreLink) return;
+      fetch(coreLink.href, { cache: 'no-store' })
+        .then(r => r.text())
+        .then(css => {
+          const m = css.match(/core\.css\s*-\s*Version\s*(V[0-9\.]+)/i);
+          if(m) el.textContent = "core.css : " + m[1];
+        });
+    })();
+  </script>
+<script>
+  // Cards: make entire module card clickable (keyboard + mouse)
+  (function(){
+    const cards = document.querySelectorAll('.card[data-href]');
+    cards.forEach(card => {
+      const href = card.getAttribute('data-href');
+      if(!href) return;
+
+      card.addEventListener('click', (e) => {
+        // keep native behavior for inner links/buttons
+        if(e.target.closest('a') || e.target.closest('button')) return;
+        window.location.href = href;
+      });
+
+      card.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          window.location.href = href;
+        }
+      });
+    });
+  })();
+
+  // Twitch: collapse/expand + OFFLINE/LIVE toggle on badge (visual only, no API)
+  (function(){
+    const KEY = "hub.twitch.live";
+    const card = document.getElementById('twitchCard');
+    const head = card?.querySelector('.collapsible-head');
+    const badge = document.getElementById('liveBadge');
+    const dot = badge?.querySelector('.dot');
+    const text = document.getElementById('liveText');
+
+const frame = card?.querySelector('iframe[data-src]');
+function ensureIframe(){
+  if(!frame) return;
+  if(!frame.getAttribute('src')){
+    frame.setAttribute('src', frame.getAttribute('data-src'));
+  }
+}
+
+    function setOpen(open){
+        if(!card || !head) return;
+        card.dataset.open = open ? "true" : "false";
+        head.setAttribute("aria-expanded", open ? "true" : "false");
+        if(open) ensureIframe();
+      }
+
+    function apply(isLive){
+      if(!badge || !text) return;
+      text.textContent = isLive ? "LIVE" : "OFFLINE";
+      badge.classList.toggle('badge-live', isLive);
+      badge.classList.toggle('badge-off', !isLive);
+      if(dot) dot.style.display = isLive ? "inline-block" : "none";
+      // UX: offline => replié, live => ouvert
+        if(isLive) ensureIframe();
+        setOpen(isLive);
+    }
+
+    const initial = (localStorage.getItem(KEY) === "1");
+    apply(initial);
+
+    // Toggle on badge click
+    badge?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const now = !(localStorage.getItem(KEY) === "1");
+      localStorage.setItem(KEY, now ? "1" : "0");
+      apply(now);
+    });
+
+    // Clicking header (outside controls) toggles open/close
+    head?.addEventListener('click', (e) => {
+      const t = e.target;
+      if(t && (t.closest('button') || t.closest('a') || t.closest('#liveBadge'))) return;
+      setOpen(card.dataset.open !== "true");
+    });
+
+    head?.addEventListener('keydown', (e) => {
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        setOpen(card.dataset.open !== "true");
+      }
+    });
+  })();
+</script>
+<script>
+  // GitHub Status (real-time): https://www.githubstatus.com/api
+  (async function(){
+    const el = document.getElementById("ghStatusBadge");
+    if(!el) return;
+
+    try{
+      const r = await fetch("https://www.githubstatus.com/api/v2/status.json", { cache: "no-store" });
+      if(!r.ok) throw new Error("http " + r.status);
+      const data = await r.json();
+      const ind = data?.status?.indicator || "none";
+
+      const mapText = {
+        none: "Opérationnel",
+        minor: "Dégradé (mineur)",
+        major: "Dégradé (majeur)",
+        critical: "Incident"
+      };
+
+      el.textContent = "GitHub : " + (mapText[ind] || "Inconnu");
+      el.classList.toggle("badge-live", ind === "none");
+      el.classList.toggle("badge-off", ind !== "none");
+    }catch(e){
+      el.textContent = "GitHub : Injoignable";
+      el.classList.add("badge-off");
+    }
+  })();
+</script>
+<script>
+  // UEX API status (real-time): simple public endpoint ping
+  (async function(){
+    const el = document.getElementById("uexStatusBadge");
+    if(!el) return;
+
+    try{
+      // Public endpoint (no auth). If API is reachable, we consider UEX "OK".
+      const url = "https://api.uexcorp.uk/2.0/companies?is_vehicle_manufacturer=0";
+      const r = await fetch(url, { cache: "no-store" });
+      if(!r.ok) throw new Error("http " + r.status);
+
+      el.textContent = "UEX : Opérationnel";
+      el.classList.toggle("badge-live", true);
+      el.classList.toggle("badge-off", false);
+    }catch(e){
+      el.textContent = "UEX : Injoignable";
+      el.classList.add("badge-off");
+    }
+  })();
+</script>
 </body>
 </html>

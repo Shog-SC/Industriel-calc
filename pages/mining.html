@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mining – Shog Tools</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="../assets/css/core.css">
+  <style>
+    .top-bar-user { margin-left:auto; display:flex; align-items:center; gap:8px; }
+    #discordLoginBtn {
+      background:#5865f2; border:none; color:#fff; padding:6px 12px; border-radius:999px;
+      font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+      box-shadow:0 0 6px rgba(88,101,242,0.5);
+    }
+    #discordLoginBtn.connected { background:#16a34a; box-shadow:0 0 8px rgba(22,163,74,0.7); }
+    #uexSettingsBtn {
+      background:rgba(10,16,34,.75);
+      border:1px solid rgba(231,236,255,.20);
+      color:rgba(231,236,255,.9);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      cursor:pointer;
+    }
+  </style>
+</head>
+<body class="theme-neon">
+<div class="overlay">
+  <div class="container">
+
+    
+      <header class="header">
+        <div class="header-tools"><div class="top-bar-user">
+        <button id="uexSettingsBtn" data-admin-only="1" type="button">UEX: Configurer</button>
+        <button id="discordLoginBtn" type="button">Connexion Discord</button>
+      </div></div>
+        <h1 class="page-title">MINING</h1>
+        <div class="sub">Module à venir (ROC, vaisseaux de minage, ratios de raffinage).</div>
+        <nav class="nav"></nav>
+      </header>
+<div class="top-bar-user">
+        <button id="uexSettingsBtn" data-admin-only="1" type="button">UEX: Configurer</button>
+        <button id="discordLoginBtn" type="button">Connexion Discord</button>
+      </div>
+    </div>
+<h1 class="page-title">MINING</h1>
+    <div class="sub">Module à venir (ROC, vaisseaux de minage, ratios de raffinage).</div>
+
+    <div class="panel">
+      <div class="panel-title">Coming soon</div>
+      <div class="small-note">
+        Cette page est volontairement minimale pour éviter de casser les autres modules pendant la refonte.
+      </div>
+    </div>
+
+    <div class="app-footer-brand">
+      Powered by <span>Shog Salvage Tools</span>
+    </div>
+
+  </div>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/mining.js"></script>
+</body>
+</html>

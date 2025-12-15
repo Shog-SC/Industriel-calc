@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hauling Calculator 4.4</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="../assets/css/core.css">
+  <link rel="stylesheet" href="../assets/css/hauling.css">
+  <style>
+    .top-bar-user { margin-left:auto; display:flex; align-items:center; gap:8px; }
+    #discordLoginBtn {
+      background:#5865f2; border:none; color:#fff; padding:6px 12px; border-radius:999px;
+      font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+      box-shadow:0 0 6px rgba(88,101,242,0.5);
+    }
+    #discordLoginBtn.connected { background:#16a34a; box-shadow:0 0 8px rgba(22,163,74,0.7); }
+    #uexSettingsBtn {
+      background:rgba(10,16,34,.75);
+      border:1px solid rgba(231,236,255,.20);
+      color:rgba(231,236,255,.9);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      cursor:pointer;
+    }
+  </style>
+</head>
+<body class="theme-neon">
+<div class="overlay">
+  <div class="container">
+
+    
+      <header class="header">
+        <div class="header-tools"><div class="top-bar-user">
+        <button id="uexSettingsBtn" data-admin-only="1" type="button">UEX: Configurer</button>
+        <button id="discordLoginBtn" type="button">Connexion Discord</button>
+      </div></div>
+        <h1 class="page-title" id="titleMain">HAULING CALCULATOR 4.4</h1>
+        <div class="sub"></div>
+        <nav class="nav"></nav>
+      </header>
+<div class="top-bar-user">
+        <button id="uexSettingsBtn" data-admin-only="1" type="button">UEX: Configurer</button>
+        <button id="discordLoginBtn" type="button">Connexion Discord</button>
+      </div>
+    </div>
+<h1 class="page-title" id="titleMain">HAULING CALCULATOR 4.4</h1>
+    <div id="subText" class="sub">
+      Détermine la rentabilité de ton run de fret (profit/run et profit/heure) selon ton vaisseau, les prix d’achat/vente et le temps estimé.
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Hauling – Calcul de rentabilité</div>
+
+      <div class="mode-toggle hauling-mode-toggle">
+        <button type="button" class="mode-btn active" data-hauling-mode="beginner">Mode Débutant</button>
+        <button type="button" class="mode-btn" data-hauling-mode="expert">Mode Avancé</button>
+      </div>
+
+      <div id="haulingBeginnerMode" class="mode-section">
+        <div class="hauling-grid">
+          <div class="hauling-inputs">
+            <div class="field-label">Vaisseau (cargo)</div>
+            <div><select id="haulingBegShipSelect" class="input-standard"></select></div>
+
+            <div class="field-label">Marchandise</div>
+            <div>
+              <select id="haulingBegCommoditySelect" class="input-standard">
+                <option value="manual">Sélection manuelle</option>
+              </select>
+            </div>
+
+            <div class="field-label">Meilleure route</div>
+            <div id="haulingBegRouteBox" class="route-entry">
+              <div class="route-rank" id="haulingBegRouteRank">Route 1 — Manuel</div>
+
+              <div class="small-note hauling-data-status" id="haulingDataStatusBeg">Chargement…</div>
+              <div class="route-steps" id="haulingBegRouteSteps">—</div>
+              <div class="route-commodity" id="haulingBegRouteCommodity">Marchandises : —</div>
+              <div class="route-metrics">
+                <span>Profit / run : <strong id="haulingBegRouteProfitRun">—</strong> aUEC</span>
+                <span>Profit / h : <strong id="haulingBegRouteProfitHour">—</strong> aUEC/h</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hauling-results">
+            <div class="result-block">
+              <div class="result-head">Résumé rapide</div>
+              <div class="result-values">
+                <div>Profit / run : <span id="haulingBegProfitRun">—</span> aUEC</div>
+                <div>Profit / heure : <span id="haulingBegProfitHour">—</span> aUEC / h</div>
+              </div>
+            </div>
+
+            <div class="result-block">
+              <div class="result-head">Paramètres du run</div>
+
+              <div class="field-label">SCU chargées</div>
+              <div class="hauling-scu-row">
+                <input id="haulingBegScuInput" type="number" min="0" value="0" />
+                <button id="haulingBegFillMaxBtn" class="btn-ghost" type="button">Remplir max</button>
+              </div>
+
+              <div class="field-label">Prix d'achat (aUEC / SCU)</div>
+              <div>
+                <input id="haulingBegBuyPriceInput" type="number" min="0" value="0" placeholder="Manuel / UEX" />
+              </div>
+
+              <div class="field-label">Prix de vente (aUEC / SCU)</div>
+              <div>
+                <input id="haulingBegSellPriceInput" type="number" min="0" value="0" placeholder="Manuel / UEX" />
+              </div>
+
+              <div class="field-label">Durée du run (minutes)</div>
+              <div>
+                <input id="haulingBegTimeMinutesInput" type="number" min="0" value="0" />
+              </div>
+
+              <div class="small-note" style="margin-top:0.65rem;">
+                La rentabilité est calculée automatiquement à chaque modification.
+              </div>
+            </div>
+
+            <div class="small-note">
+              Mode manuel stable. L’intégration UEX (routes/prix auto) peut être ajoutée ensuite sans casser la page.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="haulingExpertMode" class="mode-section hidden">
+        <div class="result-block">
+          <div class="result-head">Mode Avancé (placeholder)</div>
+          <div class="small-note">
+            Ici, tu peux réintégrer ton Quantum Time Estimator + Top routes UEX une fois la base stabilisée.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="app-footer-brand">
+      Powered by <span>Shog Salvage Tools</span>
+    </div>
+
+  </div>
+</div>
+
+<script src="../assets/js/core.js"></script>
+<script src="../assets/js/uex-token.js"></script>
+<script src="../assets/js/hauling.js"></script>
+</body>
+</html>
