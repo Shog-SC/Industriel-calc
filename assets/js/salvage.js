@@ -1,45 +1,20 @@
-/* salvage.js - Version V1.4.8b
-   - Split ships: Salvation / Vulture+Fortune
-   - Top ventes: parsing robuste multi-formats (sans casser le script)
-   - Garde : prix UEX, aUEC/h, configs, presets
-
-   Notes rendement :
-   - Les valeurs "boucle (minutes)" sont des presets modifiables.
-     Si tu veux que je colle exactement à la transcription YouTube, envoie-moi le texte ou le lien/timestamp.
+/* salvage.js - Version V1.4.18 HOTFIX
+   Objectif :
+   - Corriger les erreurs JS (bind() cassé / await hors async / blocs hotfix incomplets)
+   - Mode Avancé : garder uniquement "Où vendre maintenant (UEX)" (informatif) + graphique intact
+   - Supprimer toute logique/boutons Appliquer/Copier (pas d'état de vente sélectionnée)
 */
 
 (() => {
-  const LS_KEY  = "salvage.module.state.v1_4_8b";
-  const CFG_KEY = "salvage.module.configs.v1_4_8b";
+  "use strict";
+
+  const LS_KEY  = "salvage.module.state.v1_4_16";
+  const CFG_KEY = "salvage.module.configs.v1_4_16";
 
   // Proxy Worker (UEX)
   const WORKER_URL = "https://salvage-uex-proxy.yoyoastico74.workers.dev/";
 
   const $ = (id) => document.getElementById(id);
-
-async function copyToClipboard(text){
-  const t = String(text || "").trim();
-  if(!t) return false;
-
-  try{
-    await navigator.clipboard.writeText(t);
-    return true;
-  }catch(_){
-    try{
-      const ta = document.createElement("textarea");
-      ta.value = t;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      return !!ok;
-    }catch(__){
-      return false;
-    }
-  }
-}
 
   const num = (v) => {
     const x = Number(String(v ?? "").replace(",", "."));
@@ -47,49 +22,23 @@ async function copyToClipboard(text){
   };
 
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-
   const fmt = (n) => `${Math.round(num(n)).toLocaleString("fr-FR")} aUEC`;
   const fmtH = (n) => `${Math.round(num(n)).toLocaleString("fr-FR")} aUEC/h`;
 
   function setText(id, v){ const el = $(id); if(el) el.textContent = v; }
 
-  // Preset raffinage (mode Débutant)
+  // ---------------------------------------------------------------------------
+  // Presets & Ships
+  // ---------------------------------------------------------------------------
   let begRefineMode = "refine"; // refine | sell
   let begRefineYield = 0.30;
-  let begRefineLabel = "CMR (≈30% après raffinage)";
 
-
-  // ---------------------------------------------------------------------------
-  // Ships (split Salvation vs Vulture/Fortune)
-  // ---------------------------------------------------------------------------
   const SHIPS = [
-  {
-    id:"salvation",
-    name:"Salvation",
-    note:"Collecte très rapide.",
-    beginner:{ loopMin:40, refineMode:"refine", refineYield:0.30 },
-    advanced:{ loopMin:40, feesPct:0, refineMode:"refine", refineYield:0.30 }
-  },
-  {
-    id:"vulture_fortune",
-    name:"Vulture / Fortune",
-    note:"Collecte très rapide.",
-    beginner:{ loopMin:55, refineMode:"refine", refineYield:0.30 },
-    advanced:{ loopMin:55, feesPct:0, refineMode:"refine", refineYield:0.30 }
-  },
-  {
-    id:"reclaimer",
-    name:"Reclaimer",
-    note:"Équipage conseillé.",
-    beginner:{ loopMin:60, refineMode:"refine", refineYield:0.15 },
-    advanced:{ loopMin:60, feesPct:0, refineMode:"refine", refineYield:0.15 }
-  },
-  {
-    id:"custom",
-    name:"Custom",
-    note:"Tes propres valeurs."
-  }
-];
+    { id:"salvation", name:"Salvation", note:"Collecte très rapide.", beginner:{ loopMin:40, refineMode:"refine", refineYield:0.30 }, advanced:{ loopMin:40, feesPct:0, refineMode:"refine", refineYield:0.30 } },
+    { id:"vulture_fortune", name:"Vulture / Fortune", note:"Collecte très rapide.", beginner:{ loopMin:55, refineMode:"refine", refineYield:0.30 }, advanced:{ loopMin:55, feesPct:0, refineMode:"refine", refineYield:0.30 } },
+    { id:"reclaimer", name:"Reclaimer", note:"Équipage conseillé.", beginner:{ loopMin:60, refineMode:"refine", refineYield:0.15 }, advanced:{ loopMin:60, feesPct:0, refineMode:"refine", refineYield:0.15 } },
+    { id:"custom", name:"Custom", note:"Tes propres valeurs." }
+  ];
 
   function populateShips(){
     const sel = $("shipSelect");
@@ -113,47 +62,44 @@ async function copyToClipboard(text){
     if(ship.advanced?.loopMin && $("loopMinutes")) $("loopMinutes").value = String(ship.advanced.loopMin);
     if(ship.advanced?.feesPct != null && $("feesPct")) $("feesPct").value = String(ship.advanced.feesPct);
 
+    const presetMode = ship.beginner?.refineMode || ship.advanced?.refineMode;
+    const presetYield = ship.beginner?.refineYield ?? ship.advanced?.refineYield;
 
-// Preset raffinage (CMR/CMS -> CMAT)
-const presetMode = ship.beginner?.refineMode || ship.advanced?.refineMode;
-const presetYield = ship.beginner?.refineYield ?? ship.advanced?.refineYield;
+    if(presetMode && $("cmatRefineMode")) $("cmatRefineMode").value = presetMode;
+    if(presetYield != null && $("cmatRefineYield")) {
+      const y = Number(presetYield);
+      $("cmatRefineYield").value = (Number.isFinite(y) && y <= 1.0) ? String(Math.round(y * 100)) : String(y);
+    }
 
-if(presetMode && $("cmatRefineMode")) $("cmatRefineMode").value = presetMode;
-if(presetYield != null && $("cmatRefineYield")) {
-  const y = Number(presetYield);
-  // Backward compatible: old presets used 0.30 / 1.00; UI now expects percent (15, 30, 100)
-  $("cmatRefineYield").value = (Number.isFinite(y) && y <= 1.0) ? String(Math.round(y * 100)) : String(y);
-}
+    // Badge profil (Débutant) – si présent dans le HTML
+    const badge = $("shipProfileBadge");
+    const meta = $("shipMetaHint");
+    if(badge){
+      badge.classList.remove("ship-badge-off","ship-badge-solo","ship-badge-stable","ship-badge-multi");
+      let label = "—";
+      let metaTxt = "Profil : —";
 
-// Badge profil joueur (Débutant)
-const badge = $("shipProfileBadge");
-const meta = $("shipMetaHint");
-if(badge){
-  badge.classList.remove("ship-badge-off","ship-badge-solo","ship-badge-stable","ship-badge-multi");
-  let label = "—";
-  let metaTxt = "Profil : —";
+      if(id === "salvation"){
+        label = "SOLO / RAPIDE";
+        metaTxt = "Profil : boucle courte, collecte rapide";
+        badge.classList.add("ship-badge-solo");
+      } else if(id === "vulture_fortune"){
+        label = "SOLO STABLE";
+        metaTxt = "Profil : solo, rendement régulier";
+        badge.classList.add("ship-badge-stable");
+      } else if(id === "reclaimer"){
+        label = "MULTI / LOGISTIQUE";
+        metaTxt = "Profil : équipage conseillé, logistique lourde";
+        badge.classList.add("ship-badge-multi");
+      } else {
+        label = "CUSTOM";
+        metaTxt = "Profil : valeurs personnalisées";
+        badge.classList.add("ship-badge-off");
+      }
 
-  if(id === "salvation"){
-    label = "SOLO / RAPIDE";
-    metaTxt = "Profil : boucle courte, collecte rapide";
-    badge.classList.add("ship-badge-solo");
-  } else if(id === "vulture_fortune"){
-    label = "SOLO STABLE";
-    metaTxt = "Profil : solo, rendement régulier";
-    badge.classList.add("ship-badge-stable");
-  } else if(id === "reclaimer"){
-    label = "MULTI / LOGISTIQUE";
-    metaTxt = "Profil : équipage conseillé, logistique lourde";
-    badge.classList.add("ship-badge-multi");
-  } else {
-    label = "CUSTOM";
-    metaTxt = "Profil : valeurs personnalisées";
-    badge.classList.add("ship-badge-off");
-  }
-
-  badge.textContent = label;
-  if(meta) meta.textContent = metaTxt;
-}
+      badge.textContent = label;
+      if(meta) meta.textContent = metaTxt;
+    }
 
     calcBeginner();
     calcAdvanced();
@@ -208,8 +154,8 @@ if(badge){
 
     let vC = scuC * pC;
     if(begRefineMode === "refine") vC = vC * begRefineYield;
-    const total = vR + vC;
 
+    const total = vR + vC;
     const hours = loopMin / 60;
     const perHour = hours > 0 ? total / hours : 0;
 
@@ -234,7 +180,6 @@ if(badge){
 
     const mode = $("cmatRefineMode")?.value || "sell";
     const yieldInput = clamp(num($("cmatRefineYield")?.value), 0, 100);
-    // UI expects percent (15/30/100). Backward compatible with legacy fraction (0.15/0.30/1.0).
     const yieldFactor = (yieldInput <= 1.0) ? yieldInput : (yieldInput / 100);
 
     const vR = scuR * pR;
@@ -265,135 +210,143 @@ if(badge){
   }
 
   // ---------------------------------------------------------------------------
-  // Top ventes – rendu
+  // UEX helpers (best sales + history)
   // ---------------------------------------------------------------------------
-  function renderTopList(containerId, items, opts){
-  const el = $(containerId);
-  if(!el) return;
-  el.innerHTML = "";
-
-  const o = opts || {};
-  const showApply = !!o.showApply;
-  const kind = o.kind || ""; // "rmc" | "cmat"
-
-  if(!items || !items.length){
-    el.innerHTML = '<div class="panel-note">—</div>';
-    return;
+  function extractPrice(o){
+    if(!o || typeof o !== "object") return 0;
+    return num(o.sell ?? o.sell_price ?? o.sellPrice ?? o.price ?? o.value ?? o.unit_price ?? o.unitPrice ?? 0);
   }
 
-  for(const it of items.slice(0,3)){
-    const card = document.createElement("div");
-    card.className = "sale-item";
+  function pickFirst(it, keys){
+    for(const k of keys){
+      const v = it?.[k];
+      if(v == null) continue;
+      const s = String(v).trim();
+      if(s) return s;
+    }
+    return "";
+  }
 
-    const main = document.createElement("div");
-    main.className = "sale-main";
+  function formatSalePoint(it){
+    const terminal = pickFirst(it, ["name","terminal","terminalName","terminal_name","station","stationName","station_name","port","outpost"]);
+    const planet   = pickFirst(it, ["location","location_name","planet","planetName","planet_name","body","body_name","system","system_name"]);
+    const zone     = pickFirst(it, ["zone","zoneName","zone_name","area","area_name"]);
+    const parts = [terminal, zone, planet].filter(Boolean);
+    return parts.length ? parts.join(" • ") : "—";
+  }
 
-    const term = document.createElement("div");
-    term.className = "sale-terminal";
-    term.textContent = it.terminal || "Terminal";
+  function avgHistoryPrice(arr){
+    const xs = (Array.isArray(arr) ? arr : []).map(extractPrice).filter(v => Number.isFinite(v) && v > 0);
+    if(xs.length === 0) return null;
+    return xs.reduce((a,b)=>a+b,0) / xs.length;
+  }
 
-    const loc = document.createElement("div");
-    loc.className = "sale-location";
-    loc.textContent = it.location || "";
+  function formatDeltaPct(best, avg){
+    if(!Number.isFinite(best) || !Number.isFinite(avg) || avg <= 0) return "";
+    const pct = ((best - avg) / avg) * 100;
+    const sign = pct >= 0 ? "+" : "";
+    return `${sign}${pct.toFixed(1)}% vs moy.`;
+  }
 
-    main.appendChild(term);
-    main.appendChild(loc);
+  let lastUexPayload = null;
+  let lastBestRmcItem = null;
+  let lastBestCmatItem = null;
 
-    const actions = document.createElement("div");
-    actions.className = "sale-actions";
+  function setBestSalesFromUex(data){
+    lastBestRmcItem = data?.rmc?.bestTerminal || null;
+    lastBestCmatItem = data?.cmat?.bestTerminal || null;
 
-    const price = document.createElement("div");
-    price.className = "sale-price";
-    price.textContent = `${Math.round(num(it.price)).toLocaleString("fr-FR")} aUEC/SCU`;
+    const rPlace = $("advBestRmcSale");
+    const cPlace = $("advBestCmatSale");
+    const rMeta  = $("advBestRmcMeta");
+    const cMeta  = $("advBestCmatMeta");
 
-    actions.appendChild(price);
+    if(rPlace) rPlace.textContent = lastBestRmcItem ? formatSalePoint(lastBestRmcItem) : "—";
+    if(cPlace) cPlace.textContent = lastBestCmatItem ? formatSalePoint(lastBestCmatItem) : "—";
 
-    if(showApply){
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sale-apply";
-      btn.textContent = "Appliquer";
-      btn.addEventListener("click", () => applyTopSale(kind, it));
-      actions.appendChild(btn);
+    const rBest = lastBestRmcItem ? extractPrice(lastBestRmcItem) : null;
+    const cBest = lastBestCmatItem ? extractPrice(lastBestCmatItem) : null;
+
+    const rAvg = avgHistoryPrice(data?.rmc?.history);
+    const cAvg = avgHistoryPrice(data?.cmat?.history);
+
+    if(rMeta){
+      const d = formatDeltaPct(rBest, rAvg);
+      rMeta.textContent = Number.isFinite(rBest) ? `Prix: ${Math.round(rBest).toLocaleString("fr-FR")} aUEC/SCU${d ? " • " + d : ""}` : "—";
+    }
+    if(cMeta){
+      const d = formatDeltaPct(cBest, cAvg);
+      cMeta.textContent = Number.isFinite(cBest) ? `Prix: ${Math.round(cBest).toLocaleString("fr-FR")} aUEC/SCU${d ? " • " + d : ""}` : "—";
+    }
+  }
+
+
+  function computeTrendLabel(history){
+    const arr = Array.isArray(history) ? history : [];
+    if(arr.length < 2) return { arrow: "—", label: "—", dir: 0 };
+    const first = extractPrice(arr[0]);
+    const last  = extractPrice(arr[arr.length - 1]);
+    if(!Number.isFinite(first) || !Number.isFinite(last) || first <= 0) return { arrow: "—", label: "—", dir: 0 };
+
+    const pct = ((last - first) / first) * 100;
+    // Seuil "stable" volontairement large pour éviter les faux signaux
+    if(Math.abs(pct) < 1.5) return { arrow: "→", label: "stable", dir: 0 };
+    if(pct > 0) return { arrow: "↑", label: "haussier", dir: 1 };
+    return { arrow: "↓", label: "baissier", dir: -1 };
+  }
+
+  function updateMarketInsight(data){
+    const cEl = $("advMarketCmat");
+    const rEl = $("advMarketRmc");
+    const mEl = $("advMarketMoment");
+    if(!cEl && !rEl && !mEl) return;
+
+    if(!data){
+      if(cEl) cEl.textContent = "—";
+      if(rEl) rEl.textContent = "—";
+      if(mEl) mEl.textContent = "—";
+      return;
     }
 
-    card.appendChild(main);
-    card.appendChild(actions);
-    el.appendChild(card);
-  }
+    const c = computeTrendLabel(data?.cmat?.history);
+    const r = computeTrendLabel(data?.rmc?.history);
+
+    if(cEl) cEl.textContent = `${c.arrow} ${c.label}`;
+    if(rEl) rEl.textContent = `${r.arrow} ${r.label}`;
+
+    // Moment de vendre (simple, lisible) :
+    // - BON : CMAT monte et RMC ne baisse pas, ou les deux montent
+    // - FAIBLE : les deux baissent
+    // - OK : cas mixtes / incertains
+    let moment = "OK";
+    if(c.dir === -1 && r.dir === -1) moment = "FAIBLE";
+    else if(c.dir === 1 && r.dir >= 0) moment = "BON";
+    else if(c.dir === 0 && r.dir === 1) moment = "BON";
+    else if(c.dir === 0 && r.dir === 0) moment = "OK";
+
+    // Affichage demandé : "Moment de vendre : OUI / NON"
+    // Règle simple : BON ou OK => OUI ; FAIBLE => NON
+    const sellNow = (moment === "FAIBLE") ? "NON" : "OUI";
+    if(mEl) mEl.textContent = sellNow;
+  
+    // V2 (sobre) : justification courte sous "Vendre maintenant"
+    const jEl = document.getElementById("marketJustification");
+    if(jEl){
+      let j = "";
+      if(sellNow === "OUI"){
+        if(c.dir === 1 && r.dir >= 0) j = "CMAT favorable (hausse / stable)";
+        else if(r.dir === 1 && c.dir >= 0) j = "RMC favorable (hausse / stable)";
+        else if(c.dir === 1) j = "CMAT en hausse";
+        else if(r.dir === 1) j = "RMC en hausse";
+        else j = "Prix corrects actuellement";
+      } else {
+        if(c.dir !== r.dir) j = "Marché instable (signaux mixtes)";
+        else j = "Marché peu favorable";
+      }
+      jEl.textContent = j;
+    }
 }
 
-
-function pickFirst(it, keys){
-  for(const k of keys){
-    const v = it?.[k];
-    if(v == null) continue;
-    const s = String(v).trim();
-    if(s) return s;
-  }
-  return "";
-}
-
-function formatSalePoint(it){
-  // Normalize UEX fields (various naming conventions)
-  const terminal = pickFirst(it, ["name","terminal","terminalName","terminal_name","station","stationName","station_name","port","outpost"]);
-  const planet   = pickFirst(it, ["location","location_name","planet","planetName","planet_name","body","body_name","system","system_name"]);
-  const zone     = pickFirst(it, ["zone", "zoneName", "zone_name", "area", "area_name"]);
-
-  const parts = [terminal, zone, planet].filter(Boolean);
-
-  // If nothing usable, still return a placeholder (so user understands data is missing)
-  return parts.length ? parts.join(" • ") : "Point de vente non fourni par UEX";
-}
-
-function applyTopSale(kind, it){
-  // Mode Avancé uniquement : applique le prix + affiche la source
-  const price = Math.round(num(it?.price));
-  if(!Number.isFinite(price) || price <= 0) return;
-
-  const term = (it?.terminal || "Terminal").trim();
-  const loc  = (it?.location || "").trim();
-
-  if(kind === "rmc"){
-    const inp = $("advPriceRmc");
-    if(inp) inp.value = String(price);
-  } else if(kind === "cmat"){
-    const inp = $("advPriceCmat");
-    if(inp) inp.value = String(price);
-  } else {
-    return;
-  }
-
-  // Force mode Advanced visible
-  setMode("advanced");
-
-  // Recalc
-  calcAdvanced();
-
-  // Status line
-  const s = $("uexStatusLineAdv");
-  if(s){
-    const label = (kind === "rmc") ? "RMC" : "CMAT";
-    s.textContent = `UEX : appliqué (${label}) — ${term}${loc ? " • " + loc : ""}`;
-  }
-}
-
-function spotParts(o){
-    if(!o || typeof o !== "object") return { terminal:"—", location:"" };
-
-    const terminal = String(o.name || o.terminal || o.terminal_name || o.kiosk || o.trade_terminal || o.location_name || "").trim();
-    const area    = String(o.city || o.outpost || o.station || o.zone || o.area || o.location || o.place || "").trim();
-    const planet  = String(o.planet || o.planet_name || o.body || o.celestial || "").trim();
-    const system  = String(o.system || o.system_name || "").trim();
-
-    const loc = [];
-    if(area && area.toLowerCase() !== terminal.toLowerCase()) loc.push(area);
-    if(planet && system) loc.push(`${planet} (${system})`);
-    else if(planet) loc.push(planet);
-    else if(system) loc.push(system);
-
-    return { terminal: terminal || (area || "—"), location: loc.join(" — ") };
-  }
 
   // ---------------------------------------------------------------------------
   // UEX status lines
@@ -406,15 +359,7 @@ function spotParts(o){
     el.style.opacity = ok ? "1" : "0.85";
   }
 
-  
-function setUexLock(isOn){
-  const badge = $("uexLockBadge");
-  const wrap = $("priceRmc")?.closest(".form-row");
-  if(badge) badge.style.display = isOn ? "inline-flex" : "none";
-  if(wrap) wrap.classList.toggle("uex-locked", !!isOn);
-}
-
-function setUexUpdated(ts){
+  function setUexUpdated(ts){
     const el = $("uexLastUpdate");
     if(!el) return;
     if(!ts){ el.textContent = "Dernière MAJ UEX : —"; return; }
@@ -424,344 +369,198 @@ function setUexUpdated(ts){
     el.textContent = `Dernière MAJ UEX : ${hh}:${mm}`;
   }
 
+  function setUexLock(isOn){
+    const badge = $("uexLockBadge");
+    const wrap = $("priceRmc")?.closest(".form-row");
+    if(badge) badge.style.display = isOn ? "inline-flex" : "none";
+    if(wrap) wrap.classList.toggle("uex-locked", !!isOn);
+  }
+
   // ---------------------------------------------------------------------------
+  // Chart (kept intact)
   // ---------------------------------------------------------------------------
-// Top ventes – parsing (payload Worker v6.x : rmc.topTerminals / cmat.topTerminals)
-// ---------------------------------------------------------------------------
-function isObject(v){ return v && typeof v === "object" && !Array.isArray(v); }
+  let lastChartPoints = null;
 
-function extractPrice(o){
-  if(!o || typeof o !== "object") return 0;
-  return num(
-    o.sell ?? o.sell_price ?? o.sellPrice ?? o.price ?? o.value ?? o.unit_price ?? o.unitPrice ?? 0
-  );
-}
-
-function looksLikeTerminalObj(o){
-  if(!o || typeof o !== "object") return false;
-  const p = extractPrice(o);
-  if(!(p > 0)) return false;
-
-  // Worker payload uses "name" + "location" (+ sell)
-  const hasName = !!(o.terminal || o.terminal_name || o.kiosk || o.trade_terminal || o.name || o.location_name);
-  const hasLoc  = !!(o.location || o.place || o.city || o.station || o.outpost || o.planet || o.system || o.zone || o.area);
-  return hasName || hasLoc;
-}
-
-function pickTopArray(data, kind){
-  // Primary (Worker format)
-  const node = (kind === "rmc") ? data?.rmc : data?.cmat;
-
-  if(Array.isArray(node?.topTerminals) && node.topTerminals.length) return node.topTerminals;
-  if(Array.isArray(node?.top3) && node.top3.length) return node.top3;
-  if(Array.isArray(node?.top) && node.top.length) return node.top;
-  if(Array.isArray(node?.best) && node.best.length) return node.best;
-  if(Array.isArray(node?.terminals) && node.terminals.length) return node.terminals;
-
-  // Sometimes bestTerminal is a single object
-  if(isObject(node?.bestTerminal)) return [node.bestTerminal];
-
-  // Fallback deep scan: first array that resembles terminals
-  return deepScanForTop(data);
-}
-
-function deepScanForTop(data){
-  const seen = new Set();
-  const stack = [data];
-
-  while(stack.length){
-    const cur = stack.pop();
-    if(!cur || typeof cur !== "object") continue;
-    if(seen.has(cur)) continue;
-    seen.add(cur);
-
-    if(Array.isArray(cur)){
-      if(cur.length >= 3 && looksLikeTerminalObj(cur[0])) return cur;
-      for(const v of cur) if(v && typeof v === "object") stack.push(v);
-      continue;
+  function extractSeries(historyArr){
+    if(!Array.isArray(historyArr)) return [];
+    const out = [];
+    for(const it of historyArr){
+      if(!it) continue;
+      const v = (it.sell != null) ? Number(it.sell) : ((it.price != null) ? Number(it.price) : NaN);
+      if(!Number.isFinite(v)) continue;
+      out.push({ v });
     }
-    for(const k of Object.keys(cur)){
-      const v = cur[k];
-      if(v && typeof v === "object") stack.push(v);
+    return out;
+  }
+
+  function fmtNum(n){
+    try { return Intl.NumberFormat("fr-FR").format(Math.round(n)); } catch(_) { return String(Math.round(n)); }
+  }
+
+  function renderAdvPriceHistoryChart(payload){
+    const canvas = $("advPriceHistoryChart");
+    const status = $("advChartStatus");
+    if(!canvas) return;
+
+    const rmc = payload?.rmc ? extractSeries(payload.rmc.history) : [];
+    const cmat = payload?.cmat ? extractSeries(payload.cmat.history) : [];
+
+    if(status){
+      const rN = rmc.length, cN = cmat.length;
+      status.textContent = (rN || cN) ? `RMC: ${rN} points • CMAT: ${cN} points` : "Aucune donnée d’historique.";
     }
-  }
-  return [];
-}
 
-function normalizeTopList(arr){
-  const items = (Array.isArray(arr) ? arr : []).slice()
-    .filter(looksLikeTerminalObj)
-    .sort((a,b) => extractPrice(b) - extractPrice(a))
-    .slice(0,3)
-    .map(o => {
-      const p = spotParts(o);
-      return { terminal: p.terminal, location: p.location, price: extractPrice(o) };
-    });
-  return items;
-}
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
 
-  // UEX refresh (prix + top ventes)
-  // ---------------------------------------------------------------------------
-  
-function extractSeries(historyArr){
-  if(!Array.isArray(historyArr)) return [];
-  const out = [];
-  for(const it of historyArr){
-    if(!it) continue;
-    const v = (it.sell != null) ? Number(it.sell) : ((it.price != null) ? Number(it.price) : NaN);
-    if(!Number.isFinite(v)) continue;
-    out.push({ v });
-  }
-  return out;
-}
+    const cssW = canvas.clientWidth || 640;
+    const cssH = canvas.clientHeight || 260;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
 
-function fmtNum(n){
-  try { return Intl.NumberFormat("fr-FR").format(Math.round(n)); } catch(_) { return String(Math.round(n)); }
-}
+    ctx.clearRect(0,0,cssW,cssH);
+    ctx.fillStyle = "rgba(0,0,0,.08)";
+    ctx.fillRect(0,0,cssW,cssH);
 
-function renderAdvPriceHistoryChart(payload){
-  const canvas = $("advPriceHistoryChart");
-  const status = $("advChartStatus");
-  if(!canvas) return;
+    const padL = 46, padR = 14, padT = 14, padB = 28;
+    const W = cssW - padL - padR;
+    const H = cssH - padT - padB;
 
-  const rmc = payload?.rmc ? extractSeries(payload.rmc.history) : [];
-  const cmat = payload?.cmat ? extractSeries(payload.cmat.history) : [];
-
-  if(status){
-    const rN = rmc.length, cN = cmat.length;
-    status.textContent = (rN || cN) ? `RMC: ${rN} points • CMAT: ${cN} points` : "Aucune donnée d’historique.";
-  }
-
-  const ctx = canvas.getContext("2d");
-  const dpr = window.devicePixelRatio || 1;
-
-  const cssW = canvas.clientWidth || 640;
-  const cssH = canvas.clientHeight || 260;
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-
-  ctx.clearRect(0,0,cssW,cssH);
-  ctx.fillStyle = "rgba(0,0,0,.08)";
-  ctx.fillRect(0,0,cssW,cssH);
-
-  const padL = 46, padR = 14, padT = 14, padB = 28;
-  const W = cssW - padL - padR;
-  const H = cssH - padT - padB;
-
-  const all = [...rmc.map(x=>x.v), ...cmat.map(x=>x.v)];
-  if(all.length === 0){
+    const all = [...rmc.map(x=>x.v), ...cmat.map(x=>x.v)];
+    if(all.length === 0){
       lastChartPoints = null;
-    ctx.strokeStyle = "rgba(231,236,255,.12)";
-    ctx.beginPath();
-    ctx.moveTo(padL, padT + H/2);
-    ctx.lineTo(padL + W, padT + H/2);
-    ctx.stroke();
-    return;
-  }
-
-  let vMin = Math.min(...all);
-  let vMax = Math.max(...all);
-  if(vMin === vMax){ vMin = vMin * 0.95; vMax = vMax * 1.05; }
-
-  function yScale(v){
-    const t = (v - vMin) / (vMax - vMin);
-    return padT + (1 - t) * H;
-  }
-
-  // grid (3 ticks)
-  ctx.strokeStyle = "rgba(231,236,255,.10)";
-  ctx.fillStyle = "rgba(231,236,255,.55)";
-  ctx.lineWidth = 1;
-  ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
-
-  for(let i=0;i<3;i++){
-    const tt = i/2;
-    const v = vMax - tt*(vMax-vMin);
-    const y = yScale(v);
-    ctx.beginPath();
-    ctx.moveTo(padL, y);
-    ctx.lineTo(padL + W, y);
-    ctx.stroke();
-    ctx.fillText(fmtNum(v), 8, y + 4);
-  }
-
-  function drawSeries(series, strokeStyle){
-    if(series.length < 2) return;
-    const n = series.length;
-    ctx.strokeStyle = strokeStyle;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for(let i=0;i<n;i++){
-      const x = padL + (i/(n-1))*W;
-      const y = yScale(series[i].v);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.stroke();
-
-    ctx.fillStyle = strokeStyle;
-    for(let i=0;i<n;i++){
-      const x = padL + (i/(n-1))*W;
-      const y = yScale(series[i].v);
+      ctx.strokeStyle = "rgba(231,236,255,.12)";
       ctx.beginPath();
-      ctx.arc(x,y,2.2,0,Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(padL, padT + H/2);
+      ctx.lineTo(padL + W, padT + H/2);
+      ctx.stroke();
+      return;
     }
-  }
 
-  drawSeries(rmc, "rgba(0,229,255,.92)");
-  drawSeries(cmat, "rgba(231,236,255,.85)");
-
-  ctx.strokeStyle = "rgba(231,236,255,.14)";
-  ctx.beginPath();
-  ctx.moveTo(padL, padT + H);
-  ctx.lineTo(padL + W, padT + H);
-  ctx.stroke();
-}
-
-function bindChartHover(){
-  const canvas = $("advPriceHistoryChart");
-  const tip = $("advChartTooltip");
-  if(!canvas || !tip) return;
-
-  function hide(){
-    tip.classList.remove("is-on");
-    tip.setAttribute("aria-hidden","true");
-  }
-
-  function show(x,y,seriesName,val){
-    tip.style.left = `${x}px`;
-    tip.style.top  = `${y}px`;
-    const dotClass = (seriesName === "RMC") ? "lg-rmc" : "lg-cmat";
-    const dotColor = (seriesName === "RMC") ? "rgba(0,229,255,.92)" : "rgba(231,236,255,.85)";
-    tip.innerHTML = `
-      <div class="tt-title"><span class="tt-dot" style="background:${dotColor}"></span>${seriesName}</div>
-      <div class="tt-line"><span>Valeur</span><span class="tt-val">${fmtMoney(val)} aUEC</span></div>
-    `;
-    tip.classList.add("is-on");
-    tip.setAttribute("aria-hidden","false");
-  }
-
-  canvas.addEventListener("mousemove", (ev) => {
-    if(!lastChartPoints) return hide();
-
-    const rect = canvas.getBoundingClientRect();
-    const mx = ev.clientX - rect.left;
-    const my = ev.clientY - rect.top;
-
-    const { padL, padT, W, H, vMin, vMax, rmc, cmat } = lastChartPoints;
+    let vMin = Math.min(...all);
+    let vMax = Math.max(...all);
+    if(vMin === vMax){ vMin = vMin * 0.95; vMax = vMax * 1.05; }
 
     function yScale(v){
       const t = (v - vMin) / (vMax - vMin);
       return padT + (1 - t) * H;
     }
 
-    function nearest(series){
-      if(!series || series.length < 2) return null;
+    // grid (3 ticks)
+    ctx.strokeStyle = "rgba(231,236,255,.10)";
+    ctx.fillStyle = "rgba(231,236,255,.55)";
+    ctx.lineWidth = 1;
+    ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+
+    for(let i=0;i<3;i++){
+      const tt = i/2;
+      const v = vMax - tt*(vMax-vMin);
+      const y = yScale(v);
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + W, y);
+      ctx.stroke();
+      ctx.fillText(fmtNum(v), 8, y + 4);
+    }
+
+    function drawSeries(series, strokeStyle){
+      if(series.length < 2) return;
       const n = series.length;
-      const xi = Math.round(((mx - padL) / W) * (n-1));
-      if(xi < 0 || xi >= n) return null;
-      const x = padL + (xi/(n-1))*W;
-      const y = yScale(series[xi].v);
-      const dx = mx - x, dy = my - y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      return { xi, x, y, v: series[xi].v, dist };
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for(let i=0;i<n;i++){
+        const x = padL + (i/(n-1))*W;
+        const y = yScale(series[i].v);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = strokeStyle;
+      for(let i=0;i<n;i++){
+        const x = padL + (i/(n-1))*W;
+        const y = yScale(series[i].v);
+        ctx.beginPath();
+        ctx.arc(x,y,2.2,0,Math.PI*2);
+        ctx.fill();
+      }
     }
 
-    const a = nearest(rmc);
-    const b = nearest(cmat);
-    const best = [a,b].filter(Boolean).sort((p,q)=>p.dist-q.dist)[0];
+    drawSeries(rmc, "rgba(0,229,255,.92)");
+    drawSeries(cmat, "rgba(231,236,255,.85)");
 
-    // threshold in px
-    if(!best || best.dist > 18) return hide();
+    ctx.strokeStyle = "rgba(231,236,255,.14)";
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + H);
+    ctx.lineTo(padL + W, padT + H);
+    ctx.stroke();
 
-    const seriesName = (best === a) ? "RMC" : "CMAT";
-    show(best.x, best.y, seriesName, best.v);
-  });
+    lastChartPoints = { padL, padT, W, H, vMin, vMax, rmc, cmat };
+  }
 
-  canvas.addEventListener("mouseleave", hide);
-}
+  // ---------------------------------------------------------------------------
+  // UEX refresh
+  // ---------------------------------------------------------------------------
+  async function refreshUex(){
+    try{
+      setUexLine("beg", true, "UEX : actualisation…");
+      setUexLine("adv", true, "UEX : actualisation…");
 
-async function refreshUex(){
-  try{
-    setUexLine("beg", true, "UEX : actualisation…");
-    setUexLine("adv", true, "UEX : actualisation…");
+      const r = await fetch(WORKER_URL, { cache: "no-store" });
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
 
-    const r = await fetch(WORKER_URL, { cache: "no-store" });
-    if(!r.ok) throw new Error("HTTP " + r.status);
-    const data = await r.json();
+      lastUexPayload = data;
+      setBestSalesFromUex(data);
+      renderAdvPriceHistoryChart(data);
+      updateMarketInsight(data);
 
-    lastUexPayload = data;
-    renderAdvPriceHistoryChart(data);
-lastUexPayload = data;
-    renderAdvPriceHistoryChart(data);
+      const rNode = data?.rmc || {};
+      const cNode = data?.cmat || {};
 
-    // ---------------- Prices (Worker format: rmc.price / cmat.price + bestTerminal.sell + history[].sell)
-    const rNode = data?.rmc || {};
-    const cNode = data?.cmat || {};
+      const rHist = Array.isArray(rNode.history) ? rNode.history : [];
+      const cHist = Array.isArray(cNode.history) ? cNode.history : [];
 
-    const rHist = Array.isArray(rNode.history) ? rNode.history : [];
-    const cHist = Array.isArray(cNode.history) ? cNode.history : [];
+      const lastR = rHist.length ? rHist[rHist.length - 1] : null;
+      const lastC = cHist.length ? cHist[cHist.length - 1] : null;
 
-    const lastR = rHist.length ? rHist[rHist.length - 1] : null;
-    const lastC = cHist.length ? cHist[cHist.length - 1] : null;
+      let pR = (typeof rNode.price === "number") ? rNode.price : 0;
+      let pC = (typeof cNode.price === "number") ? cNode.price : 0;
 
-    let pR = (typeof rNode.price === "number") ? rNode.price : 0;
-    let pC = (typeof cNode.price === "number") ? cNode.price : 0;
+      if(typeof rNode?.bestTerminal?.sell === "number") pR = rNode.bestTerminal.sell;
+      if(typeof cNode?.bestTerminal?.sell === "number") pC = cNode.bestTerminal.sell;
 
-    // Prefer explicit bestTerminal.sell if present
-    if(typeof rNode?.bestTerminal?.sell === "number") pR = rNode.bestTerminal.sell;
-    if(typeof cNode?.bestTerminal?.sell === "number") pC = cNode.bestTerminal.sell;
+      if(lastR && typeof lastR.sell === "number") pR = lastR.sell;
+      if(lastC && typeof lastC.sell === "number") pC = lastC.sell;
 
-    // Or last history sell
-    if(lastR && typeof lastR.sell === "number") pR = lastR.sell;
-    if(lastC && typeof lastC.sell === "number") pC = lastC.sell;
+      if($("priceRmc")) $("priceRmc").value = String(pR || 0);
+      if($("advPriceRmc")) $("advPriceRmc").value = String(pR || 0);
 
-    if($("priceRmc")) $("priceRmc").value = String(pR || 0);
-    if($("advPriceRmc")) $("advPriceRmc").value = String(pR || 0);
+      if($("priceCmat")) $("priceCmat").value = String(pC || 0);
+      if($("advPriceCmat")) $("advPriceCmat").value = String(pC || 0);
 
-    if($("priceCmat")) $("priceCmat").value = String(pC || 0);
-    if($("advPriceCmat")) $("advPriceCmat").value = String(pC || 0);
-
-    // ---------------- Top ventes
-    const topRraw = pickTopArray(data, "rmc");
-    const topCraw = pickTopArray(data, "cmat");
-
-    const topR = normalizeTopList(topRraw);
-    const topC = normalizeTopList(topCraw);
-
-    renderTopList("topRmc", topR);
-    // Mode Avancé (avec bouton Appliquer)
-    renderTopList("topRmcAdv", topR, { showApply:true, kind:"rmc" });
-    renderTopList("topCmat", topC);
-    renderTopList("topCmatAdv", topC, { showApply:true, kind:"cmat" });
-
-    const hasAnyTop = topR.length || topC.length;
-    if(hasAnyTop){
-      setUexLine("beg", true, "UEX : opérationnel (prix & top ventes)");
-    } else {
-      setUexLine("beg", true, "UEX : opérationnel (prix) — top ventes indisponible");
-    }
-    setUexLine("adv", true, "UEX : opérationnel (prix à jour)");
-    setUexUpdated(Date.now());
-
+      setUexLine("beg", true, "UEX : opérationnel (prix à jour)");
+      setUexLine("adv", true, "UEX : opérationnel (prix + historique)");
+      setUexUpdated(Date.now());
       setUexLock(true);
 
-    calcBeginner();
-    calcAdvanced();
-  }catch(e){
-    setUexLine("beg", false, "UEX : indisponible (saisie manuelle)");
-    setUexLine("adv", false, "UEX : indisponible (saisie manuelle)");
-    renderTopList("topRmc", []);
-      renderTopList("topRmcAdv", [], { showApply:true, kind:"rmc" });
-    renderTopList("topCmat", []);
-      renderTopList("topCmatAdv", [], { showApply:true, kind:"cmat" });
-    setUexUpdated(null);
+      calcBeginner();
+      calcAdvanced();
+    }catch(e){
+      setUexLine("beg", false, "UEX : indisponible (saisie manuelle)");
+      setUexLine("adv", false, "UEX : indisponible (saisie manuelle)");
+      setUexUpdated(null);
       setUexLock(false);
-    lastUexPayload = null;
-    renderAdvPriceHistoryChart(null);
-}
-}
+
+      lastUexPayload = null;
+      lastBestRmcItem = null;
+      lastBestCmatItem = null;
+      setBestSalesFromUex({});
+      renderAdvPriceHistoryChart(null);
+      updateMarketInsight(null);
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Configs
@@ -793,7 +592,7 @@ lastUexPayload = data;
         thrOk: $("thrOk")?.value || "250000",
         thrGood: $("thrGood")?.value || "500000",
         refineMode: $("cmatRefineMode")?.value || "sell",
-        refineYield: $("cmatRefineYield")?.value || "1.00",
+        refineYield: $("cmatRefineYield")?.value || "30",
         scuRmc: $("advScuRmc")?.value || "0",
         scuCmat: $("advScuCmat")?.value || "0",
         priceRmc: $("advPriceRmc")?.value || "0",
@@ -817,7 +616,7 @@ lastUexPayload = data;
       if($("thrOk")) $("thrOk").value = s.advanced.thrOk ?? "250000";
       if($("thrGood")) $("thrGood").value = s.advanced.thrGood ?? "500000";
       if($("cmatRefineMode")) $("cmatRefineMode").value = s.advanced.refineMode ?? "sell";
-      if($("cmatRefineYield")) $("cmatRefineYield").value = s.advanced.refineYield ?? "1.00";
+      if($("cmatRefineYield")) $("cmatRefineYield").value = s.advanced.refineYield ?? "30";
       if($("advScuRmc")) $("advScuRmc").value = s.advanced.scuRmc ?? "0";
       if($("advScuCmat")) $("advScuCmat").value = s.advanced.scuCmat ?? "0";
       if($("advPriceRmc")) $("advPriceRmc").value = s.advanced.priceRmc ?? "0";
@@ -866,7 +665,7 @@ lastUexPayload = data;
   }
 
   // ---------------------------------------------------------------------------
-  // Wiring
+  // Wiring (clean)
   // ---------------------------------------------------------------------------
   function bind(){
     $("btnBeginner")?.addEventListener("click", () => setMode("beginner"));
@@ -874,35 +673,10 @@ lastUexPayload = data;
 
     $("shipSelect")?.addEventListener("change", applyShipPreset);
 
-["scuRmc","scuCmat","begLoopMinutes","priceRmc","priceCmat"].forEach(id => {
-  $(id)?.addEventListener("input", () => {
-    if(id === "priceRmc" || id === "priceCmat") setUexLock(false);
-    lastUexPayload = null;
-    renderAdvPriceHistoryChart(null);
-calcBeginner();
-  });
-  $(id)?.addEventListener("change", () => {
-    if(id === "priceRmc" || id === "priceCmat") setUexLock(false);
-    lastUexPayload = null;
-    renderAdvPriceHistoryChart(null);
-calcBeginner();
-  });
-
-// Copie terminal sélectionné (Mode Avancé)
-$("btnCopySale")?.addEventListener("click", async () => {
-  const t = (lastSelectedSaleText && String(lastSelectedSaleText).trim()) || ($("advSelectedSale")?.textContent || "").trim();
-  const ok = await copyToClipboard(t);
-  const sum = $("sumStatus");
-  if(sum && t){
-    sum.textContent = ok ? `Copié : ${t}` : `Copie impossible : ${t}`;
-  }
-
-// Recalcul live — Mode Avancé uniquement
-["advScuRmc","advScuCmat","advLoopMinutes","advPriceRmc","advPriceCmat","cmatRefineYield"].forEach(id => {
-  $(id)?.addEventListener("input", () => { calcAdvanced(); });
-});
-});
-});
+    ["scuRmc","scuCmat","begLoopMinutes","priceRmc","priceCmat"].forEach(id => {
+      $(id)?.addEventListener("input", calcBeginner);
+      $(id)?.addEventListener("change", calcBeginner);
+    });
 
     ["advScuRmc","advScuCmat","advPriceRmc","advPriceCmat","feesPct","loopMinutes","thrOk","thrGood","cmatRefineMode","cmatRefineYield"].forEach(id => {
       $(id)?.addEventListener("input", calcAdvanced);
@@ -912,7 +686,6 @@ $("btnCopySale")?.addEventListener("click", async () => {
     $("btnRefreshUex")?.addEventListener("click", refreshUex);
     $("btnRefreshUexAdv")?.addEventListener("click", refreshUex);
 
-    // Historique des prix (UEX) — Mode Avancé
     $("btnChartRefreshAdv")?.addEventListener("click", refreshUex);
     window.addEventListener("resize", () => { if(lastUexPayload) renderAdvPriceHistoryChart(lastUexPayload); });
 
@@ -935,7 +708,7 @@ $("btnCopySale")?.addEventListener("click", async () => {
       if($("thrOk")) $("thrOk").value = "250000";
       if($("thrGood")) $("thrGood").value = "500000";
       if($("cmatRefineMode")) $("cmatRefineMode").value = "sell";
-      if($("cmatRefineYield")) $("cmatRefineYield").value = "1.00";
+      if($("cmatRefineYield")) $("cmatRefineYield").value = "30";
       if($("advScuRmc")) $("advScuRmc").value = "0";
       if($("advScuCmat")) $("advScuCmat").value = "0";
       calcAdvanced();

@@ -324,12 +324,51 @@
             <div class="summary-card">
               <div class="summary-label">Statut</div>
               <div class="summary-value"><span id="sumStatus" class="status-badge status-off">—</span></div>
-<div class="adv-selected-sale">
-  <div class="adv-selected-label">Vente sélectionnée</div>
-  <div class="adv-selected-value" id="advSelectedSale">—</div>
-  <button class="btn-ghost btn-copy" id="btnCopySale" type="button" title="Copier le terminal">Copier</button>
 </div>
             </div>
+
+<div class="adv-sellnow-grid">
+  <div class="adv-sellnow-card">
+    <div class="adv-sellnow-title">Où vendre maintenant (UEX)</div>
+
+    <div class="adv-sellnow-row">
+      <div class="adv-sellnow-kind">RMC</div>
+      <div class="adv-sellnow-main">
+        <div class="adv-sellnow-place" id="advBestRmcSale">—</div>
+        <div class="adv-sellnow-meta" id="advBestRmcMeta">—</div>
+      </div>
+      <div class="adv-sellnow-actions">
+</div>
+    </div>
+
+    <div class="adv-sellnow-row">
+      <div class="adv-sellnow-kind">CMAT</div>
+      <div class="adv-sellnow-main">
+        <div class="adv-sellnow-place" id="advBestCmatSale">—</div>
+        <div class="adv-sellnow-meta" id="advBestCmatMeta">—</div>
+      </div>
+      <div class="adv-sellnow-actions">
+</div>
+    </div>
+
+    <div class="adv-sellnow-feedback" id="advSellNowFeedback" aria-live="polite"></div>
+  </div>
+
+  <div class="adv-selected-card">
+
+  <div class="adv-market-card">
+    <div class="adv-market-title">Marché (UEX)</div>
+    <div class="adv-market-rows">
+      <div class="adv-market-row"><span class="adv-market-k">CMAT</span><span class="adv-market-v" id="advMarketCmat">—</span></div>
+      <div class="adv-market-row"><span class="adv-market-k">RMC</span><span class="adv-market-v" id="advMarketRmc">—</span></div>
+      <div class="adv-market-row adv-market-row-moment"><span class="adv-market-k">Vendre maintenant</span><span class="adv-market-v adv-market-moment" id="advMarketMoment">—</span></div>
+        <div class="adv-market-justification" id="marketJustification">—</div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
           </div>
         </div>
       
@@ -353,7 +392,7 @@
 </div>
 </section>
 
-      <div class="app-footer-brand">Recyclage • V1.4.8b • MAJ : 14/12/2025</div>
+      <div class="app-footer-brand">Recyclage • V1.4.18 • MAJ : 14/12/2025</div>
     </div>
   </div>
 
