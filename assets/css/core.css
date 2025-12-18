@@ -1,6 +1,11 @@
-/* core.css - Version V1.3.7
+/* core.css - Version V1.5.21
    Global UI: Background image + Neon/Glass theme (theme-neon) + centered navigation under title.
-   Patch goals (V1.3.7):
+   Patch goals (V1.3.9):
+   - Increase core specificity so it overrides module-scoped selectors like .page-hauling .panel
+   - No functional changes; visual consistency only
+   - Introduce unified surface tokens (panel/card/controls)
+   - Add safe core dominance rules to keep panels/cards/controls consistent across modules
+   - Keep existing look (no visual regression)
    - Increase background luminosity (less dark overlays)
    - Remove heavy "shadow" look on panels/cards/buttons (flatter glass)
 */
@@ -17,7 +22,22 @@
   --accent:#00e5ff;
   --accent2:#a855f7;
 
-  /* Neutral shadow (kept for rare uses, but most components now disable it) */
+  /* ====== Module accents (V1.5.0) ======
+     Idea: each module has its own accent color while keeping the same glass theme.
+     HUB uses the default cyan.
+  */
+  --accent-hub: #00e5ff;
+  --accent-salvage: #3cff9a; /* Recyclage */
+  --accent-hauling: #4cc9ff; /* Fret */
+  --accent-mining: #ff9f43;  /* Minage (orange ambré) */
+
+  /* Accent aliases used by components */
+  --accent: var(--accent-hub);
+  --accent-border: rgba(0,229,255,.40);
+  --accent-border-strong: rgba(0,229,255,.85);
+  --accent-bg: rgba(0, 229, 255, 0.12);
+  --accent-bg-strong: rgba(0, 229, 255, 0.16);
+/* Neutral shadow (kept for rare uses, but most components now disable it) */
   --shadow:0 10px 24px rgba(0,0,0,.22);
 
   --radius:16px;
@@ -27,6 +47,29 @@
   --font-ui: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
   --font-ui-weight: 650;
   --font-ui-spacing: .2px;
+  /* ====== Core typographic scale (single source of truth) ======
+     Readability hotfix: increase baseline sizes to stop "too small" UI.
+  */
+  --font-xs: 14px;
+  --font-sm: 17px;
+  --font-md: 18px;
+  --font-lg: 20px;
+  --font-xl: 23px;
+  --line-ui: 1.40;
+
+
+  /* ====== Unified surfaces (single source of truth) ====== */
+  --surface-panel-bg: linear-gradient(180deg, rgba(8, 22, 40, 0.66), rgba(6, 16, 30, 0.60));
+  --surface-panel-border: var(--accent-border);
+  --panel-outline-border: rgba(231,236,255,.22);
+  --panel-outline-inset: inset 0 0 0 1px rgba(255,255,255,.06);
+  --control-outline-border: rgba(231,236,255,.22);
+  --control-outline-inset: inset 0 0 0 1px rgba(255,255,255,.05);
+  --surface-card-bg: rgba(0, 10, 20, 0.32);
+  --surface-card-border: rgba(231,236,255,.14);
+  --surface-control-bg: rgba(0, 10, 20, 0.55);
+  --surface-control-border: var(--accent-border);
+  --shadow-none: none;
 }
 
 
@@ -94,7 +137,7 @@ a:hover{ text-decoration:underline; }
   text-align:center;
   margin: 0 0 12px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.95rem;
 }
 
 /* ---------- Top utility bar (buttons only) ---------- */
@@ -136,26 +179,298 @@ a:hover{ text-decoration:underline; }
   min-width: 110px;
   padding: 9px 16px;
   border-radius: var(--pill);
-  border: 1px solid rgba(0,229,255,.35);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   background: rgba(4, 16, 30, 0.42);
   /* Removed glow shadow */
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
   letter-spacing: .02em;
   font-weight: 650;
   text-decoration:none;
 }
 .nav a:hover{
-  border-color: rgba(0,229,255,.60);
-  box-shadow: none;
+  border-color: color-mix(in srgb, var(--accent) 78%, transparent);
+  box-shadow: var(--shadow-none);
 }
 .nav a.active{
-  background: rgba(0, 229, 255, 0.14);
-  border-color: rgba(0,229,255,.85);
-  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--accent-border-strong);
+  box-shadow: var(--shadow-none);
 }
 
 /* ---------- Controls ---------- */
 
+/* ============================
+   HERO + MODE SWITCH (V1.5.13)
+   Standard header layout used by all modules (FRET reference), without breaking other UI:
+   - .hero-card is the title panel
+   - .mode-switch is a shared capsule
+   - Overlap is applied ONLY when .mode-switch directly follows .hero-card
+============================ */
+
+.hero-card{
+  width: min(980px, 100%);
+  margin: 14px auto 0;
+  padding: 18px 22px 34px; /* extra bottom padding so overlap never touches text */
+  border-radius: 22px;
+  background: var(--surface-panel-bg);
+  border: 1px solid var(--panel-outline-border);
+  box-shadow: var(--panel-outline-inset);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-card .page-title{ margin: 0; }
+.hero-card .page-subtitle{ margin-top: 6px; color: var(--muted); }
+
+/* Base mode switch (safe defaults, no negative margin globally) */
+.mode-switch{
+  width: min(980px, 100%);
+  margin: 12px auto 16px;
+  padding: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(231,236,255,.18);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+  backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 1;
+}
+
+/* FRET-like overlap ONLY in header usage */
+.hero-card + .mode-switch{
+  margin-top: -18px;
+}
+
+/* Support both implementations (.mode-btn and .mode-tab) */
+.mode-switch .mode-btn,
+.mode-switch .mode-tab{
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 900;
+  color: rgba(255,255,255,.88);
+  background: transparent;
+  transition: background .15s ease, transform .05s ease;
+}
+
+.mode-switch .mode-btn:hover,
+.mode-switch .mode-tab:hover{ background: rgba(255,255,255,.06); }
+
+.mode-switch .mode-btn:active,
+.mode-switch .mode-tab:active{ transform: translateY(1px); }
+
+/* Active state */
+.mode-switch .mode-btn.is-active,
+.mode-switch .mode-tab.is-active,
+.mode-switch .mode-btn[aria-selected="true"],
+.mode-switch .mode-tab[aria-selected="true"]{
+  background: color-mix(in srgb, var(--accent) 22%, rgba(0,0,0,.18));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, rgba(255,255,255,.08));
+  color: rgba(255,255,255,.95);
+}
+
+@media (max-width: 520px){
+  .hero-card{ padding: 16px 16px 30px; }
+  .mode-switch{ gap: 10px; padding: 6px; margin: 10px auto 14px; }
+  .hero-card + .mode-switch{ margin-top: -16px; }
+  .mode-switch .mode-btn,
+  .mode-switch .mode-tab{ padding: 9px 14px; }
+}
+
+
+/* ============================
+   CONTROL WHITE OUTLINE (V1.5.6)
+   Reference: FRET inputs
+   Goal: visible light border around inputs/selects everywhere (without changing typography)
+============================ */
+:root body input[type="text"],
+:root body input[type="number"],
+:root body input[type="search"],
+:root body input[type="email"],
+:root body input[type="url"],
+:root body input[type="password"],
+:root body select,
+:root body textarea{
+  border: 1px solid var(--control-outline-border) !important;
+  box-shadow: var(--control-outline-inset) !important;
+}
+
+/* Focus keeps accent while preserving the white outline baseline */
+:root body input[type="text"]:focus,
+:root body input[type="number"]:focus,
+:root body input[type="search"]:focus,
+:root body input[type="email"]:focus,
+:root body input[type="url"]:focus,
+:root body input[type="password"]:focus,
+:root body select:focus,
+:root body textarea:focus{
+  border-color: color-mix(in srgb, var(--accent) 70%, rgba(231,236,255,.22)) !important;
+  box-shadow:
+    var(--control-outline-inset),
+    0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent) !important;
+}
+
+
+/* ============================
+   GLOBAL TOP NAV BUTTONS (V1.5.3)
+   Goal: "<- HUB / DISCORD / Support" looks identical on ALL pages.
+   Works with existing markup:
+   - .top-actions (hauling/mining)
+   - .header-actions (salvage)
+============================ */
+
+.top-actions,
+.header-actions{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:10px;
+  margin-bottom:12px;
+}
+
+/* Unified pill look */
+.top-actions a,
+.header-actions a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: rgba(0,0,0,.32);
+  color: rgba(255,255,255,.92);
+  text-decoration:none;
+  font-weight: 900;
+  letter-spacing: .3px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent) inset;
+  backdrop-filter: blur(10px);
+  transition: background .15s ease, transform .05s ease, border-color .15s ease;
+}
+
+.top-actions a:hover,
+.header-actions a:hover{
+  background: color-mix(in srgb, var(--accent) 16%, rgba(0,0,0,.32));
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.top-actions a:active,
+.header-actions a:active{ transform: translateY(1px); }
+
+/* Discord emphasis (works with .btn-cyan or .btn-discord or salvage .btn-primary) */
+.top-actions a.btn-cyan,
+.top-actions a.btn-discord,
+.header-actions a.btn-primary{
+  background: color-mix(in srgb, var(--accent) 22%, rgba(0,0,0,.28));
+}
+.top-actions a.btn-cyan:hover,
+.top-actions a.btn-discord:hover,
+.header-actions a.btn-primary:hover{
+  background: color-mix(in srgb, var(--accent) 30%, rgba(0,0,0,.22));
+}
+
+/* Salvage markup includes a badge inside the Discord button: keep clean */
+.header-actions a.btn-primary .badge{ display:none; }
+
+/* If mining wraps Discord/Support into a group, keep same spacing */
+.top-actions .top-actions-group{
+  display:inline-flex;
+  gap:10px;
+  align-items:center;
+}
+
+/* Responsive: avoid overflow */
+@media (max-width: 520px){
+  .top-actions,
+  .header-actions{ justify-content:center; flex-wrap:wrap; }
+}
+
+
+/* ============================
+   TYPOGRAPHY AUTHORITY (V1.5.18)
+   Core.CSS is the ONLY authority for font sizes.
+   Fix: UI was tuned on 2K and became too large on 1080p.
+   Approach:
+   - Use a responsive root size via clamp() (fluid between 1080p and 2K+)
+   - Keep the existing typographic scale tokens, but driven by rem
+============================ */
+
+/* Responsive base for rem (1080p → smaller, 2K → comfortable, capped for 4K) */
+html{
+  font-size: clamp(13.2px, 0.28vw + 8.4px, 16.6px);
+}
+
+/* Global baseline */
+:root body{
+  font-size: 1rem !important;
+  line-height: var(--line-ui);
+  text-size-adjust: 100%;
+}
+
+/* Titles and secondary text */
+:root body .page-title{
+  font-size: clamp(30px, 3.0vw, 36px) !important;
+}
+:root body .sub{
+  font-size: 0.95rem !important;
+  opacity: .92;
+}
+
+/* Panel / card headers */
+:root body .panel-title,
+:root body .collapsible-title,
+:root body .card-title{
+  font-size: 1.12rem !important;
+}
+
+/* Notes / descriptions */
+:root body .panel-hint,
+:root body .panel-note,
+:root body .card-desc{
+  font-size: 0.98rem !important;
+}
+
+/* Badges / chips */
+:root body .badge,
+:root body .chip{
+  font-size: 0.85rem !important;
+}
+
+/* Controls */
+:root body input,
+:root body select,
+:root body button,
+:root body .nav a,
+:root body .btn-primary,
+:root body .btn-ghost,
+:root body .mode-btn{
+  font-size: 0.98rem !important;
+}
+
+/* Monospace (Versions techniques / JSON blocks) */
+:root body pre,
+:root body code,
+:root body .tech-json,
+:root body .tech-details,
+:root body textarea{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 0.95rem !important;
+  line-height: 1.45;
+}
+
+
+/* ============================
+   UI MENUS / DROPDOWNS — TYPO
+   Single source of truth
+============================ */
 /* ============================
    UI MENUS / DROPDOWNS — TYPO
    Single source of truth
@@ -176,48 +491,48 @@ input{
 select, input, button{ font: inherit; }
 
 input, select{
-  background: rgba(0, 10, 20, 0.55);
-  border: 1px solid rgba(0,229,255,.40);
+  background: var(--surface-control-bg);
+  border: 1px solid var(--surface-control-border);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 12px 15px;
   border-radius: var(--pill);
   outline:none;
   /* flatter */
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 input:focus, select:focus{
-  border-color: rgba(0,229,255,.85);
-  box-shadow: none;
+  border-color: var(--accent-border-strong);
+  box-shadow: var(--shadow-none);
 }
 
 button{
   cursor:pointer;
-  border: 1px solid rgba(0,229,255,.40);
-  background: rgba(0, 229, 255, 0.10);
+  border: 1px solid var(--surface-control-border);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 12px 15px;
   border-radius: var(--pill);
   font-weight: 650;
   /* Removed glow shadow */
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 button:hover{
-  border-color: rgba(0,229,255,.70);
-  background: rgba(0, 229, 255, 0.14);
-  box-shadow: none;
+  border-color: color-mix(in srgb, var(--accent) 85%, transparent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: var(--shadow-none);
 }
 button:disabled{ opacity:.55; cursor:not-allowed; }
 
 /* ---------- Panels ---------- */
+
 .panel{
   /* Brighter glass */
-  background:
-    linear-gradient(180deg, rgba(8, 22, 40, 0.66), rgba(6, 16, 30, 0.60));
-  border: 1px solid rgba(0,229,255,.26);
+  background: var(--surface-panel-bg);
+  border: 1px solid var(--panel-outline-border) !important;
   border-radius: var(--radius);
   /* Remove heavy shadows */
-  box-shadow: none;
-  padding: 14px 16px 16px;
+  box-shadow: var(--panel-outline-inset) !important;
+  padding: 18px 20px 20px;
   /* Keep mild blur; set to 0 if you want totally crisp */
   backdrop-filter: blur(4px);
 }
@@ -240,17 +555,17 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 .mode-btn{
   width: min(520px, 46%);
   border-radius: var(--pill);
-  border: 1px solid rgba(0,229,255,.35);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   background: rgba(4, 16, 30, 0.42);
   color: var(--text);
   padding: 10px 12px;
   font-weight: 750;
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 .mode-btn.active{
-  background: rgba(0, 229, 255, 0.14);
-  border-color: rgba(0,229,255,.85);
-  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--accent-border-strong);
+  box-shadow: var(--shadow-none);
 }
 
 /* Footer branding */
@@ -279,19 +594,19 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   gap:10px;
   border-radius: var(--pill, 999px);
   border: 1px solid rgba(0,229,255,.50);
-  background: rgba(0, 229, 255, 0.12);
+  background: var(--accent-bg);
   color: var(--text);
   padding: 10px 14px;
   font-weight: 800;
   letter-spacing: .01em;
   /* Removed glow shadow */
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
   text-decoration:none;
 }
 .btn-primary:hover{
   border-color: rgba(0,229,255,.80);
-  background: rgba(0, 229, 255, 0.16);
-  box-shadow: none;
+  background: var(--accent-bg-strong);
+  box-shadow: var(--shadow-none);
   text-decoration:none;
 }
 
@@ -307,13 +622,13 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   padding: 10px 12px;
   font-weight: 650;
   text-decoration:none;
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 .btn-ghost:hover{
   border-color: rgba(231,236,255,.28);
   background: rgba(255,255,255,.07);
   text-decoration:none;
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 
 .grid-2{
@@ -379,11 +694,11 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 }
 
 .card{
-  border: 1px solid rgba(231,236,255,.14);
-  background: rgba(0, 10, 20, 0.32);
+  border: 1px solid var(--surface-card-border);
+  background: var(--surface-card-bg);
   border-radius: 14px;
   padding: 12px 12px;
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 .card-title{
   color: rgba(0,229,255,.90);
@@ -408,7 +723,7 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   overflow: hidden;
   border: 1px solid rgba(0,229,255,.25);
   background: rgba(0,10,20,.32);
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 .embed-frame iframe{
   display:block;
@@ -418,8 +733,10 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 
 
 
-/* HUB header actions (Discord buttons top-right) */
-.header-actions{
+/* HUB header actions (Discord buttons top-right)
+   IMPORTANT: scoped to HUB only so module pages keep normal flow.
+*/
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions{
   position:absolute;
   top:18px;
   right:18px;
@@ -428,7 +745,7 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   z-index:5;
 }
 @media (max-width: 980px){
-  .header-actions{
+  body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions{
     position:static;
     justify-content:center;
     margin-top:10px;
@@ -469,12 +786,12 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   color: var(--text);
   font-weight:650;
   text-decoration:none;
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 .collapsible-toggle:hover{
   border-color: rgba(231,236,255,.28);
   background: rgba(255,255,255,.07);
-  box-shadow: none;
+  box-shadow: var(--shadow-none);
 }
 
 .collapse-icon{
@@ -545,7 +862,7 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
   transform: translateY(-1px);
 }
 .card-clickable:focus{
-  outline: 2px solid rgba(0,229,255,.45);
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   outline-offset: 3px;
 }
 
@@ -573,8 +890,23 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 }
 
 /* Better focus rings for links/buttons */
+
+/* Mobile readability balance (V1.4.5)
+   Keep desktop larger, but avoid oversized UI on very small screens.
+*/
+@media (max-width: 420px){
+  :root body{
+    font-size: 16px !important;
+  }
+  :root body .panel-title,
+  :root body .collapsible-title,
+  :root body .card-title{
+    font-size: 18px !important;
+  }
+}
+
 a:focus-visible, button:focus-visible{
-  outline: 2px solid rgba(0,229,255,.45);
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   outline-offset: 3px;
 }
 
@@ -638,6 +970,30 @@ a:focus-visible, button:focus-visible{
   z-index: 1;
 }
 
+
+/* ============================
+   HUB BACKGROUND BRIGHTNESS ++ (V1.4.7)
+   Goal: HUB lighter and clearer than work modules.
+============================ */
+
+/* Even lighter vignette on HUB */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .overlay::before{
+  background:
+    radial-gradient(120% 80% at 50% 18%, rgba(0,0,0,.03), rgba(0,0,0,.10) 68%),
+    linear-gradient(to bottom, rgba(0,0,0,.03), rgba(0,0,0,.08));
+}
+
+/* Panels more translucent on HUB */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .panel{
+  background: linear-gradient(180deg, rgba(12, 36, 64, 0.68), rgba(10, 28, 52, 0.60));
+  border-color: rgba(0,229,255,.34);
+}
+
+/* Cards slightly clearer */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card{
+  background: rgba(0, 22, 40, 0.34);
+}
+
 /* ============================
    Background dim fix (no banding)
    Adjusted for brighter background (V1.3.7)
@@ -664,4 +1020,413 @@ a:focus-visible, button:focus-visible{
 .container{
   position: relative;
   z-index: 1;
+}
+
+
+
+/* ============================
+   HUB – Module tiles accents ONLY (V1.5.2)
+   User intent: On HUB only, each module card title + chips should reflect the module color
+   (Recyclage green, Fret blue, Minage amber).
+   We target cards via data-href, so no HTML changes required.
+============================ */
+
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="salvage"] .card-title{
+  color: var(--accent-salvage) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="hauling"] .card-title{
+  color: var(--accent-hauling) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="mining"] .card-title{
+  color: var(--accent-mining) !important;
+}
+
+/* Chips: subtle border tint per module (HUB only) */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="salvage"] .chip{
+  border-color: color-mix(in srgb, var(--accent-salvage) 35%, rgba(231,236,255,.16)) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="hauling"] .chip{
+  border-color: color-mix(in srgb, var(--accent-hauling) 35%, rgba(231,236,255,.16)) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="mining"] .chip{
+  border-color: color-mix(in srgb, var(--accent-mining) 35%, rgba(231,236,255,.16)) !important;
+}
+
+/* "Ouvrir" button inside each card: tint hover border for better affordance (HUB only) */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="salvage"] .btn-ghost:hover{
+  border-color: color-mix(in srgb, var(--accent-salvage) 55%, rgba(231,236,255,.28)) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="hauling"] .btn-ghost:hover{
+  border-color: color-mix(in srgb, var(--accent-hauling) 55%, rgba(231,236,255,.28)) !important;
+}
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="mining"] .btn-ghost:hover{
+  border-color: color-mix(in srgb, var(--accent-mining) 55%, rgba(231,236,255,.28)) !important;
+}
+
+
+/* ============================
+   SAFETY NET – Pages stay neutral (V1.5.2)
+   Ensure Salvage / Fret / Mining pages keep HUB cyan accent.
+============================ */
+body.page-salvage,
+body.page-hauling,
+body.page-mining{
+  --accent: var(--accent-hub);
+  --accent-border: rgba(0,229,255,.40);
+  --accent-border-strong: rgba(0,229,255,.85);
+  --accent-bg: rgba(0, 229, 255, 0.12);
+  --accent-bg-strong: rgba(0, 229, 255, 0.16);
+}
+
+
+
+/* ============================
+   PANEL GLASS OUTLINE (V1.5.5)
+   Enforced late with !important so it applies everywhere.
+============================ */
+:root body .panel,
+:root body .card{
+  border: 1px solid var(--panel-outline-border) !important;
+  box-shadow: var(--panel-outline-inset) !important;
+}
+
+/* ============================
+   CORE DOMINANCE (V1.3.9)
+   Keep shared UI components consistent across modules.
+   Specificity is intentionally higher than module scopes like ".page-hauling .panel".
+   ============================ */
+
+:root body .panel{
+  background: var(--surface-panel-bg);
+  border-color: var(--surface-panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-none);
+}
+
+:root body .card{
+  background: var(--surface-card-bg);
+  border-color: var(--surface-card-border);
+  box-shadow: var(--shadow-none);
+}
+
+:root body input,
+:root body select{
+  background: var(--surface-control-bg);
+  border-color: var(--surface-control-border);
+  box-shadow: var(--shadow-none);
+}
+
+:root body button,
+:root body .btn-primary,
+:root body .btn-ghost{
+  box-shadow: var(--shadow-none);
+}
+/* --- V1.4.2 HOTFIX: Discord button color (cyan) without layout side-effects --- */
+/* Applies only to explicit Discord buttons/links; does NOT change sizing, padding, display, or layout. */
+a.btn-discord,
+.btn-discord{
+  background-color: #0fb9c8 !important;
+  border-color: rgba(15,185,200,.65) !important;
+  color: #ffffff !important;
+}
+
+a.btn-discord:hover,
+.btn-discord:hover{
+  background-color: #14cfe0 !important;
+}
+
+/* Salvage/Recyclage header uses btn-primary link for Discord/Support: force cyan only when href is Discord */
+.header-actions a.btn-primary[href*="discord.gg"]{
+  background-color: #0fb9c8 !important;
+  border-color: rgba(15,185,200,.65) !important;
+  color: #ffffff !important;
+}
+.header-actions a.btn-primary[href*="discord.gg"]:hover{
+  background-color: #14cfe0 !important;
+}
+
+
+/* =============================================================
+   SALVAGE/RECYCLAGE LAYOUT FIXES (SCOPED) — V1.5.8
+   IMPORTANT:
+   - Scoped to .page-salvage to avoid impacting other menus.
+   - Fixes:
+     1) Top 3 overlap (long terminal/location strings)
+     2) Chart canvas sizing stability
+============================================================= */
+
+.page-salvage .top-sales-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 980px){
+  .page-salvage .top-sales-grid{ grid-template-columns: 1fr; }
+}
+.page-salvage .top-sales-list{ display: grid; gap: 10px; margin: 0; padding: 0; }
+
+.page-salvage .sale-item{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  min-width: 0;
+}
+.page-salvage .sale-main{ min-width: 0; display: flex; flex-direction: column; }
+.page-salvage .sale-terminal,
+.page-salvage .sale-location{
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-salvage .sale-price{ white-space: nowrap; }
+
+.page-salvage .chart-wrap{
+  position: relative;
+  overflow: hidden;
+}
+.page-salvage .chart-canvas{
+  width: 100% !important;
+  height: 260px !important;
+  display: block;
+}
+@media (max-width: 900px){
+  .page-salvage .chart-canvas{ height: 230px !important; }
+}
+@media (max-width: 600px){
+  .page-salvage .chart-canvas{ height: 210px !important; }
+}
+
+
+
+/* Salvage tooltip visibility */
+.page-salvage .chart-wrap{ overflow: visible; }
+.page-salvage .chart-tooltip{ z-index: 50; }
+
+/* =========================================================
+   UNIFIED SELECT UI (core-owned) — V1.5.9
+   - Harmonise native <select> appearance across modules.
+   - Note: <option> styling is limited by browsers; we set safe defaults.
+========================================================= */
+
+select{
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  width: 100%;
+  min-width: 0;
+
+  padding: 10px 42px 10px 14px;
+
+  background:
+    linear-gradient(180deg, rgba(0,229,255,.08), rgba(0,229,255,.02)),
+    rgba(0,0,0,.35),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='cyan' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+
+  background-repeat: no-repeat;
+  background-position: 0 0, 0 0, right 14px center;
+  background-size: auto, auto, 18px;
+
+  border-radius: 14px;
+  border: 1px solid rgba(0,229,255,.35);
+
+  color: rgba(231,236,255,.95);
+  font-weight: 800;
+  letter-spacing: .02em;
+
+  cursor: pointer;
+}
+
+select:hover{
+  border-color: rgba(0,229,255,.55);
+}
+
+select:focus{
+  outline: none;
+  border-color: rgba(0,229,255,.85);
+  box-shadow: 0 0 18px rgba(0,229,255,.18);
+}
+
+select:disabled{
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+/* Safe defaults for dropdown list */
+select option{
+  background: #0b141d;
+  color: rgba(231,236,255,.95);
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   HEADER ACTIONS ROBUSTNESS (Modules) — V1.5.14
+   Ensures DISCORD / Support buttons remain visible on module pages.
+========================================================= */
+body.page-salvage .header-actions,
+body.page-hauling .header-actions,
+body.page-mining .header-actions{
+  position: static;           /* override HUB absolute */
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 520px){
+  body.page-salvage .header-actions,
+  body.page-hauling .header-actions,
+  body.page-mining .header-actions{
+    justify-content: center;
+  }
+}
+
+body.page-salvage .header-actions a,
+body.page-hauling .header-actions a,
+body.page-mining .header-actions a,
+body.page-salvage .header-actions button,
+body.page-hauling .header-actions button,
+body.page-mining .header-actions button{
+  flex: 0 0 auto;
+}
+
+
+/* =========================================================
+   DISCORD BUTTON VISIBILITY GUARANTEE — V1.5.17
+   Some pages may have overlapping titles/panels; enforce z-index
+   and ensure .btn-discord is never hidden inside header-actions.
+========================================================= */
+
+/* Keep header actions above titles/panels */
+.header-actions{
+  position: relative;
+  z-index: 30;
+}
+
+/* Explicitly keep Discord link visible */
+.header-actions a.btn-discord{
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Safety: if any parent clips, avoid hiding header actions */
+.overlay, .container{
+  overflow: visible;
+}
+
+/* =========================================================
+   SALVAGE — Versions techniques footer (MINING-like) — V1.5.21
+   Fix: salvage tech footer was rendering in normal flow (bottom-left).
+   Scope: .page-salvage only (no impact on HUB/MINING/FRET).
+========================================================= */
+
+body.page-salvage .version-footer{
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(980px, calc(100% - 28px));
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+body.page-salvage .version-bar{
+  width: 100%;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+
+  border-radius: 16px;
+  padding: 10px 14px;
+  cursor: pointer;
+
+  background: rgba(10, 22, 34, .55);
+  border: 1px solid rgba(70, 140, 170, .30);
+  box-shadow: 0 0 0 1px rgba(0,0,0,25), 0 10px 28px rgba(0,0,0,22);
+  backdrop-filter: blur(8px);
+}
+
+body.page-salvage .version-bar:hover{
+  border-color: rgba(70, 190, 210, .40);
+}
+
+body.page-salvage .version-main{
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: rgba(255,255,255,92);
+  font-size: var(--font-sm);
+}
+
+body.page-salvage .version-cta{
+  font-size: var(--font-xs);
+  color: rgba(120, 230, 255, .90);
+  font-weight: 700;
+}
+
+body.page-salvage .version-details{
+  margin-top: 10px;
+  border-radius: 16px;
+  padding: 12px 14px;
+
+  background: rgba(8, 18, 28, .62);
+  border: 1px solid rgba(70, 140, 170, .25);
+  box-shadow: 0 0 0 1px rgba(0,0,0,22), 0 10px 26px rgba(0,0,0,18);
+  backdrop-filter: blur(10px);
+}
+
+body.page-salvage .version-details-header{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+body.page-salvage .version-details-title{
+  font-weight: 800;
+  color: rgba(255,255,255,90);
+  font-size: var(--font-sm);
+}
+
+body.page-salvage .version-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+body.page-salvage .version-col{
+  display:grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+}
+
+body.page-salvage .version-k{
+  color: rgba(255,255,255,70);
+  font-size: var(--font-xs);
+}
+
+body.page-salvage .version-v{
+  color: rgba(255,255,255,92);
+  font-size: var(--font-xs);
+  font-weight: 700;
+}
+
+body.page-salvage .is-hidden{ display:none !important; }
+
+@media (max-width: 820px){
+  body.page-salvage .version-grid{ grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px){
+  body.page-salvage .version-footer{
+    width: calc(100% - 18px);
+    bottom: 10px;
+  }
 }

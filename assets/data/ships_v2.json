@@ -181,7 +181,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 576
+    "scu": 576,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "eaeb562d-d4ac-43bd-a843-e8a6d69fad82",
@@ -653,7 +656,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 64
+    "scu": 64,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "8b7e0d33-21c1-4057-8e5b-bf391b5091b2",
@@ -933,7 +939,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 32
+    "scu": 32,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "ea2c22bc-c2f0-42dc-967d-3300f9232f91",
@@ -1229,7 +1238,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 96
+    "scu": 96,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "e19fc6c3-f5fa-4623-9a17-b00a29b71500",
@@ -1381,7 +1393,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 384
+    "scu": 384,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "a5a8e4e5-939c-4f7b-ab48-5f7db556d5a4",
@@ -1445,7 +1460,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 32
+    "scu": 32,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "087b2253-2fc7-4fae-9f9d-97f64b7c43db",
@@ -1629,7 +1647,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 1
+    "scu": 1,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "14d6ba03-86ad-47f8-b940-e8a82d2d52b6",
@@ -1637,7 +1658,10 @@
     "manufacturer": "",
     "career": "Autre",
     "role": "",
-    "scu": 3
+    "scu": 3,
+    "tags": [
+      "Mining"
+    ]
   },
   {
     "id": "17276ad3-7636-40b8-969a-877a2b439b37",

@@ -1,0 +1,73 @@
+{
+  "version": "1.0.1",
+  "type": "salvage_scraper_heads",
+  "source": "datamined",
+  "description": "Base officielle des têtes de recyclage (Hull Scraping). Noms in-game + ratios dataminés.",
+  "heads": [
+    {
+      "id": "abrade",
+      "name": "Abrade Scraper Module",
+      "category": "scraper",
+      "role": "Polyvalent / rendement",
+      "modifiers": {
+        "speed_multiplier": 3.5,
+        "radius": 0.9
+      },
+      "gameplay_notes": {
+        "yield": "Bon compromis",
+        "cycle": "Stable",
+        "losses": "Faibles"
+      },
+      "ui": {
+        "description": "Module polyvalent offrant un bon équilibre entre vitesse et rendement.",
+        "recommended_for": [
+          "Vulture",
+          "Reclaimer"
+        ]
+      }
+    },
+    {
+      "id": "cinch",
+      "name": "Cinch Scraper Module",
+      "category": "scraper",
+      "role": "Équilibré / standard",
+      "modifiers": {
+        "speed_multiplier": 1.5,
+        "radius": 1.0
+      },
+      "gameplay_notes": {
+        "yield": "Baseline",
+        "cycle": "Standard",
+        "losses": "Normales"
+      },
+      "ui": {
+        "description": "Module équilibré, idéal comme référence de base.",
+        "recommended_for": [
+          "Vulture",
+          "Reclaimer"
+        ]
+      }
+    },
+    {
+      "id": "trawler",
+      "name": "Trawler Scraper Module",
+      "category": "scraper",
+      "role": "Vitesse / cycles rapides",
+      "modifiers": {
+        "speed_multiplier": 6.0,
+        "radius": 0.6
+      },
+      "gameplay_notes": {
+        "yield": "Élevé mais moins propre",
+        "cycle": "Très rapide",
+        "losses": "Plus élevées"
+      },
+      "ui": {
+        "description": "Module orienté vitesse maximale, au détriment de la précision.",
+        "recommended_for": [
+          "Vulture"
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- pages/salvage.html — V1.4.36 (tech footer attached to graph panel) -->
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
@@ -10,19 +11,18 @@
   <link rel="stylesheet" href="../assets/css/salvage.css" />
 </head>
 
-<body class="theme-neon">
+<body class="theme-neon page-salvage">
   <div class="overlay">
     <div class="container page-salvage">
-
       <div class="header-actions">
-        <a class="btn-ghost" href="../index.html" title="Retour au HUB">← HUB</a>
-        <a class="btn-primary" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener noreferrer">
-          <span class="badge badge-h">DISCORD</span> Support
-        </a>
+        <a class="btn-ghost" href="../index.html">← HUB</a>
+        <!-- Discord server link: replace href with your invite URL if needed -->
+        <a class="btn-primary btn-discord" href="https://discord.gg/REPLACE_ME" target="_blank" rel="noopener noreferrer">Discord</a>
+        <a class="btn-ghost" href="https://yoyoastico74.github.io/salvage-calc/pages/support.html" target="_blank" rel="noopener noreferrer">Support</a>
       </div>
 
-      <h1 class="page-title">RECYCLAGE</h1>
-      <div class="sub">Calcule la valeur générée par ton salvage (RMC et CMAT) — PU 4.4</div>
+<h1 class="page-title">RECYCLAGE</h1>
+      <div class="sub">Calcule la valeur générée par ton salvage (RMC et CMAT) — PU 4.5</div>
 
       <div class="mode-switch">
         <button id="btnBeginner" class="mode-btn is-active" type="button">Mode Débutant</button>
@@ -199,7 +199,7 @@
       </div>
 
       <div class="guide-card">
-        <div class="guide-head">Presets (vidéo)</div>
+        <div class="guide-head">Presets</div>
         <ul class="guide-list">
           <li><b>Salvation</b> : collecte très rapide → preset boucle <b>40 min</b>, raffinage <b>30 %</b>.</li>
           <li><b>Vulture / Fortune</b> : boucle plus longue → preset <b>55 min</b>, raffinage <b>30 %</b>.</li>
@@ -254,6 +254,15 @@
               <label for="cmatRefineYield">Rendement raffinage CMAT (%)</label>
               <input id="cmatRefineYield" type="number" inputmode="decimal" min="0" max="100" step="1" value="30" placeholder="Ex : 15 ou 30" />
             </div>
+
+            <div class="form-row" id="salvageHeadBlock">
+              <label for="salvageHeadSelect">Tête de recyclage</label>
+              <select id="salvageHeadSelect">
+                <option value="">Chargement…</option>
+              </select>
+              <div id="salvageHeadInfo" class="panel-note panel-hint">—</div>
+            </div>
+
             <div class="panel-note" style="margin-top:6px;"></div>
 
             <div class="panel-row" style="margin-top:10px;">
@@ -389,11 +398,49 @@
     <button class="btn-ghost" id="btnChartRefreshAdv" type="button">Rafraîchir</button>
     <span class="muted" id="advChartStatus">—</span>
   </div>
+
+
+  <!-- Version footer (support) — attached to graph panel -->
+  <div class="version-footer page-salvage-version" id="versionFooter">
+    <button id="versionToggle" class="version-bar" type="button" aria-expanded="false">
+      <div class="version-main" id="versionMainText">RECYCLAGE V1.4.35 • PU 4.5</div>
+      <div class="version-cta">Détails</div>
+    </button>
+
+    <div id="versionDetails" class="version-details is-hidden">
+      <div class="version-details-header">
+        <div class="version-details-title">Versions techniques</div>
+        <button id="copyVersionsBtn" class="btn" type="button">Copier</button>
+      </div>
+
+      <div class="version-grid" role="table" aria-label="Versions techniques RECYCLAGE">
+        <div class="version-col">
+          <div class="version-k" role="cell">Module</div><div class="version-v" role="cell" id="tvModuleSalvage">—</div>
+          <div class="version-k" role="cell">Core</div><div class="version-v" role="cell" id="tvCoreSalvage">—</div>
+          <div class="version-k" role="cell">Ships</div><div class="version-v" role="cell" id="tvShipsSalvage">—</div>
+        </div>
+
+        <div class="version-col">
+          <div class="version-k" role="cell">HTML</div><div class="version-v" role="cell" id="tvHtmlSalvage">—</div>
+          <div class="version-k" role="cell">CSS</div><div class="version-v" role="cell" id="tvCssSalvage">—</div>
+          <div class="version-k" role="cell">JS</div><div class="version-v" role="cell" id="tvJsSalvage">—</div>
+        </div>
+
+        <div class="version-col">
+          <div class="version-k" role="cell">Worker</div><div class="version-v" role="cell" id="tvWorkerSalvage">UEX Proxy —</div>
+          <div class="version-k" role="cell">Contract</div><div class="version-v" role="cell" id="tvContractSalvage">—</div>
+          <div class="version-k" role="cell">PU</div><div class="version-v" role="cell" id="tvPuSalvage">4.5</div>
+          <div class="version-k" role="cell">Généré</div><div class="version-v" role="cell" id="tvGenSalvage">—</div>
+          <div class="version-k" role="cell">Source</div><div class="version-v" role="cell" id="tvSourceSalvage">local</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- /Version footer -->
+
 </div>
 </section>
-
-      <div class="app-footer-brand">Recyclage • V1.4.18 • MAJ : 14/12/2025</div>
-    </div>
+</div>
   </div>
 
   <script src="../assets/js/core.js" defer></script>

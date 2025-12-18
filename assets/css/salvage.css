@@ -1,5 +1,50 @@
-/* salvage.css - Version V1.4.18 (V2 insight line) */
+/* salvage.css - Version V1.4.36
+   - Typo delegated to core.css (no fixed px font sizes)
+*/
 
+
+
+
+
+
+
+
+
+/* --- V1.4.32 Surface sync ---
+   Ensure Salvage uses EXACT Core panel surface (same as other pages).
+   This prevents any accidental darker overrides from older salvage.css versions.
+*/
+.page-salvage .panel,
+.page-salvage .card{
+  background: var(--surface-panel-bg) !important;
+}
+
+/* --- V1.4.28 Surface alignment ---
+   User request: Salvage blocks must match other menus (no extra blue tint).
+   - Do NOT override .panel/.card backgrounds or borders here.
+   - Core.css is the single source of truth for surfaces + typography.
+*/
+
+/* Main panels/cards on Salvage */
+/* Inner panels used inside big panels */
+.page-salvage .inner-panel,
+.page-salvage .sale-item,
+.page-salvage .calc-row,
+.page-salvage .adv-selected-sale,
+.page-salvage .adv-best-sales,
+.page-salvage .adv-sellnow-card,
+.page-salvage .adv-selected-card,
+.page-salvage .adv-sellnow-row{
+  background: var(--salvage-inner-bg) !important;
+  border-color: var(--salvage-inner-border) !important;
+}
+
+/* Subtle separators */
+.page-salvage .result-sep{
+  background: rgba(231,236,255,.12) !important;
+}
+
+/* Inputs in salvage blocks: keep core look but slightly clearer border */
 .page-salvage .mode-switch{
   width: min(980px, 100%);
   margin: 10px auto 0;
@@ -35,7 +80,7 @@
 }
 
 .inner-panel{ background: rgba(0, 10, 20, 0.80); }
-.panel-title-sm{ font-size: 14px; opacity: .95; }
+.panel-title-sm{ font-size: var(--font-sm); opacity: .95; }
 
 .form-row{ display: grid; gap: 6px; margin-top: 10px; }
 .form-row label{ font-weight: 700; color: rgba(231,236,255,.92); }
@@ -60,7 +105,7 @@
   border: 1px solid rgba(231,236,255,.16);
   background: rgba(255,255,255,.03);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--font-xs);
   line-height: 1;
 }
 
@@ -111,7 +156,7 @@
   justify-content:space-between;
   gap:10px;
   font-weight: 900;
-  font-size: 18px;
+  font-size: var(--font-md);
   color: rgba(0,229,255,.95);
 }
 
@@ -169,7 +214,7 @@
   background: rgba(0,10,20,.28);
 }
 .sale-terminal{ font-weight: 900; color: rgba(231,236,255,.95); }
-.sale-location{ font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sale-location{ font-size: var(--font-xs); color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .sale-price{ font-weight: 900; color: rgba(0,229,255,.95); white-space: nowrap; }
 
@@ -210,8 +255,8 @@
   border-radius: 14px;
   padding: 12px;
 }
-.summary-label{ color: var(--muted); font-size: 12px; margin-bottom: 6px; }
-.summary-value{ font-weight: 900; font-size: 18px; color: rgba(0,229,255,.95); }
+.summary-label{ color: var(--muted); font-size: var(--font-xs); margin-bottom: 6px; }
+.summary-value{ font-weight: 900; font-size: var(--font-md); color: rgba(0,229,255,.95); }
 
 /* Guide */
 .guide-grid{
@@ -235,14 +280,14 @@
 }
 .guide-text{
   color: rgba(231,236,255,.88);
-  font-size: 13px;
+  font-size: var(--font-sm);
   line-height: 1.4;
 }
 .guide-list{
   margin: 0;
   padding-left: 18px;
   color: rgba(231,236,255,.88);
-  font-size: 13px;
+  font-size: var(--font-sm);
   line-height: 1.45;
 }
 
@@ -292,7 +337,7 @@
   background: rgba(0,229,255,.10);
   color: rgba(0,229,255,.90);
   font-weight: 900;
-  font-size: 12px;
+  font-size: var(--font-xs);
   vertical-align: middle;
 }
 
@@ -310,13 +355,13 @@
 }
 .result-hero-label{
   color: rgba(231,236,255,.78);
-  font-size: 12px;
+  font-size: var(--font-xs);
   font-weight: 800;
   letter-spacing: .02em;
 }
 .result-hero-value{
   margin-top: 6px;
-  font-size: 24px;
+  font-size: var(--font-xl);
   font-weight: 1000;
   color: rgba(0,229,255,.95);
   line-height: 1.1;
@@ -366,7 +411,7 @@
   border-top: 1px solid rgba(231,236,255,.08);
   background: rgba(255,255,255,.02);
   font-weight: 900;
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .02em;
 }
 
@@ -383,7 +428,7 @@
   margin-top: 10px;
 }
 
-.muted{ opacity:.75; font-size: 12px; }
+.muted{ opacity:.75; font-size: var(--font-xs); }
 
 
 /* --- V1.4.6 Advanced: selected sale + copy --- */
@@ -400,7 +445,7 @@
 
 .adv-selected-label{
   font-weight: 1000;
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .02em;
   opacity: .85;
   white-space: nowrap;
@@ -409,7 +454,7 @@
 .adv-selected-value{
   flex: 1;
   font-weight: 900;
-  font-size: 13px;
+  font-size: var(--font-sm);
   opacity: .95;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -436,7 +481,7 @@
   box-shadow: 0 0 18px rgba(0,229,255,.08);
   color: rgba(231,236,255,.92);
   font-weight: 900;
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .01em;
   opacity: 0;
   transition: opacity .10s ease;
@@ -481,7 +526,7 @@
 
 .adv-best-title{
   font-weight: 1000;
-  font-size: 12px;
+  font-size: var(--font-xs);
   letter-spacing: .02em;
   opacity: .85;
   margin-bottom: 8px;
@@ -503,7 +548,7 @@
 
 .adv-best-value{
   font-weight: 900;
-  font-size: 12.5px;
+  font-size: var(--font-sm);
   opacity: .95;
   overflow:hidden;
   text-overflow: ellipsis;
@@ -573,7 +618,7 @@
 .adv-sellnow-main{ min-width: 0; }
 .adv-sellnow-place{
   font-weight: 1000;
-  font-size: 12.8px;
+  font-size: var(--font-sm);
   opacity: .96;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -582,7 +627,7 @@
 .adv-sellnow-meta{
   margin-top: 2px;
   font-weight: 800;
-  font-size: 11.6px;
+  font-size: var(--font-xs);
   opacity: .75;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -596,7 +641,7 @@
 
 .adv-sellnow-hint{
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   font-weight: 800;
   opacity: .75;
   line-height: 1.35;
@@ -604,7 +649,7 @@
 
 .adv-sellnow-feedback{
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   font-weight: 900;
   opacity: .85;
   min-height: 16px;
@@ -687,7 +732,7 @@
 .market-title{
   font-weight: 900;
   letter-spacing: .02em;
-  font-size: 12.5px;
+  font-size: var(--font-sm);
   color: rgba(231,236,255,.92);
   margin-bottom: 10px;
 }
@@ -706,13 +751,13 @@
 
 .market-k{
   font-weight: 900;
-  font-size: 12px;
+  font-size: var(--font-xs);
   color: rgba(231,236,255,.70);
 }
 
 .market-v{
   font-weight: 900;
-  font-size: 12.5px;
+  font-size: var(--font-sm);
   color: rgba(231,236,255,.92);
   text-align: right;
   white-space: nowrap;
@@ -739,7 +784,7 @@
   border-radius: 999px;
   border: 1px solid rgba(231,236,255,.14);
   background: rgba(0,0,0,.25);
-  font-size: 11px;
+  font-size: var(--font-xs);
   font-weight: 900;
   letter-spacing: .02em;
   color: rgba(231,236,255,.92);
@@ -758,7 +803,7 @@
   border: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
-  box-shadow: none !important;
+  box-shadow: var(--salvage-inset) !important;
 }
 
 /* Compact neon card, same "panel" language but lighter */
@@ -773,7 +818,7 @@
 
 .adv-market-title{
   font-weight: 900;
-  font-size: 12.5px;
+  font-size: var(--font-sm);
   letter-spacing: .02em;
   text-transform: uppercase;
   opacity: .92;
@@ -795,7 +840,7 @@
 
 .adv-market-k{
   font-weight: 900;
-  font-size: 12px;
+  font-size: var(--font-xs);
   opacity: .85;
 }
 
@@ -803,7 +848,7 @@
   justify-self: end;
   text-align: right;
   font-weight: 900;
-  font-size: 12.5px;
+  font-size: var(--font-sm);
   letter-spacing: .01em;
   padding: 4px 10px;
   border-radius: 999px;
@@ -826,14 +871,14 @@
 /* Small screens: keep it compact */
 @media (max-width: 520px){
   .adv-market-row{ grid-template-columns: 50px 1fr; }
-  .adv-market-v{ font-size: 12px; padding: 4px 8px; }
+  .adv-market-v{ font-size: var(--font-xs); padding: 4px 8px; }
 }
 
 
 /* --- V1.4.18: V2 Insight line (compact) --- */
 .adv-market-justification{
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   opacity: .66;
   line-height: 1.2;
   text-align: right;
@@ -865,7 +910,7 @@
 #topRmc .top-sales-loc,
 #topCmat .top-sales-loc{
   color:rgba(231,236,255,.65);
-  font-size:12px;
+  font-size: var(--font-xs);
   margin-right:auto;
 }
 
@@ -880,5 +925,156 @@
 #topCmat .top-sales-empty{
   color:rgba(231,236,255,.45);
   padding:6px 0;
+}
+
+
+/* --- V1.4.22: Historique UEX (Option A) — SAFE layout overrides ---
+   Objectif: agrandir la zone graph sans casser la grille / le layout global.
+   - Pas de width > 100% (évite overflow/scroll horizontal)
+   - On force le panel à prendre toute la largeur de la grille si possible
+   - On augmente la hauteur utile du canvas
+------------------------------------------------------------------- */
+
+@media (min-width: 1100px){
+  /* Si le layout est en grid, cette règle agrandit proprement en "full width" */
+  #advPriceHistoryPanel{
+    grid-column: 1 / -1;
+  }
+}
+
+/* Hauteur accrue du panel + canvas */
+#advPriceHistoryPanel{
+  min-height: 360px;
+}
+
+#advPriceHistoryChart{
+  height: 300px;
+  max-height: 300px;
+}
+
+/* Certains templates utilisent un wrapper interne */
+#advPriceHistoryPanel .chart-wrapper,
+#advPriceHistoryPanel .chart-canvas{
+  height: 300px;
+}
+
+/* Un peu plus d’air autour du graph */
+#advPriceHistoryPanel .panel-body,
+#advPriceHistoryPanel .panel-content{
+  padding-bottom: 14px;
+}
+
+/* Top ventes: micro-ajustements sans casser la typo globale */
+#topRmc, #topCmat{
+  line-height: 1.22;
+}
+
+#topRmc .sale-price, #topCmat .sale-price{
+  white-space: nowrap;
+}
+
+
+/* ============================
+   Salvage UI Harmonization Pack — V1.4.24
+   Objectifs:
+   - Les 3 boutons top (header-actions) sont gérés par core.css (styles unifiés)
+   - Harmoniser les couleurs de “blocs” (cards internes) sur les tokens core
+   - Laisser core.css gérer la typo + les controls (select/input/button)
+============================ */
+
+/* Re-align config bar to core panel surface */
+.page-salvage .config-bar{
+  background: var(--surface-panel-bg) !important;
+  border: 1px solid var(--surface-panel-border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-none) !important;
+}
+
+/* Internal “cards” should match core card surface */
+.page-salvage .adv-sellnow-card,
+.page-salvage .adv-selected-card,
+.page-salvage .chart-card,
+.page-salvage .price-history-card,
+.page-salvage .summary-box,
+.page-salvage .top-sales-card{
+  background: var(--surface-card-bg) !important;
+  border: 1px solid var(--surface-card-border) !important;
+  box-shadow: var(--shadow-none) !important;
+}
+
+/* Rows inside cards: reduce “too dark” look */
+.page-salvage .adv-sellnow-row,
+.page-salvage .sale-row,
+.page-salvage .top-sale-item{
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(231,236,255,.12) !important;
+}
+
+/* Ensure labels and small meta stay readable without changing base font sizes */
+.page-salvage .adv-sellnow-meta,
+.page-salvage .adv-sellnow-hint,
+.page-salvage .adv-sellnow-feedback,
+/* Safety: prevent any leftover module-level select styling from overriding core */
+.page-salvage select{
+  background-image: none !important;
+}
+
+
+/* --- V1.4.36: Hide UEX status text under chart (prevents overlap behind Détails) --- */
+.page-salvage #advChartStatus{ display:none !important; }
+.page-salvage .chart-tooltip .dot-rmc{ background: var(--accent); }
+.page-salvage .chart-tooltip .dot-cmat{ background: var(--text); opacity:.9; }
+
+
+/* =========================================================
+   V1.4.39 — Chart tracker polish (SALVAGE)
+   ========================================================= */
+
+/* Overlay canvas for crosshair + snap points */
+.page-salvage .chart-wrap .chart-overlay{
+  border-radius: inherit;
+}
+
+/* Tooltip polish */
+.page-salvage .chart-tooltip--polished{
+  min-width: 240px;
+}
+.page-salvage .chart-tooltip--polished .chart-tooltip__row .val{
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+.page-salvage .chart-tooltip--polished .chart-tooltip__row .lbl{
+  opacity: .85;
+}
+
+/* Make the dots use the same palette as the lines */
+.page-salvage .chart-tooltip .dot-rmc{ background: var(--accent); }
+.page-salvage .chart-tooltip .dot-cmat{ background: rgba(231,236,255,.9); }
+
+
+/* =========================================================
+   V1.4.42 — SALVAGE UI POLISH — +15% luminosité perçue
+   Scope: SALVAGE / RECYCLAGE uniquement (.page-salvage)
+   Objectif: alignement visuel strict avec FRET / MINAGE (PU 4.5)
+   Impact: VISUEL UNIQUEMENT — SAFE
+   ========================================================= */
+
+/* Overlay de page — levée principale de luminosité */
+.page-salvage::before{
+  background: rgba(5, 10, 18, 0.22) !important;
+}
+
+/* Surfaces glass (panels / cards) */
+.page-salvage .panel,
+.page-salvage .card,
+.page-salvage .glass{
+  background-color: rgba(10, 18, 28, 0.45) !important;
+}
+
+/* Blur équilibré : lisibilité > densité */
+.page-salvage .panel,
+.page-salvage .card{
+  backdrop-filter: blur(10px) saturate(110%);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
 }
 

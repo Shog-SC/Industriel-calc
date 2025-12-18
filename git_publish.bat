@@ -2,92 +2,144 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-echo ==========================
-echo   Git - Commit / Push
-echo   Repo: %CD%
-echo ==========================
+title Git - Commit / Push (Helper)
+
+echo ==================================================
+echo  Git - Commit / Push
+echo  Repo : %CD%
+echo ==================================================
 echo.
 
-REM 1) Vérifier que c'est un repo git
+REM --- Verify git repo ---
 git rev-parse --is-inside-work-tree >nul 2>&1
 if errorlevel 1 (
-  echo ERREUR: Ce dossier n'est pas un depot Git.
-  echo Lance d'abord: git init
+  echo [ERREUR] Ce dossier n'est pas un depot Git.
+  echo         Ouvre le bon dossier ou lance: git init
+  echo.
   pause
   exit /b 1
 )
 
-REM 2) Vérifier s'il y a des changements
+REM --- Detect changes ---
+set "hasChanges="
 for /f %%A in ('git status --porcelain') do set hasChanges=1
-if not defined hasChanges (
-  echo Aucun changement a committer. Rien a faire.
-  pause
-  exit /b 0
-)
 
-REM 3) Afficher le status (résumé)
-echo --- git status ---
+echo --- Etat du depot ---
 git status
 echo.
 
-REM 4) Saisir message de commit
-set /p msg=Message du commit : 
-if "%msg%"=="" (
-  echo Message vide. Annule.
-  pause
-  exit /b 1
-)
-
-REM 5) Stage + Commit
-echo.
-echo --- git add . ---
-git add .
-if errorlevel 1 (
-  echo ERREUR: git add a echoue.
-  pause
-  exit /b 1
-)
-
-echo.
-echo --- git commit ---
-git commit -m "%msg%"
-if errorlevel 1 (
-  echo ERREUR: git commit a echoue. (Peut-etre rien a committer.)
-  pause
-  exit /b 1
-)
-
-REM 6) Demander confirmation avant push
-echo.
-set /p yn=Push sur GitHub maintenant ? (O/N) : 
-if /I not "%yn%"=="O" (
-  echo OK. Commit local effectue. Aucun push.
+if not defined hasChanges (
+  echo Aucun changement a committer.
+  echo Astuce: si tu as juste cree un fichier et qu'il n'apparait pas, verifie que tu es au bon endroit.
+  echo.
   pause
   exit /b 0
 )
 
-REM 7) Sync avant push (resout le "fetch first")
+REM --- Show a compact summary of changes ---
+echo --- Resume (fichiers detectes) ---
+git status --porcelain
 echo.
-echo --- git pull --rebase ---
+
+REM --- Commit message UX ---
+echo --------------------------------------------------
+echo Message du commit (une phrase courte).
+echo NE PAS taper de commandes ici (ex: "git add ...").
+echo Exemples :
+echo   - Fix calcul hauling + UI
+echo   - Add mining page
+echo   - Update CSS layout
+echo --------------------------------------------------
+set "msg="
+set /p msg=Message du commit : 
+
+REM Trim-ish check (empty)
+if "%msg%"=="" (
+  echo.
+  echo [ANNULE] Message vide. Aucun commit.
+  pause
+  exit /b 1
+)
+
+REM If message looks like a command, warn and confirm
+echo %msg% | findstr /I /R "^\s*git\s" >nul 2>&1
+if not errorlevel 1 (
+  echo.
+  echo [ATTENTION] Ton message commence par "git ...".
+  echo           Tu voulais peut-etre executer une commande, pas ecrire un message.
+  set /p yn=Continuer quand meme avec ce message ? (O/N) : 
+  if /I not "%yn%"=="O" (
+    echo.
+    echo OK, annule. Relance et mets un message du type: "Fix ..." / "Add ..." / "Update ..."
+    pause
+    exit /b 0
+  )
+)
+
+REM --- Stage changes ---
+echo.
+echo --- Etape 1/4 : git add . ---
+git add .
+if errorlevel 1 (
+  echo [ERREUR] git add a echoue.
+  pause
+  exit /b 1
+)
+
+REM --- Commit ---
+echo.
+echo --- Etape 2/4 : git commit ---
+git commit -m "%msg%"
+if errorlevel 1 (
+  echo [ERREUR] git commit a echoue (parfois: rien a committer).
+  pause
+  exit /b 1
+)
+
+echo.
+echo --- Commit OK ---
+git log -1 --oneline
+echo.
+
+REM --- Confirm push ---
+set /p yn=Publier maintenant sur GitHub (git push) ? (O/N) : 
+if /I not "%yn%"=="O" (
+  echo.
+  echo OK. Commit local termine. Aucun push effectue.
+  echo Pour publier plus tard: git push
+  echo.
+  pause
+  exit /b 0
+)
+
+REM --- Rebase before push (avoids fetch-first) ---
+echo.
+echo --- Etape 3/4 : git pull --rebase (sync) ---
 git pull --rebase
 if errorlevel 1 (
-  echo ERREUR: git pull --rebase a echoue. Conflit possible.
-  echo Ouvre VS Code et resous les conflits, puis relance le push.
+  echo.
+  echo [ERREUR] git pull --rebase a echoue.
+  echo Conflit probable. Ouvre VS Code, resous les conflits, puis relance:
+  echo   git push
+  echo.
   pause
   exit /b 1
 )
 
-REM 8) Push
+REM --- Push ---
 echo.
-echo --- git push ---
+echo --- Etape 4/4 : git push ---
 git push
 if errorlevel 1 (
-  echo ERREUR: git push a echoue.
+  echo [ERREUR] git push a echoue.
   pause
   exit /b 1
 )
 
 echo.
-echo Terminé: commit + push OK.
+echo ==================================================
+echo  Termine : commit + push OK
+echo  (GitHub Pages se mettra a jour automatiquement)
+echo ==================================================
 pause
 endlocal

@@ -1,186 +1,352 @@
-<!-- pages/hauling.html — V1.6.10 -->
+<!-- pages/hauling.html — V1.13.4 -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <link rel="icon" href="data:," />
-<meta charset="UTF-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FRET — Calculateur</title>
 
+  <!-- Core theme (background + neon) -->
   <link rel="stylesheet" href="../assets/css/core.css" />
+
+  <!-- Module styles (scoped) -->
   <link rel="stylesheet" href="../assets/css/hauling.css" />
 </head>
 
 <body class="page-hauling">
-  <div class="hauling-shell">
-    <div class="hauling-container">
+  <div class="page-wrap theme-neon">
+    <div class="hauling-shell">
 
-      <header class="page-hero">
-        <div class="top-actions">
-          <a class="btn-pill" href="../index.html">← HUB</a>
-
-          <div class="top-actions-group" aria-label="Discord actions">
-            <a href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">DISCORD</a>
-            <a class="is-strong" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">Support</a>
-          </div>
-        </div>
-
-        <h1 class="page-title">FRET</h1>
-        <div class="page-subtitle">Routes et rentabilité fret (achat → vente) — PU 4.4</div>
-      </header>
-
-      <div class="mode-switch" role="tablist" aria-label="Modes">
-        <button id="tabBeginner" class="mode-btn is-active" role="tab" aria-selected="true" aria-controls="panelBeginner">Mode Débutant</button>
-        <button id="tabAdvanced" class="mode-btn" role="tab" aria-selected="false" aria-controls="panelAdvanced">Mode Avancé</button>
+      <!-- Top actions -->
+      <div class="top-actions">
+        <a class="btn-pill" href="../index.html">← HUB</a>
+        <a class="btn-pill btn-cyan" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">DISCORD</a>
+        <a class="btn-pill btn-strong" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">Support</a>
       </div>
 
+      <!-- Hero -->
+      <header class="hero-card">
+        <h1 class="page-title">FRET</h1>
+        <div class="page-subtitle">Routes et rentabilité fret (achat → vente) — PU 4.5</div>
+      </header>
+
+      <!-- Mode switch -->
+      <div class="mode-switch" role="tablist" aria-label="Modes">
+        <button id="tabBeginner" class="mode-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panelBeginner">Mode Débutant</button>
+        <button id="tabAdvanced" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="panelAdvanced">Mode Avancé</button>
+      </div>
+
+      <!-- BEGINNER -->
       <section id="panelBeginner" class="mode-panel" role="tabpanel" aria-labelledby="tabBeginner">
-        <div class="hauling-grid">
-          <div class="panel">
+        <div class="layout-2col">
+          <!-- Parameters -->
+          <div class="panel panel-strong">
             <div class="panel-head">
               <div class="panel-title">Paramètres</div>
-              <div class="panel-badge" id="manualBadge" title="Le cargo a été modifié manuellement.">MANUEL</div>
+              <div id="manualBadge" class="pill-badge">MANUEL</div>
             </div>
 
-            <div class="field">
-              <label for="shipPickerBtn">Vaisseau</label>
-              <div class="row-inline">
-                <div class="ship-picker">
-                  <button id="shipPickerBtn" class="ship-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-                    <span class="ship-picker-label" id="shipPickerLabel">—</span>
-                    <span class="ship-picker-caret">▼</span>
-                  </button>
-                  <div id="shipPickerMenu" class="ship-picker-menu is-hidden" role="listbox" aria-label="Liste des vaisseaux">
-  <div class="ship-picker-inner">
-    <input id="shipPickerSearch" class="ship-picker-search" type="text" placeholder="Rechercher un vaisseau..." autocomplete="off" />
-    <div id="shipPickerList" class="ship-picker-list" role="listbox" aria-label="Liste des vaisseaux"></div>
-  </div>
-</div>
+            <div class="form-grid">
+              <div class="field ship-field">
+                <label for="shipSelect">Vaisseau</label>
+                <select id="shipSelect" class="select native-select-hidden" aria-hidden="true" tabindex="-1">
+                  <option value="">—</option>
+                  <option value="custom">Custom</option>
+                </select>
+
+                <div class="ship-picker" data-select="shipSelect">
+                  <button type="button" id="shipPickerTrigger" class="ship-picker-trigger" aria-haspopup="listbox" aria-expanded="false">—</button>
+                  <div id="shipPickerMenu" class="ship-picker-menu is-hidden" role="listbox" aria-label="Liste vaisseaux">
+                    <input id="shipPickerSearch" class="input ship-picker-search" type="text" placeholder="Rechercher un vaisseau..." autocomplete="off" />
+                    <div id="shipPickerMeta" class="ship-picker-meta">Chargement...</div>
+                    <div id="shipPickerList" class="ship-picker-list"></div>
+                  </div>
                 </div>
-</div>
-              
-            </div>
 
-            <!-- Custom ship data -->
-            <div id="customShipBox" class="is-hidden">
+                <div class="hint">Sélectionner un vaisseau remplit automatiquement le cargo (SCU).</div>
+              </div>
+
               <div class="field">
-                <label for="customShipName">Nom (Custom)</label>
-                <input id="customShipName" type="text" maxlength="40" placeholder="Ex: 400i (cargo run)" />
+                <label for="cargoScu">Cargo (SCU)</label>
+                <input id="cargoScu" class="input" type="number" min="0" step="1" value="64" inputmode="numeric" />
               </div>
+
               <div class="field">
-                <label for="customShipScu">Capacité (SCU)</label>
-                <input id="customShipScu" type="number" inputmode="numeric" min="0" step="1" value="0" />
-                <div class="hint">Saisis la capacité SCU de ton vaisseau custom.</div>
+                <label for="cargoType">Type de cargo</label>
+                <select id="cargoType" class="select select-compact native-select-hidden">
+                  <option value="standard">Standard</option>
+                  <option value="high">Haute valeur</option>
+                  <option value="risky">Risque élevé</option>
+                </select>
+
+                <div class="ship-picker cargo-type-picker" data-select="cargoType">
+                  <button type="button" id="cargoTypePickerTrigger" class="ship-picker-trigger" aria-haspopup="listbox" aria-expanded="false">Standard</button>
+                  <div id="cargoTypePickerMenu" class="ship-picker-menu is-hidden" role="listbox" aria-label="Type de cargo">
+                    <div id="cargoTypePickerList" class="ship-picker-list"></div>
+                  </div>
+                </div>
               </div>
-              <div class="divider"></div>
-            </div>
 
-            <div class="field">
-              <label for="cargoScu">Cargo (SCU)</label>
-              <input id="cargoScu" type="number" inputmode="numeric" min="0" step="1" value="64" />
-            </div>
-            <div class="field">
-              <label for="cargoType">Type de cargo</label>
-              <select id="cargoType" class="is-hidden">
-                <option value="standard" selected>Standard</option>
-                <option value="highValue">Haute valeur</option>
-                <option value="risky">Risque élevé</option>
-              </select>
-<div class="ship-picker cargo-type-picker">
-  <button id="cargoTypePickerBtn" class="ship-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-    <span id="cargoTypePickerLabel">Standard</span>
-    <span class="chev">▾</span>
-  </button>
-  <div id="cargoTypePickerMenu" class="ship-picker-menu is-hidden" role="listbox"></div>
-</div>
-            </div>
-
-
-            <div class="field">
-              <label for="loopMinutes">Temps (minutes)</label>
-              <input id="loopMinutes" type="number" inputmode="numeric" min="1" step="1" value="25" />
-              <div class="preset-row" aria-label="Presets temps">
-                <button class="btn-preset" type="button" data-min="15">15 min</button>
-                <button class="btn-preset" type="button" data-min="25">25 min</button>
-                <button class="btn-preset" type="button" data-min="40">40 min</button>
+              <div class="field">
+                <label for="loopMinutes">Temps (minutes)</label>
+                <input id="loopMinutes" class="input" type="number" min="1" step="1" value="25" inputmode="numeric" />
+                <div class="quick-row">
+                  <button class="quick-btn" type="button" data-min="15">15 min</button>
+                  <button class="quick-btn is-active" type="button" data-min="25">25 min</button>
+                  <button class="quick-btn" type="button" data-min="40">40 min</button>
+                </div>
               </div>
-              
-            </div>
 
-            <div class="field">
-              <label for="buyPrice">Prix d’achat (aUEC / SCU)</label>
-              <input id="buyPrice" type="number" inputmode="decimal" min="0" step="0.01" value="1" />
-            </div>
+              <div class="field">
+                <label for="buyPrice">Prix d’achat (aUEC / SCU)</label>
+                <input id="buyPrice" class="input" type="number" min="0" step="1" value="1500" inputmode="numeric" />
+              </div>
 
-            <div class="field">
-              <label for="sellPrice">Prix de vente (aUEC / SCU)</label>
-              <input id="sellPrice" type="number" inputmode="decimal" min="0" step="0.01" value="2" />
-            </div>
+              <div class="field">
+                <label for="sellPrice">Prix de vente (aUEC / SCU)</label>
+                <input id="sellPrice" class="input" type="number" min="0" step="1" value="1750" inputmode="numeric" />
+              </div>
 
-            <div class="field">
-              <label for="targetProfitHour">Objectif (aUEC / h)</label>
-              <input id="targetProfitHour" type="number" inputmode="numeric" min="0" step="1000" value="80000" />
-              
-            </div>
+              <div class="field">
+                <label for="targetPerHour">Objectif (aUEC / h)</label>
+                <input id="targetPerHour" class="input" type="number" min="0" step="1000" value="80000" inputmode="numeric" />
+              </div>
 
-            <div class="actions-row">
-              <button id="btnReset" class="btn-secondary" type="button">Réinitialiser</button>
+              <div class="field actions">
+                <button id="btnReset" class="btn" type="button">Réinitialiser</button>
+              </div>
             </div>
           </div>
 
-          <div class="panel">
+          <!-- Results -->
+          <div class="panel panel-strong">
             <div class="panel-head">
               <div class="panel-title">Résultats (live)</div>
-              <div class="panel-chip" id="statusChip">OK</div>
+              <div id="statusChip" class="chip">OK</div>
             </div>
 
             <div class="kpi-grid">
               <div class="kpi">
                 <div class="kpi-label">Investissement</div>
-                <div class="kpi-value" id="kpiInvest">0 aUEC</div>
+                <div id="kpiInvest" class="kpi-value">—</div>
               </div>
               <div class="kpi">
                 <div class="kpi-label">Recette</div>
-                <div class="kpi-value" id="kpiRevenue">0 aUEC</div>
+                <div id="kpiRevenue" class="kpi-value">—</div>
               </div>
               <div class="kpi">
                 <div class="kpi-label">Profit / run</div>
-                <div class="kpi-value" id="kpiProfit">0 aUEC</div>
+                <div id="kpiProfit" class="kpi-value">—</div>
               </div>
-              <div class="kpi kpi-strong">
+              <div class="kpi kpi-accent">
                 <div class="kpi-label">Profit / heure</div>
-                <div class="kpi-value" id="kpiProfitHour">0 aUEC/h</div>
+                <div id="kpiProfitHour" class="kpi-value">—</div>
               </div>
             </div>
 
-            <div class="verdict" aria-live="polite">
+            <div class="verdict-block">
               <div class="verdict-label">Verdict</div>
-              <div class="verdict-value" id="verdictText">—</div>
-              <div class="verdict-sub" id="cargoProfile"></div>
-            
-            <div id="verdictReason" class="verdict-reason"></div>
-<div id="riskNote" class="risk-note is-hidden" aria-live="polite">⚠ Risque</div>
-</div>
-
-            <div class="divider"></div>
-            <div class="compact-note">
-              
+              <div id="verdictText" class="verdict-text">—</div>
+              <div id="verdictMeta" class="verdict-meta">—</div>
+              <div id="riskBadge" class="risk-badge is-hidden">⚠ Risque</div>
             </div>
           </div>
         </div>
       </section>
 
+      <!-- ADVANCED -->
       <section id="panelAdvanced" class="mode-panel is-hidden" role="tabpanel" aria-labelledby="tabAdvanced">
-        <div class="panel">
-          <div class="panel-title">Mode Avancé</div>
-          <div class="hint">En construction.</div>
+        <div class="layout-2col layout-advanced">
+          <!-- Context -->
+          <div class="panel panel-strong">
+            <div class="panel-head">
+              <div class="panel-title">Contexte (avancé)</div>
+            </div>
+
+            <div class="form-grid">
+              <div class="field ship-field">
+                <label for="advShipSelect">Vaisseau</label>
+                <select id="advShipSelect" class="select native-select-hidden" aria-hidden="true" tabindex="-1">
+                  <option value="">—</option>
+                  <option value="custom">Custom</option>
+                </select>
+
+                <div class="ship-picker" data-select="advShipSelect">
+                  <button type="button" id="advShipPickerTrigger" class="ship-picker-trigger" aria-haspopup="listbox" aria-expanded="false">—</button>
+                  <div id="advShipPickerMenu" class="ship-picker-menu is-hidden" role="listbox" aria-label="Liste vaisseaux">
+                    <input id="advShipPickerSearch" class="input ship-picker-search" type="text" placeholder="Rechercher un vaisseau..." autocomplete="off" />
+                    <div id="advShipPickerMeta" class="ship-picker-meta">Chargement...</div>
+                    <div id="advShipPickerList" class="ship-picker-list"></div>
+                  </div>
+                </div>
+
+                <div class="hint">SCU auto à la sélection (hors Custom).</div>
+              </div>
+
+              <div class="field">
+                <label for="advUsableScu">SCU utilisable</label>
+                <input id="advUsableScu" class="input" type="number" min="0" step="1" value="0" inputmode="numeric" />
+              </div>
+
+              <div class="field">
+                <label for="advBudget">Budget d\'achat (aUEC)</label>
+                <input id="advBudget" class="input" type="number" min="0" step="1000" value="500000" inputmode="numeric" />
+                <div class="hint">Limite la quantité achetable (Qté = min(SCU, budget/prix achat)).</div>
+              </div>
+
+              <div class="field">
+                <label for="advTarget">Objectif (aUEC/h)</label>
+                <input id="advTarget" class="input" type="number" min="0" step="1000" value="80000" inputmode="numeric" />
+              </div>
+
+              <div class="field">
+                <label>Temps max boucle</label>
+                <div class="quick-row">
+                  <button class="quick-btn is-active" type="button" data-adv-min="20">20 min</button>
+                  <button class="quick-btn" type="button" data-adv-min="30">30 min</button>
+                  <button class="quick-btn" type="button" data-adv-min="45">45 min</button>
+                  <button class="quick-btn" type="button" data-adv-min="0">Libre</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Tolérance au risque</label>
+                <div class="quick-row">
+                  <button class="quick-btn is-active" type="button" data-risk="low">Faible</button>
+                  <button class="quick-btn" type="button" data-risk="mid">Normal</button>
+                  <button class="quick-btn" type="button" data-risk="high">Élevée</button>
+                </div>
+                <div id="advRiskHint" class="hint risk-hint">
+                  Faible : privilégie la stabilité (moins de volatilité, meilleure dispo). Gain potentiel plus bas.
+                </div>
+              </div>
+
+              <div class="field actions">
+                <button id="resetAdvanced" class="btn" type="button">Réinitialiser (Avancé)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Goods -->
+          <div class="panel panel-strong">
+            <div class="panel-head panel-head-tools">
+              <div class="panel-title">Marchandises (UEX)</div>
+              <div class="tools-row">
+                <button id="advAssist" class="btn btn-small" type="button">Assisté</button>
+                <button id="advRefresh" class="btn btn-small" type="button">Rafraîchir</button>
+                <span id="advMaj" class="hint">MAJ : —</span>
+                <input id="advMaxTerminals" type="number" value="90" style="display:none" />
+              </div>
+            </div>
+
+            <div class="hint">
+              <span id="advSourceState" class="chip chip-soft">—</span>
+            </div>
+
+            
+            
+            <!-- Advanced Route (A -> B) -->
+            <div class="adv-route">
+              <div class="subhead subhead-split">
+                <span>Route (A → B) — Recherche terminaux</span>
+                <span id="advTermCount" class="hint">Terminaux : —</span>
+              </div>
+
+              <div class="route-grid">
+                <div class="field">
+                  <label for="advRouteFrom">Départ</label>
+                  <input id="advRouteFrom" class="input" type="text" placeholder="Tape pour rechercher…" autocomplete="off" list="advTerminalsDatalist" />
+                </div>
+                <div class="field">
+                  <label for="advRouteTo">Arrivée</label>
+                  <input id="advRouteTo" class="input" type="text" placeholder="Tape pour rechercher…" autocomplete="off" list="advTerminalsDatalist" />
+                </div>
+              </div>
+
+              <datalist id="advTerminalsDatalist"></datalist>
+
+              <div class="route-actions">
+                <button id="advRouteAnalyze" class="btn" type="button">Analyser la route</button>
+                <span id="advRouteStatus" class="hint">—</span>
+              </div>
+</div>
+
+            <div id="advLockedBar" class="locked-bar is-hidden" aria-live="polite">
+              <div class="locked-left">
+                <span class="badge badge-lock">🔒 Verrouillée</span>
+                <span id="advLockedName" class="locked-name">—</span>
+              </div>
+              <button id="advUnlock" class="btn btn-small" type="button">Déverrouiller</button>
+            </div>
+
+            <div class="subhead">Top 3 conseillées</div>
+            <div id="top3Row" class="top3-row">
+              <div class="empty">Chargement…</div>
+            </div>
+
+            <div class="subhead subhead-split">
+              <span>Liste complète</span>
+              <span id="advCount" class="hint">—</span>
+            </div>
+
+            <div class="field">
+              <input id="advSearch" class="input" type="text" placeholder="Rechercher une marchandise…" autocomplete="off" />
+            </div>
+
+            <div id="advGoodsList" class="goods-list" role="list">
+              <div id="advGoodsEmpty" class="empty">Chargement…</div>
+            </div>
+          </div>
         </div>
       </section>
 
-    </div>
+      <!-- Bottom-right version tag -->
+</div>
   </div>
+<!-- Version footer (support) — style MINING -->
+<div class="version-footer page-hauling-version" id="versionFooter">
+  <button id="versionToggle" class="version-bar" type="button" aria-expanded="false">
+    <div class="version-main" id="versionMainText">FRET V1.13.0 • PU 4.5</div>
+    <div class="version-cta">Détails</div>
+  </button>
 
-  <div class="module-version">Fret · V1.6.10 · MAJ : 16/12/2025</div>
+  <div id="versionDetails" class="version-details is-hidden">
+    <div class="version-details-header">
+      <div class="version-details-title">Versions techniques</div>
+      <button id="copyVersionsBtn" class="btn" type="button">Copier</button>
+    </div>
+
+    <div class="version-grid" role="table" aria-label="Versions techniques FRET">
+      <div class="version-col">
+        <div class="version-k" role="cell">Module</div><div class="version-v" role="cell" id="tvModuleFret">—</div>
+        <div class="version-k" role="cell">Core</div><div class="version-v" role="cell" id="tvCoreFret">—</div>
+        <div class="version-k" role="cell">Ships</div><div class="version-v" role="cell" id="tvShipsFret">—</div>
+      </div>
+
+      <div class="version-col">
+        <div class="version-k" role="cell">HTML</div><div class="version-v" role="cell" id="tvHtmlFret">—</div>
+        <div class="version-k" role="cell">CSS</div><div class="version-v" role="cell" id="tvCssFret">—</div>
+        <div class="version-k" role="cell">JS</div><div class="version-v" role="cell" id="tvJsFret">—</div>
+      </div>
+
+      <div class="version-col">
+        <div class="version-k" role="cell">Worker</div><div class="version-v" role="cell" id="tvWorkerFret">—</div>
+        <div class="version-k" role="cell">Contract</div><div class="version-v" role="cell" id="tvContractFret">—</div>
+        <div class="version-k" role="cell">PU</div><div class="version-v" role="cell" id="tvPuFret">—</div>
+      </div>
+    </div>
+
+    <div class="version-grid" style="margin-top:10px" role="table" aria-label="Sources techniques">
+      <div class="version-col">
+        <div class="version-k" role="cell">Endpoint</div><div class="version-v" role="cell" id="tvEndpointFret">—</div>
+        <div class="version-k" role="cell">Source</div><div class="version-v" role="cell" id="tvSourceFret">—</div>
+      </div>
+    </div>
+
+    <textarea id="versionsCopyBuffer" class="sr-only" aria-hidden="true"></textarea>
+  </div>
+</div>
+
 
   <script src="../assets/js/hauling.js"></script>
 </body>

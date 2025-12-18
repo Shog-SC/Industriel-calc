@@ -1,0 +1,116 @@
+{
+  "version": "V1.1.0",
+  "unit": "SCU",
+  "source": "Beginner dataset (ROC/FPS gems) + extended list from Regolith UI snippet.",
+  "ores": [
+    {
+      "key": "hadanite",
+      "name": "Hadanite",
+      "price_auEc_per_scu": 546000,
+      "sellers": [
+        {
+          "name": "Mining Outposts — Ore Sales",
+          "price_auEc_per_scu": 546000
+        },
+        {
+          "name": "Stations — Admin / Ore Sales",
+          "price_auEc_per_scu": 500000
+        },
+        {
+          "name": "City TDD",
+          "price_auEc_per_scu": 442000
+        }
+      ],
+      "color": "#fb7185"
+    },
+    {
+      "key": "aphorite",
+      "name": "Aphorite",
+      "price_auEc_per_scu": 152500,
+      "sellers": [
+        {
+          "name": "Mining Outposts — Ore Sales",
+          "price_auEc_per_scu": 152500
+        },
+        {
+          "name": "Stations — Admin / Ore Sales",
+          "price_auEc_per_scu": 140000
+        },
+        {
+          "name": "City TDD",
+          "price_auEc_per_scu": 130000
+        }
+      ],
+      "color": "#a78bfa"
+    },
+    {
+      "key": "dolivine",
+      "name": "Dolivine",
+      "price_auEc_per_scu": 130000,
+      "sellers": [
+        {
+          "name": "Mining Outposts — Ore Sales",
+          "price_auEc_per_scu": 130000
+        },
+        {
+          "name": "Stations — Admin / Ore Sales",
+          "price_auEc_per_scu": 120000
+        },
+        {
+          "name": "City TDD",
+          "price_auEc_per_scu": 110000
+        }
+      ],
+      "color": "#4ade80"
+    },
+    {
+      "key": "janalite",
+      "name": "Janalite",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#fbbf24"
+    },
+    {
+      "key": "feynmaline",
+      "name": "Feynmaline",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#22d3ee"
+    },
+    {
+      "key": "beradom",
+      "name": "Beradom",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#94a3b8"
+    },
+    {
+      "key": "glacosite",
+      "name": "Glacosite",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#38bdf8"
+    },
+    {
+      "key": "carinite",
+      "name": "Carinite",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#ef4444"
+    },
+    {
+      "key": "jaclium",
+      "name": "Jaclium",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#fde047"
+    },
+    {
+      "key": "saldynium",
+      "name": "Saldynium",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#f97316"
+    }
+  ]
+}

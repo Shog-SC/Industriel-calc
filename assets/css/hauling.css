@@ -1,730 +1,959 @@
-/* assets/css/hauling.css — V1_6_10
-   Patch:
-   - Adjust Hauling brightness to match HUB/Recyclage (add vignette + slightly darker panels)
-   - Discord button filled cyan neon (Recyclage style)
-   - Remove number input spinners (+ / -)
+/* assets/css/hauling.css — V1.12.9
+   IMPORTANT: fichier complet (remplacement total)
+   Objectif: conserver la "neon vibe" + compat UI FRET V1.12.9.
+   NOTE: Typo delegated to core.css (no fixed px font sizes).
 */
 
-/* assets/css/hauling.css — V1_4_1
-   Scoped styles for FRET module (non-breaking).
-   Patch:
-   - Adjust Hauling brightness to match HUB/Recyclage (add vignette + slightly darker panels)
-   - Top actions (HUB / DISCORD / Support) styled like RECYCLAGE (HUB pill + grouped capsule).
-   - Custom ship picker dropdown (styled) to replace native select list rendering inconsistencies.
-   - Keeps: Beginner upgrades, version badge, fallback background.
-*/
 .page-hauling{
   --neo-cyan: #00e6ff;
+  --neo-cyan-soft: rgba(0,230,255,.22);
+  --neo-cyan-softer: rgba(0,230,255,.14);
   --neo-teal: #00e6c3;
-  --neo-text: rgba(231,236,255,.92);
-  --neo-muted: rgba(231,236,255,.70);
 
-  --panel-bg-strong: linear-gradient(180deg, rgba(10,18,28,.88), rgba(6,12,20,.92));
-  --panel-border: rgba(0,230,255,.22);
-  --panel-glow: rgba(0,230,255,.10);
+  --txt: rgba(235,242,255,.94);
+  --txt-soft: rgba(235,242,255,.78);
+  --txt-muted: rgba(235,242,255,.60);
 
-  background-color: #050b12;
-  min-height: 100vh;
+  --bg-glass: rgba(0,0,0,.30);
+
+  /* Harmonisation panels (plus proches Débutant) */
+  --panel-bg: linear-gradient(180deg, rgba(10,18,28,.88), rgba(6,12,20,.94));
+  --panel-border: rgba(0,230,255,.26);
+  --panel-border-soft: rgba(0,230,255,.18);
+  --panel-shadow: 0 18px 45px rgba(0,0,0,.28);
+  --inner-glow: 0 0 0 1px rgba(0,230,255,.12) inset;
+
+  /* Inputs & menus */
+  --control-bg: rgba(0,0,0,.42);
+  --control-border: rgba(0,230,255,.30);
+  --control-border-focus: rgba(0,230,255,.55);
+  --control-shadow: 0 0 0 1px rgba(0,230,255,.10) inset;
+
+  /* Dropdown list styling (native select limitations) */
+  --dropdown-bg: #0a141e;
+  --dropdown-border: rgba(0,230,255,.28);
+
+  /* Cards / list items */
+  --card-bg: rgba(0,0,0,.28);
+  --card-border: rgba(255,255,255,.10);
+  --card-hover: rgba(0,230,255,.10);
+
+  /* Accent KPI */
+  --accent: var(--neo-cyan);
 }
 
-.page-hauling{ color: var(--neo-text); }
+.page-hauling { color: var(--txt); }
+.page-hauling .page-wrap{ min-height:100vh; }
 
+/* Container */
 .page-hauling .hauling-shell{
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  padding: 0 16px 28px;
-}
-.page-hauling .hauling-container{
-  width: min(980px, 100%);
-  position: relative;
+  width:100%;
+  max-width:1180px;
+  margin:0 auto;
+  padding:18px 16px 90px;
+  box-sizing:border-box;
 }
 
-/* Header zone */
-.page-hauling .page-hero{
-  position: relative;
-  padding: 22px 0 6px;
-  text-align: center;
+/* ===== Hero ===== */
+.hero-card{
+  border-radius:18px;
+  border:1px solid var(--panel-border);
+  background: rgba(0,0,0,.28);
+  backdrop-filter: blur(12px);
+  padding:16px 16px 12px;
+  text-align:center;
+  box-shadow: var(--panel-shadow);
 }
-.page-hauling .page-title{
-  margin: 0;
-  font-size: 38px;
-  letter-spacing: 1px;
+
+.page-title{
+  margin:0;
+  letter-spacing:2px;
   color: var(--neo-cyan);
-  text-shadow: 0 0 18px rgba(0,230,255,.22);
-}
-.page-hauling .page-subtitle{
-  margin-top: 6px;
-  color: var(--neo-muted);
-  font-size: 13px;
+  text-shadow: 0 0 18px rgba(0,230,255,.25);
 }
 
-/* Top actions — like RECYCLAGE */
-.page-hauling .top-actions{
-  position: absolute;
-  top: 10px;
-  right: 0;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.page-hauling .btn-pill{
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  color: var(--neo-text);
-  background: rgba(0,0,0,.18);
-}
-.page-hauling .top-actions-group{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  background: rgba(0,0,0,.18);
-}
-.page-hauling .top-actions-group a{
-  text-decoration: none;
-  color: var(--neo-text);
-  padding: 6px 10px;
-  border-radius: 999px;
-}
-.page-hauling .top-actions-group a.is-strong{
-  font-weight: 800;
+.page-subtitle{
+  margin-top:6px;
+  color: rgba(255,255,255,.86);
+  text-shadow: 0 1px 12px rgba(0,0,0,.75);
+  opacity:.95;
 }
 
-/* Mode bar */
-.page-hauling .mode-switch{
-  margin: 12px auto 14px;
-  width: min(980px, 100%);
-  padding: 6px;
-
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-
-  border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  background: rgba(0,0,0,.18);
-  box-shadow: 0 0 28px rgba(0,230,255,.06);
+/* ===== Mode switch ===== */
+.mode-switch{
+  margin:14px auto 16px;
+  max-width:980px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  padding:8px;
+  border-radius:999px;
+  border:1px solid var(--panel-border);
+  background: rgba(0,0,0,.34);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--inner-glow);
 }
-.page-hauling .mode-btn{
-  height: 44px;
-  padding: 0 26px;
-  border-radius: 999px;
 
-  border: 1px solid transparent;
+.mode-tab{
+  border:0;
+  border-radius:999px;
+  padding:12px 14px;
+  cursor:pointer;
+  font-weight:900;
+  color: rgba(255,255,255,.90);
   background: transparent;
-  color: var(--neo-text);
+  transition: background .15s ease;
+}
+.mode-tab.is-active{
+  background: rgba(0,230,255,.24);
+  box-shadow: var(--inner-glow);
+}
+.mode-panel.is-hidden{ display:none; }
 
-  cursor: pointer;
-  font-weight: 700;
-  letter-spacing: .2px;
-  white-space: nowrap;
+/* ===== Layout ===== */
+.layout-2col{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  align-items:start;
 }
-.page-hauling .mode-btn.is-active{
-  background: rgba(0,230,255,.50);
-  border-color: rgba(0,230,255,.18);
-  box-shadow: 0 0 14px rgba(0,230,255,.10);
-}
-.page-hauling .mode-btn:focus-visible{
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0,230,255,.10), 0 0 18px rgba(0,230,255,.10);
+.layout-advanced{ grid-template-columns:.95fr 1.05fr; }
+
+@media (max-width:980px){
+  .layout-2col{ grid-template-columns:1fr; }
+  .page-title{ font-size: var(--font-xl); }
+  .mode-switch{ gap:10px; }
 }
 
-/* Panels */
-.page-hauling .panel{
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--panel-border);
-  border-radius: 18px;
-  box-shadow: 0 0 34px var(--panel-glow);
-  padding: 14px;
-  min-width: 0;
+/* ===== Panels ===== */
+.panel{
+  border-radius:18px;
+  border:1px solid var(--panel-border);
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  padding:16px;
+  box-shadow: var(--panel-shadow);
 }
-.page-hauling .panel-head{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+.panel-strong{ background: var(--panel-bg); }
+
+.panel-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
 }
-.page-hauling .panel-title{
+.panel-head-tools{ align-items:flex-start; }
+
+.panel-title{
+  font-size: var(--font-lg);
+  font-weight:900;
   color: var(--neo-cyan);
-  font-weight: 700;
-}
-.page-hauling .panel-chip{
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.22);
-  font-weight: 700;
-  font-size: 12px;
-}
-.page-hauling .panel-badge{
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(231,236,255,.14);
-  background: rgba(0,0,0,.18);
-  color: var(--neo-muted);
-  font-size: 12px;
-  display: none;
-}
-.page-hauling .panel-badge.is-on{ display: inline-flex; }
-
-/* Layout grid */
-.page-hauling .hauling-grid{
-  display: grid;
-  grid-template-columns: 520px 1fr;
-  gap: 14px;
-  align-items: start;
+  text-shadow: 0 0 14px rgba(0,230,255,.18);
 }
 
-/* Fields */
-.page-hauling .field{ margin-top: 10px; }
-.page-hauling label{
-  display: block;
-  color: var(--neo-muted);
-  margin-bottom: 6px;
-}
-.page-hauling .row-inline{
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-}
-.page-hauling input[type="number"],
-.page-hauling input[type="text"]{
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.26);
-  color: var(--neo-text);
-  padding: 0 12px;
-  min-width: 0;
-}
-.page-hauling input:focus{
-  outline: none;
-  border-color: rgba(0,230,255,.32);
-  box-shadow: 0 0 0 2px rgba(0,230,255,.10), 0 0 18px rgba(0,230,255,.10);
-}
-.page-hauling .hint{
-  margin-top: 6px;
-  color: var(--neo-muted);
-  font-size: 12px;
+.tools-row{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:center;
 }
 
-/* Custom ship picker (dropdown) */
-.page-hauling .ship-picker{
-  position: relative;
-}
-.page-hauling .ship-picker-btn{
-  width: 100%;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.26);
-  color: var(--neo-text);
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: pointer;
-  text-align: left;
-}
-.page-hauling .ship-picker-btn:focus-visible{
-  outline: none;
-  border-color: rgba(0,230,255,.32);
-  box-shadow: 0 0 0 2px rgba(0,230,255,.10), 0 0 18px rgba(0,230,255,.10);
-}
-.page-hauling .ship-picker-label{
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.page-hauling .ship-picker-caret{
-  color: rgba(231,236,255,.55);
-  font-size: 12px;
-}
-.page-hauling .ship-picker-menu{
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 40;
+/* ===== Forms ===== */
+.form-grid{ display:grid; gap:12px; }
 
-  background: rgba(6,12,20,.96);
-  border: 1px solid rgba(0,230,255,.18);
-  border-radius: 14px;
-  box-shadow: 0 0 30px rgba(0,230,255,.08);
+.field label{
+  display:block;
+  margin-bottom:6px;
+  font-size: var(--font-sm);
+  color: var(--txt-soft);
+}
 
-  max-height: 380px;
-  overflow: auto;
-  padding: 8px;
+.input, .select{
+  width:100%;
+  box-sizing:border-box;
+  border-radius:14px;
+  border:1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--txt);
+  padding:11px 12px;
+  outline:none;
+  box-shadow: var(--control-shadow);
+  backdrop-filter: blur(10px);
+  transition: border-color .15s ease, background .15s ease;
 }
-.page-hauling .ship-group-title{
-  padding: 8px 10px 6px;
-  color: rgba(231,236,255,.75);
-  font-style: italic;
-  font-weight: 700;
+
+.input:focus, .select:focus{
+  border-color: var(--control-border-focus);
+  background: rgba(0,0,0,.50);
 }
-.page-hauling .ship-item{
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: rgba(231,236,255,.88);
-  cursor: pointer;
-  text-align: left;
+
+.select-compact{ max-width:50%; }
+
+.hint{
+  margin-top:6px;
+  font-size: var(--font-xs);
+  color: var(--txt-muted);
 }
-.page-hauling .ship-item:hover{
+
+.quick-row{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+
+.quick-btn{
+  border-radius:999px;
+  border:1px solid var(--panel-border-soft);
+  background: rgba(0,0,0,.30);
+  color: rgba(255,255,255,.90);
+  padding:8px 12px;
+  cursor:pointer;
+  font-weight:900;
+  box-shadow: var(--inner-glow);
+  transition: background .15s ease, border-color .15s ease;
+}
+.quick-btn:hover{ background: rgba(0,230,255,.10); border-color: rgba(0,230,255,.34); }
+.quick-btn.is-active{
+  background: rgba(0,230,255,.22);
+  border-color: rgba(0,230,255,.42);
+}
+
+.actions{ display:flex; justify-content:flex-end; padding-top:6px; }
+
+.btn{
+  border-radius:14px;
+  border:1px solid var(--panel-border-soft);
+  background: rgba(0,0,0,.32);
+  color: rgba(255,255,255,.92);
+  padding:10px 14px;
+  cursor:pointer;
+  font-weight:900;
+  box-shadow: var(--inner-glow);
+  transition: background .15s ease, border-color .15s ease, transform .05s ease;
+}
+.btn:hover{ background: rgba(0,230,255,.14); border-color: rgba(0,230,255,.38); }
+.btn:active{ transform: translateY(1px); }
+.btn-small{ padding:8px 12px; font-size: var(--font-xs); }
+
+/* ===== KPI ===== */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-top:8px;
+}
+
+.kpi{
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  padding:12px;
+  box-shadow: 0 0 0 1px rgba(0,230,255,.06) inset;
+}
+
+.kpi-label{ font-size: var(--font-xs); color: var(--txt-muted); margin-bottom:4px; }
+.kpi-value{ font-size: var(--font-lg); font-weight:900; color: rgba(255,255,255,.96); }
+
+/* Profit/h en turquoise */
+.kpi-accent{
+  border-color: rgba(0,230,255,.20);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.12) inset, 0 0 18px rgba(0,230,255,.10);
+}
+.kpi-accent .kpi-value{ color: var(--accent); }
+
+/* ===== Chips / badges ===== */
+.chip, .pill-badge{
+  border-radius:999px;
+  padding:4px 10px;
+  border:1px solid rgba(0,230,255,.20);
+  background: rgba(0,0,0,.30);
+  color: rgba(255,255,255,.90);
+  font-weight:900;
+  font-size: var(--font-xs);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+}
+.chip-soft{ margin-left:10px; }
+
+/* ===== Verdict ===== */
+.verdict-block{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.10);
+}
+.verdict-label{ font-size: var(--font-xs); color: var(--txt-muted); margin-bottom:6px; }
+.verdict-text{ font-size: var(--font-md); font-weight:900; }
+.verdict-meta{ margin-top:4px; font-size: var(--font-xs); color: var(--txt-muted); }
+
+.risk-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border-radius:999px;
+  padding:6px 10px;
+  margin-top:10px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  color: rgba(255,255,255,.88);
+  font-weight:900;
+  font-size: var(--font-xs);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+}
+.risk-badge.is-hidden{ display:none; }
+
+/* ===== Advanced: goods ===== */
+.subhead{
+  margin-top:10px;
+  font-size: var(--font-sm);
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+.subhead-split{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+}
+
+.top3-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  margin:10px 0 14px;
+}
+@media (max-width:980px){
+  .top3-row{ grid-template-columns:1fr; }
+}
+
+.top3-card{
+  border-radius:16px;
+  border:1px solid rgba(0,230,255,.18);
+  background: rgba(0,0,0,.30);
+  padding:12px;
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+}
+.top3-name{
+  font-weight:900;
+  margin-bottom:6px;
+  color: rgba(255,255,255,.95);
+}
+.top3-card .hint{ color: rgba(255,255,255,.62); }
+
+.goods-list{
+  display:grid;
+  gap:10px;
+  max-height:420px;
+  overflow:auto;
+  padding-right:4px;
+}
+
+.goods-item{
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  transition: background .15s ease, border-color .15s ease;
+}
+.goods-item:hover{
   background: rgba(0,230,255,.08);
-  border-color: rgba(0,230,255,.14);
-}
-.page-hauling .ship-item.is-active{
-  background: rgba(0,230,255,.12);
-  border-color: rgba(0,230,255,.18);
-}
-.page-hauling .ship-item-scu{
-  color: rgba(231,236,255,.60);
-  font-weight: 700;
-}
-.page-hauling .ship-divider{
-  height: 1px;
-  margin: 6px 0;
-  background: rgba(231,236,255,.10);
+  border-color: rgba(0,230,255,.20);
 }
 
-/* Time presets row */
-.page-hauling .preset-row{
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.page-hauling .btn-preset{
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.18);
-  color: var(--neo-text);
-  cursor: pointer;
-  font-size: 12px;
-}
-.page-hauling .btn-preset:hover{
-  border-color: rgba(0,230,255,.32);
-  box-shadow: 0 0 12px rgba(0,230,255,.08);
-}
+.goods-name{ font-weight:900; color: rgba(255,255,255,.96); }
+.goods-code{ margin-top:4px; font-size: var(--font-xs); color: rgba(255,255,255,.62); }
 
-/* Buttons */
-.page-hauling .btn-secondary{
-  height: 40px;
-  border-radius: 12px;
-  padding: 0 14px;
-  border: 1px solid rgba(0,230,255,.18);
+.empty{
+  border-radius:16px;
+  border:1px dashed rgba(0,230,255,.22);
   background: rgba(0,0,0,.20);
-  color: var(--neo-text);
-  cursor: pointer;
-}
-.page-hauling .btn-secondary:hover{
-  border-color: rgba(0,230,255,.32);
-  box-shadow: 0 0 16px rgba(0,230,255,.10);
-}
-.page-hauling .actions-row{
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
+  padding:14px;
+  text-align:center;
+  color: rgba(255,255,255,.70);
 }
 
-/* KPI */
-.page-hauling .kpi-grid{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+/* ===== Bottom version ===== */
+.version-tag{
+  position:fixed;
+  right:18px;
+  bottom:10px;
+  display:flex;
+  gap:10px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid rgba(0,230,255,.18);
+  background: rgba(0,0,0,.34);
+  backdrop-filter: blur(10px);
+  color: rgba(255,255,255,.78);
+  font-size: var(--font-xs);
+  text-shadow: 0 1px 10px rgba(0,0,0,.75);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+  z-index:20;
 }
-.page-hauling .kpi{
-  background: rgba(0,0,0,.22);
-  border: 1px solid rgba(231,236,255,.12);
-  border-radius: 16px;
-  padding: 12px;
+
+
+/* ===== Advanced: verrouillage marchandise ===== */
+.locked-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:10px 0 8px;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(0,230,255,.22);
+  background: rgba(0,0,0,.28);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.10) inset;
 }
-.page-hauling .kpi-strong{
+.locked-bar.is-hidden{ display:none; }
+.locked-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.locked-name{ font-weight:900; color: rgba(255,255,255,.95); }
+.badge-lock{
+  border-color: rgba(0,230,255,.30);
+  background: rgba(0,230,255,.12);
+}
+.goods-item{ cursor:pointer; }
+.goods-item.is-locked{
+  border-color: rgba(0,230,255,.32);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.14) inset, 0 0 18px rgba(0,230,255,.10);
+}
+.goods-item .goods-profit{ font-weight:900; color: var(--neo-cyan); }
+
+
+/* Hide native selects used as state holders for custom pickers */
+.native-select-hidden{display:none !important;}
+/* ===== Ship Picker (custom dropdown) ===== */
+.ship-picker{ position:relative; width:100%; }
+.ship-picker-trigger{
+  width:100%;
+  text-align:left;
+  border-radius:14px;
+  border:1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--txt);
+  padding:11px 12px;
+  outline:none;
+  box-shadow: var(--control-shadow);
+  backdrop-filter: blur(10px);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.ship-picker-trigger::after{
+  content:"";
+  width:0; height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:6px solid rgba(255,255,255,.70);
+  margin-left:auto;
+}
+.ship-picker-trigger:hover{ border-color: rgba(0,230,255,.42); background: rgba(0,0,0,.50); }
+.ship-picker-trigger:focus{ border-color: var(--control-border-focus); }
+
+.ship-picker-menu{
+  position:absolute;
+  top: calc(100% + 8px);
+  left:0;
+  right:0;
+  z-index: 50;
+  border-radius:16px;
+  border:1px solid rgba(0,230,255,.22);
+  background: linear-gradient(180deg, rgba(10,18,28,.94), rgba(6,12,20,.98));
+  box-shadow: 0 18px 45px rgba(0,0,0,.35), 0 0 0 1px rgba(0,230,255,.10) inset;
+  padding:10px;
+  backdrop-filter: blur(14px);
+}
+.ship-picker-menu.is-hidden{ display:none; }
+
+.ship-picker-search{ margin-bottom:10px; }
+
+.ship-picker-meta{
+  font-size: var(--font-xs);
+  color: rgba(235,242,255,.65);
+  margin: 2px 2px 8px;
+}
+
+.ship-picker-list{
+  max-height: 320px;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding-right:2px;
+}
+
+.ship-picker-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.24);
+  cursor:pointer;
+  user-select:none;
+  transition: background .12s ease, border-color .12s ease;
+}
+.ship-picker-item:hover{
+  background: rgba(0,230,255,.10);
   border-color: rgba(0,230,255,.22);
 }
-.page-hauling .kpi-label{
-  color: var(--neo-muted);
-  font-size: 12px;
+.ship-picker-item.is-selected{
+  background: rgba(0,230,255,.16);
+  border-color: rgba(0,230,255,.30);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.10) inset;
 }
-.page-hauling .kpi-value{
-  margin-top: 6px;
-  color: var(--neo-cyan);
-  font-weight: 800;
-  font-size: 18px;
+.ship-picker-name{ font-weight:900; color: rgba(255,255,255,.95); }
+.ship-picker-scu{ font-weight:900; color: rgba(255,255,255,.80); }
+
+
+/* === Advanced UX: cargo type picker + risk hint === */
+.cargo-type-picker{ max-width: 50%; }
+@media (max-width: 900px){ .cargo-type-picker{ max-width: 100%; } }
+
+.risk-hint{
+  margin-top: 10px;
+  color: rgba(255,255,255,.72);
+  font-size: var(--font-xs);
+  line-height: 1.35;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,230,255,.18);
+  background: rgba(0,0,0,.22);
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
 }
 
-.page-hauling .divider{
-  margin: 14px 0 10px;
-  height: 1px;
-  background: rgba(231,236,255,.10);
-}
-.page-hauling .compact-note{
-  color: var(--neo-muted);
-  font-size: 12px;
-}
 
-/* Verdict line */
-.page-hauling .verdict{
-  margin-top: 12px;
+/* ===== Advanced Route ===== */
+.adv-route{
+  margin: 10px 0 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(0,230,255,.18);
+  background: rgba(0,0,0,.18);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.06) inset;
+}
+.route-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 900px){
+  .route-grid{ grid-template-columns: 1fr; }
+}
+.route-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
+.route-json{ margin-top: 10px; }
+.json-box{
+  margin-top: 8px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(0,0,0,.18);
-  border: 1px solid rgba(231,236,255,.10);
-}
-.page-hauling .verdict-label{
-  color: var(--neo-muted);
-  font-size: 12px;
-}
-.page-hauling .verdict-value{
-  margin-top: 6px;
-  font-weight: 800;
-  color: var(--neo-text);
+  border: 1px solid rgba(0,230,255,.18);
+  background: rgba(0,0,0,.22);
+  color: rgba(235,242,255,.86);
+  max-height: 220px;
+  overflow:auto;
+  font-size: var(--font-xs);
+  line-height: 1.35;
 }
 
-/* Version badge — Recyclage-like (typo + zone only) */
-.page-hauling .module-version{
-  position: fixed;
-  right: 14px;
-  bottom: 10px;
-  z-index: 20;
-
-  padding: 4px 10px;
-
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: .2px;
-  color: rgba(231,236,255,.55);
-
-  background: rgba(0,0,0,.28);
-  border-radius: 6px;
-
-  pointer-events: none;
-}
-
-/* Visibility */
-.page-hauling .is-hidden{ display: none; }
-
-/* Responsive */
-@media (max-width: 980px){
-  .page-hauling .hauling-grid{ grid-template-columns: 1fr; }
-
-  .page-hauling .top-actions{
-    position: static;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-  }
-
-  .page-hauling .page-hero{ padding-top: 12px; }
-
-  .page-hauling .mode-switch{
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-}
-
-
-/* === PATCH V1_4_4 OVERRIDES === */
-
-/* Discord button filled neon cyan */
-.page-hauling .top-actions-group a:first-child{
-  background: rgba(0,230,255,.18);
-  border: 1px solid rgba(0,230,255,.45);
-  box-shadow: 0 0 18px rgba(0,230,255,.25);
-  font-weight: 700;
-}
-
-/* Remove number input spinners (all browsers) */
+/* Remove +/- spinners in number inputs */
 .page-hauling input[type=number]::-webkit-outer-spin-button,
 .page-hauling input[type=number]::-webkit-inner-spin-button{
   -webkit-appearance: none;
   margin: 0;
 }
-
 .page-hauling input[type=number]{
   -moz-appearance: textfield;
-  appearance: textfield;
 }
 
 
-/* === PATCH V1_4_4 — Mode Débutant UX === */
-
-/* Preset actif (temps de boucle) */
-.page-hauling .btn-preset.is-active{
-  background: rgba(0,230,255,.14);
-  border-color: rgba(0,230,255,.38);
-  box-shadow: 0 0 16px rgba(0,230,255,.14);
-  font-weight: 800;
+/* --- Hauling V1.9.9: Stability badges (best-effort) --- */
+.stab-line{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
 }
-
-/* KPI Profit/h — encadré renforcé (option 2C) */
-.page-hauling .kpi.kpi-strong{
-  background: rgba(0,0,0,.24);
-  border-color: rgba(0,230,255,.32);
-  box-shadow: 0 0 22px rgba(0,230,255,.12);
+.stab-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  line-height: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  user-select:none;
 }
-.page-hauling .kpi.kpi-strong .kpi-value{
-  font-size: 20px;
-  letter-spacing: .2px;
+.stab-badge.is-ok{
+  border-color: rgba(0,255,200,0.28);
+  background: rgba(0,255,200,0.08);
 }
-
-/* Verdict — signal visuel léger (sans rouge/vert agressif) */
-.page-hauling .verdict.is-bad{ border-color: rgba(231,236,255,.10); }
-.page-hauling .verdict.is-bad .verdict-value{ color: rgba(231,236,255,.62); }
-
-.page-hauling .verdict.is-ok{ border-color: rgba(160,190,255,.22); }
-.page-hauling .verdict.is-ok .verdict-value{ color: rgba(160,190,255,.92); }
-
-.page-hauling .verdict.is-good{ border-color: rgba(0,230,255,.22); }
-.page-hauling .verdict.is-good .verdict-value{ color: rgba(0,230,255,.92); }
-
-.page-hauling .verdict.is-great{ border-color: rgba(0,230,255,.34); }
-.page-hauling .verdict.is-great .verdict-value{
-  color: rgba(0,230,255,.98);
-  text-shadow: 0 0 14px rgba(0,230,255,.18);
+.stab-badge.is-mid{
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
 }
-
-/* Micro-signal investissement élevé */
-.page-hauling .risk-note{
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(0,0,0,.14);
-  border: 1px solid rgba(231,236,255,.10);
-  color: rgba(231,236,255,.62);
-  font-size: 12px;
+.stab-badge.is-low{
+  border-color: rgba(255,120,120,0.28);
+  background: rgba(255,120,120,0.08);
 }
-.page-hauling .risk-note.is-hidden{ display:none; }
-
-
-/* === PATCH V1_4_4 — Ship search in dropdown === */
-
-.page-hauling .ship-picker-menu{
-  padding-top: 10px;
-}
-
-.page-hauling .ship-search{
-  position: sticky;
-  top: 0;
-  z-index: 2;
-
-  padding: 6px 6px 10px;
-  background: rgba(6,12,20,.96);
-  border-bottom: 1px solid rgba(231,236,255,.10);
-  border-radius: 12px 12px 0 0;
-}
-
-.page-hauling .ship-search input{
-  width: 100%;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.26);
-  color: rgba(231,236,255,.92);
-  padding: 0 12px;
-}
-
-.page-hauling .ship-search input::placeholder{
-  color: rgba(231,236,255,.45);
+.stab-badge.is-unk{
+  border-color: rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.18);
+  opacity: 0.9;
 }
 
 
-/* Ship counter (dropdown) */
-.page-hauling .ship-count{
-  margin-top: 8px;
-  color: rgba(231,236,255,.55);
-  font-size: 11px;
-  letter-spacing: .2px;
+/* --- Hauling V1.10.6: Score color system --- */
+.score-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 28px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: var(--font-xs);
+  line-height: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+}
+.score-high{ border-color: rgba(0,255,200,0.35); background: rgba(0,255,200,0.10); }
+.score-mid{ border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.08); }
+.score-low{ border-color: rgba(255,190,80,0.35); background: rgba(255,190,80,0.10); }
+.score-bad{ border-color: rgba(255,120,120,0.35); background: rgba(255,120,120,0.10); }
+
+/* --- Hauling V1.10.6: widen left "Contexte (avancé)" --- */
+@media (min-width: 981px){
+  .layout-advanced{ grid-template-columns: 360px 1fr; }
 }
 
 
-/* === PATCH V1_5_0 — Cargo type + Risk badge === */
+/* ==============================
+   Addons FRET (baseline) — V1.12.9
+   - Badges Stabilité
+   - Score color system (aliases)
+   - Contexte (avancé) plus large
+   - Versions techniques (bar + panel) centré, cliquable
+   ============================== */
 
-.page-hauling .field select{
-  width: 100%;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid rgba(231,236,255,.14);
-  background: rgba(0,0,0,.22);
-  color: rgba(231,236,255,.92);
-  padding: 0 12px;
+/* --- Stabilité badges --- */
+.stab-line{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.stab-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  line-height: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  user-select:none;
+}
+.stab-badge.is-ok{ border-color: rgba(0,255,200,0.28); background: rgba(0,255,200,0.08); }
+.stab-badge.is-mid{ border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); }
+.stab-badge.is-low{ border-color: rgba(255,120,120,0.28); background: rgba(255,120,120,0.08); }
+.stab-badge.is-unk{ border-color: rgba(255,255,255,0.10); background: rgba(0,0,0,0.18); opacity: 0.9; }
+
+/* --- Score color system (pills) --- */
+.score-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 28px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: var(--font-xs);
+  line-height: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
 }
 
-.page-hauling .field select:focus{
-  outline: none;
-  border-color: rgba(0,230,255,.28);
-  box-shadow: 0 0 18px rgba(0,230,255,.10);
+/* Legacy classes (kept) */
+.score-high{ border-color: rgba(0,255,200,0.35); background: rgba(0,255,200,0.10); }
+.score-mid{  border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.08); }
+.score-low{  border-color: rgba(255,190,80,0.35); background: rgba(255,190,80,0.10); }
+.score-bad{  border-color: rgba(255,120,120,0.35); background: rgba(255,120,120,0.10); }
+
+/* New aliases used by recent JS versions */
+.score-good{ border-color: rgba(0,255,200,0.35); background: rgba(0,255,200,0.10); }
+.score-mid2{ border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.08); } /* optional */
+.score-low2{ border-color: rgba(255,190,80,0.35); background: rgba(255,190,80,0.10); }  /* optional */
+
+/* Common alias mapping */
+.score-good, .score-mid, .score-low, .score-bad{}
+
+/* --- Contexte (avancé) plus large (desktop) --- */
+@media (min-width: 981px){
+  .layout-advanced{ grid-template-columns: 360px 1fr; }
 }
 
-.page-hauling .verdict-sub{
-  margin-top: 6px;
-  color: rgba(231,236,255,.55);
-  font-size: 12px;
-}
+/* --- Versions techniques (bar + panel) — centered & clickable --- */
+:root{ --hauling-css-version: "V1.12.9"; }
 
-/* Risk badge: keep existing .risk-note styles, just ensure label feels like a badge */
-.page-hauling .risk-note{
-  display: inline-block;
-}
-
-
-/* ============================
-   Vignette overlay (V1.5.2)
-   Align Hauling page darkness with HUB/Recyclage
-   - Adds a soft, non-intrusive vignette layer
-============================ */
-
-.hauling-shell{
-  position: relative;
-}
-
-.hauling-shell::before{
-  content: "";
+.techbar{
   position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(120% 80% at 50% 20%, rgba(0,0,0,.10), rgba(0,0,0,.22) 70%),
-    linear-gradient(to bottom, rgba(0,0,0,.06), rgba(0,0,0,.16));
-  pointer-events: none;
-  z-index: 0;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: calc(100% - 28px);
+  max-width: 980px;
+
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 12px;
+
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+
+  z-index: 9999;
+  pointer-events: auto;
+}
+.techbar-left{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.techbar-title{ font-weight:900; letter-spacing:0.6px; color: rgba(255,255,255,.90); }
+.techbar-sub{ opacity:0.88; font-size: var(--font-xs); }
+
+.techbar button{ pointer-events:auto; }
+
+.techpanel{
+  position: fixed;
+  left: 50%;
+  bottom: 68px;
+  transform: translateX(-50%);
+  width: calc(100% - 28px);
+  max-width: 980px;
+
+  display:none;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.40);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px rgba(0,230,255,.08) inset;
+
+  z-index: 9999;
+  pointer-events: auto;
+}
+.techpanel.open{ display:block !important; }
+
+.techpanel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:8px;
+}
+.techpanel-title{ font-weight:900; color: rgba(255,255,255,.92); }
+
+.techpanel-pre{
+  max-height: 240px;
+  overflow:auto;
+  margin:0;
+  padding:12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.22);
+  font-size: var(--font-xs);
+  line-height: 1.35;
 }
 
-.hauling-shell > *{
-  position: relative;
-  z-index: 1;
-}
-
-
-/* === PATCH V1_5_6 — Type de cargo dropdown harmonisé + compat salvage chart bg ===
-   - Le <select>#cargoType reste source de vérité mais est caché (UI custom identique au ship-picker)
-   - Le dropdown custom respecte le style des vaisseaux et la largeur 50%
-   - Le fond du graphique (chart-wrap) est aligné sur salvage.css, scoped à .page-hauling
-*/
-
-.page-hauling .is-hidden{ display:none !important; }
-
-/* Cargo type picker (custom) */
-.page-hauling .cargo-type-picker{
-  width: 50%;
-  min-width: 220px;
-  position: relative;
-}
+/* Small screens: allow full width, keep readable */
 @media (max-width: 520px){
-  .page-hauling .cargo-type-picker{ width: 100%; min-width: 0; }
+  .techbar{ max-width: none; }
+  .techpanel{ max-width: none; }
 }
-.page-hauling #cargoTypePickerMenu{ z-index: 60; }
 
-/* Hide native select (still used by JS logic/state) */
-.page-hauling #cargoType.is-hidden{ display:none !important; }
-
-/* Align hauling chart bg with salvage.css */
-.page-hauling .chart-wrap{ background: rgba(0,0,0,.18) !important; }
+/* IMPORTANT: we do not enforce global font sizes here.
+   Core.CSS should own typography. */
 
 
-/* === PATCH V1_5_7 — Harmonisation bouton Discord (FRET) === */
-.page-hauling .btn-discord,
-.page-hauling .discord-btn,
-.page-hauling a[href*="discord"]{
-  font-family: var(--font-ui) !important;
-  font-weight: var(--font-ui-weight) !important;
-  letter-spacing: var(--font-ui-spacing) !important;
-}
+
+/* V1.12.9: Versions techniques — layout "Mining-like" */
+.techbar--mining{max-width:1100px}
+.techbar-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid rgba(0,230,255,.35);background:rgba(0,0,0,.22);box-shadow:0 0 0 1px rgba(0,230,255,.10) inset;font-weight:900}
+.techbar-link{background:transparent;border:1px solid rgba(0,230,255,.25);color:rgba(180,245,255,.95);padding:6px 12px;border-radius:999px;cursor:pointer}
+.techpanel--mining{max-width:1100px;padding:14px 14px 12px}
+.techpanel[aria-hidden="true"]{display:none !important}
+.techpanel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.techpanel-header-right{display:flex;align-items:center;gap:10px}
+.techgrid{display:flex;flex-direction:column;gap:10px}
+.techrow{display:grid;grid-template-columns:110px 1fr 110px 1fr 110px 1fr;gap:8px 10px;align-items:center}
+.techrow--full{grid-template-columns:110px 1fr}
+.techk{opacity:.85}
+.techv{font-weight:700}
+.techv--mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:600;opacity:.95;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.techjson{width:100%;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.18);color:rgba(255,255,255,.88);resize:none;min-height:110px;max-height:220px}
+
+.techjson{display:none !important;}
+@media (max-width:980px){.techrow{grid-template-columns:90px 1fr 90px 1fr}.techrow>:nth-child(n+5):nth-child(-n+6){display:none}}
+@media (max-width:560px){.techrow{grid-template-columns:90px 1fr}}
+
+.techgrid{display:flex !important;}
+.techrow{display:grid !important;}
 
 
 /* ============================
-   FRET subtitle — readability
-   Version: V1.6.1
-============================ */
-
-.page-hauling .subtitle{
-  color: rgba(240,245,255,.92);
-  font-weight: 500;
-  letter-spacing: .2px;
-  text-shadow: 0 1px 6px rgba(0,0,0,.45);
+   Version footer (MINING-like)
+   ============================ */
+.page-hauling-version{
+  width: min(980px, 100%);
+  margin: 18px auto 22px;
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: auto;
 }
-
-.page-hauling .subtitle::after{
-  content:"";
-  display:block;
-  width: 110px;
-  height: 2px;
-  margin: 6px auto 0;
-  background: rgba(0,230,255,.35);
-  border-radius: 2px;
-}
-
-
-/* === PATCH V1_6_2 — Risk badge toggle (show/hide) === */
-.page-hauling .badge-risk{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* V1.6.3 ensure is-hidden always hides */
-.page-hauling .is-hidden{display:none !important;}
-
-
-/* === PATCH V1.6.4 — Mode Débutant UX (Max SCU intelligent + raison verdict) === */
-
-.page-hauling .verdict-reason{
-  margin-top: 6px;
-  color: rgba(240,245,255,.78);
-  font-size: 13px;
-  line-height: 1.25;
-}
-
-
-/* === PATCH V1.6.9 — Ship picker UX (search + list) + verdict reason === */
-
-.page-hauling .ship-picker-inner{
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.page-hauling .ship-picker-search{
+.page-hauling-version .version-bar{
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,230,255,.18);
-  background: rgba(0,0,0,.25);
-  color: rgba(240,245,255,.92);
-  outline: none;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 16px;
+  padding: 10px 14px;
+  cursor: pointer;
+
+  background: rgba(10, 22, 34, .55);
+  border: 1px solid rgba(70, 140, 170, .30);
+  box-shadow: 0 0 0 1px rgba(0,0,0,25), 0 10px 28px rgba(0,0,0,22);
+  backdrop-filter: blur(8px);
+}
+.page-hauling-version .version-bar:hover{
+  border-color: rgba(70, 190, 210, .40);
+}
+.page-hauling-version .version-main{
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: rgba(255,255,255,92);
+  font-size: var(--font-sm);
+}
+.page-hauling-version .version-cta{
+  font-size: var(--font-xs);
+  color: rgba(120, 230, 255, .90);
+  font-weight: 700;
+}
+.page-hauling-version .version-details{
+  margin-top: 10px;
+  border-radius: 16px;
+  padding: 12px 14px;
+
+  background: rgba(8, 18, 28, .62);
+  border: 1px solid rgba(70, 140, 170, .25);
+  box-shadow: 0 0 0 1px rgba(0,0,0,22), 0 10px 26px rgba(0,0,0,18);
+  backdrop-filter: blur(10px);
+}
+.page-hauling-version .version-details-header{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.page-hauling-version .version-details-title{
+  font-weight: 800;
+  color: rgba(255,255,255,90);
+  font-size: var(--font-sm);
+}
+.page-hauling-version .version-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+@media (max-width: 820px){
+  .page-hauling-version .version-grid{ grid-template-columns: 1fr; }
+}
+.page-hauling-version .version-col{
+  display:grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+}
+.page-hauling-version .version-k{
+  color: rgba(255,255,255,70);
+  font-size: var(--font-xs);
+}
+.page-hauling-version .version-v{
+  color: rgba(255,255,255,92);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-align:right;
+}
+.is-hidden{ display:none !important; }
+
+/* screen reader only */
+.sr-only{
+  position:absolute !important;
+  width:1px; height:1px;
+  padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0);
+  white-space:nowrap; border:0;
 }
 
-.page-hauling .ship-picker-search:focus{
-  border-color: rgba(0,230,255,.35);
-  box-shadow: 0 0 0 2px rgba(0,230,255,.10);
-}
 
-.page-hauling .ship-picker-list{
+/* =========================================================
+   V1.13.5 — Mode switch alignment (2K reference)
+   Scope: Hauling ONLY
+   Goal:
+   - Center the capsule under the hero (like Salvage)
+   - Make the 2 tabs visually balanced (50/50) inside the capsule
+   Notes:
+   - This only changes layout for the Mode switch.
+   - Core.css keeps ownership of the shared look & active states.
+   ========================================================= */
+
+.page-hauling .mode-switch{
+  width: min(980px, 100%);
+  margin: 12px auto 16px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: nowrap;
 }
 
-.page-hauling .verdict-reason{
-  margin-top: 6px;
-  color: rgba(240,245,255,.78);
-  font-size: 13px;
-  line-height: 1.25;
+/* Balance the two tabs inside the capsule (avoid "stuck to edges" feel) */
+.page-hauling .mode-switch .mode-tab{
+  flex: 1 1 0;
+  text-align: center;
+  min-width: 0;
 }
+
+
+/* =========================================================
+   V1.13.6 — Hide legacy non-functional "Versions techniques" menu (V1.12.9)
+   Reason: FRET currently shows two version UIs. We keep ONLY the MINING-like footer (version-footer)
+   and hide the legacy techbar/techpanel layer (often injected by older hauling.js builds).
+   ========================================================= */
+.page-hauling .techbar,
+.page-hauling .techpanel{
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+

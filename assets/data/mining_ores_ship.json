@@ -1,0 +1,423 @@
+{
+  "version": "V1.2.0",
+  "unit": "SCU",
+  "source": "Beginner dataset. Legacy ore prices approximated; newer ores may not have prices. Includes UI colors inspired by Regolith.",
+  "ores": [
+    {
+      "key": "quantanium",
+      "name": "Quantanium",
+      "price_auEc_per_scu": 8809,
+      "sellers": [
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 8809
+        },
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 8600
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 8450
+        }
+      ],
+      "color": "#7c3aed"
+    },
+    {
+      "key": "bexalite",
+      "name": "Bexalite",
+      "price_auEc_per_scu": 4048,
+      "sellers": [
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 4048
+        },
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 3950
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 3880
+        }
+      ],
+      "color": "#2563eb"
+    },
+    {
+      "key": "borase",
+      "name": "Borase",
+      "price_auEc_per_scu": 3244,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 3244
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 3180
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 3120
+        }
+      ],
+      "color": "#14b8a6"
+    },
+    {
+      "key": "taranite",
+      "name": "Taranite",
+      "price_auEc_per_scu": 3245,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 3245
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 3200
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 3150
+        }
+      ],
+      "color": "#0ea5e9"
+    },
+    {
+      "key": "laranite",
+      "name": "Laranite",
+      "price_auEc_per_scu": 3025,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 3025
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 2950
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 2900
+        }
+      ],
+      "color": "#22c55e"
+    },
+    {
+      "key": "agricium",
+      "name": "Agricium",
+      "price_auEc_per_scu": 2688,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 2688
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 2620
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 2580
+        }
+      ],
+      "color": "#f97316"
+    },
+    {
+      "key": "hephaestanite",
+      "name": "Hephaestanite",
+      "price_auEc_per_scu": 1466,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 1466
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 1420
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 1400
+        }
+      ],
+      "color": "#f59e0b"
+    },
+    {
+      "key": "titanium",
+      "name": "Titanium",
+      "price_auEc_per_scu": 867,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 867
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 845
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 830
+        }
+      ],
+      "color": "#94a3b8"
+    },
+    {
+      "key": "diamond",
+      "name": "Diamond",
+      "price_auEc_per_scu": 717,
+      "sellers": [
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 717
+        },
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 705
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 690
+        }
+      ],
+      "color": "#e2e8f0"
+    },
+    {
+      "key": "gold",
+      "name": "Gold",
+      "price_auEc_per_scu": 632,
+      "sellers": [
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 632
+        },
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 620
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 610
+        }
+      ],
+      "color": "#fbbf24"
+    },
+    {
+      "key": "copper",
+      "name": "Copper",
+      "price_auEc_per_scu": 569,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 569
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 555
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 545
+        }
+      ],
+      "color": "#fb7185"
+    },
+    {
+      "key": "beryl",
+      "name": "Beryl",
+      "price_auEc_per_scu": 430,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 430
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 420
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 410
+        }
+      ],
+      "color": "#a3e635"
+    },
+    {
+      "key": "tungsten",
+      "name": "Tungsten",
+      "price_auEc_per_scu": 399,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 399
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 392
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 388
+        }
+      ],
+      "color": "#64748b"
+    },
+    {
+      "key": "corundum",
+      "name": "Corundum",
+      "price_auEc_per_scu": 265,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 265
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 260
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 255
+        }
+      ],
+      "color": "#ef4444"
+    },
+    {
+      "key": "quartz",
+      "name": "Quartz",
+      "price_auEc_per_scu": 151,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 151
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 148
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 145
+        }
+      ],
+      "color": "#c084fc"
+    },
+    {
+      "key": "aluminium",
+      "name": "Aluminium",
+      "price_auEc_per_scu": 127,
+      "sellers": [
+        {
+          "name": "Lorville — TDD",
+          "price_auEc_per_scu": 127
+        },
+        {
+          "name": "Area18 — TDD",
+          "price_auEc_per_scu": 125
+        },
+        {
+          "name": "Orison — TDD",
+          "price_auEc_per_scu": 123
+        }
+      ],
+      "color": "#d1d5db"
+    },
+    {
+      "key": "inert",
+      "name": "Inert Materials",
+      "price_auEc_per_scu": 2,
+      "sellers": [
+        {
+          "name": "City TDD",
+          "price_auEc_per_scu": 2
+        }
+      ],
+      "color": "#475569"
+    },
+    {
+      "key": "lindinium",
+      "name": "Lindinium",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#60a5fa"
+    },
+    {
+      "key": "riccite",
+      "name": "Riccite",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#34d399"
+    },
+    {
+      "key": "stileron",
+      "name": "Stileron",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#f472b6"
+    },
+    {
+      "key": "glacosite",
+      "name": "Glacosite",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#38bdf8"
+    },
+    {
+      "key": "feynmaline",
+      "name": "Feynmaline",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#22d3ee"
+    },
+    {
+      "key": "dymantium",
+      "name": "Dymantium",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#818cf8"
+    },
+    {
+      "key": "partillium",
+      "name": "Partillium",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#fb923c"
+    },
+    {
+      "key": "iron",
+      "name": "Iron",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#9ca3af"
+    },
+    {
+      "key": "cobalt",
+      "name": "Cobalt",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#3b82f6"
+    },
+    {
+      "key": "tin",
+      "name": "Tin",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#9ca3af"
+    },
+    {
+      "key": "silicon",
+      "name": "Silicon",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#a78bfa"
+    },
+    {
+      "key": "carbon",
+      "name": "Carbon",
+      "price_auEc_per_scu": null,
+      "sellers": [],
+      "color": "#111827"
+    }
+  ]
+}
