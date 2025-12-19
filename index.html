@@ -29,6 +29,28 @@
   <!-- Twitter / X -->
   <link rel="stylesheet" href="./assets/css/core.css" />
   <link rel="stylesheet" href="./assets/css/hub-discord-widget.css" />
+
+    <style>
+    /* HUB-only micro layout */
+    .hub-hero-card{ margin-bottom: 34px; }
+
+    /* Make container a positioning context for top actions */
+    .container{ position: relative; padding-top: 56px; }
+
+    /* Top actions pinned to the top-right of the container */
+    .hub-top-actions{
+      position: absolute;
+      top: 12px;
+      right: 0;
+      z-index: 10;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Ensure Discord widget aligns nicely inside the top actions row */
+    .hub-top-actions .shog-discord-auth{ display: inline-flex; align-items: center; }
+  </style>
+
 </head>
 
 <body class="theme-neon">
@@ -36,8 +58,11 @@
     <div class="container">
 
       <!-- Header actions -->
-      <div class="top-actions">
-        <a class="btn-discord" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener noreferrer">DISCORD</a>
+      <div class="header-actions hub-top-actions">
+        <a class="btn-primary btn-discord" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener noreferrer">
+          <span class="badge badge-h">DISCORD</span>
+          Rejoindre Discord
+        </a>
 <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login">
   <button id="shogDiscordLoginBtn" class="btn-ghost" type="button">Connexion Discord</button>
 
@@ -52,14 +77,12 @@
 </div>
 </div>
 
-      <header class="hero-card">
+      <header class="hero-card hub-hero-card">
         <h1 class="page-title">HUB</h1>
-        <div class="page-subtitle">Centre de contrôle des outils industriels — PU 4.5</div>
+        <div class="page-subtitle">Centre de contrôle des outils — PU 4.5</div>
       </header>
 
-      
-
-      <!-- État du HUB -->
+<!-- État du HUB -->
       <div class="panel section section-first">
         <div class="panel-title">État du HUB</div>
         <div class="panel-note" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
@@ -146,8 +169,8 @@
         <div class="panel-title">Version</div>
         <div class="panel-note">
           <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;">
-            <span class="badge badge-h"><strong>HUB</strong> : V1.0.4</span>
-            <span class="badge badge-h badge-tech" id="coreCssVersion">core.css : —</span>
+            <span class="badge badge-h"><strong>HUB</strong> : V1.0.8</span>
+            <span id="coreCssVersion" class="badge badge-h badge-tech">core.css : —</span>
             <span class="badge badge-h">PU : 4.5</span>
           </div>
         </div>
