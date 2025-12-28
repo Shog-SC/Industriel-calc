@@ -1,4 +1,4 @@
-/* hauling.js — V1.13.36 FULL (Suggestions: Top Routes Globales + click => bascule A→B)
+/* hauling.js — V1.13.62 FULL (Suggestions: Top Routes Globales + click => bascule A→B)
    - FULL FILE (remplacement total)
    - Compatible hauling.html (tabs : tabBeginner/tabAdvanced, panels : panelBeginner/panelAdvanced)
    - Beginner: calcul manuel
@@ -11,19 +11,18 @@
 (() => {
   "use strict";
 
-  const VERSION = "V1.13.36 FULL";
-window.HAULING_VERSION = "V1.13.36";
+  const VERSION = "V1.14.3 FULL";
 
   // ------------------------------------------------------------
   // TECH VERSIONS (FRET) — single source of truth (Mining-like footer)
   // ------------------------------------------------------------
   const TECH = {
     module: "FRET",
-    moduleVersion: "V1.13.33",
-    html: "V1.13.33",
-    css: "V1.13.33",
-    js: "V1.13.33",
-    core: "V1.13.33",
+    moduleVersion: "V1.14.3",
+    html: "V1.14.3",
+    css: "V1.14.3",
+    js: "V1.14.3",
+    core: "V1.5.20",
     ships: "v2.0.5",
     pu: "4.5"
   };
@@ -35,11 +34,9 @@ window.HAULING_VERSION = "V1.13.36";
   // ------------------------------------------------------------
   // CONFIG
   // ------------------------------------------------------------
-  const DEFAULT_PROXY_BASE = "https://uex-proxy.yoyoastico74.workers.dev";
-  const PROXY_BASE = String(window.HAULING_PROXY_BASE || DEFAULT_PROXY_BASE || "").replace(/\/+$/,"");
+  const PROXY_BASE = "https://uex-proxy.yoyoastico74.workers.dev";
   const GAME_VERSION = "4.5";
   const LS_KEY = "hauling.state.v1_10_2";
-  const TOP_ROUTES_CACHE_KEY = "hauling.cache.topRoutes.v1";
 
   // Suggestions (Top Routes) defaults
   const TOP_ROUTES_LIMIT = 20;
@@ -70,27 +67,6 @@ window.HAULING_VERSION = "V1.13.36";
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
-
-/* GLOBAL_BADGE_HELPERS */
-function safeCommodityBadgeHtml(route){
-  try{
-    // Prefer a global badge renderer if present, else fall back to local commodityBadgeHtml
-    if(typeof window !== "undefined" && typeof window.safeCommodityBadgeHtml === "function"){
-      return window.safeCommodityBadgeHtml(route);
-    }
-    if(typeof commodityBadgeHtml === "function"){
-      return commodityBadgeHtml(route);
-    }
-    return "";
-  }catch(e){
-    return "";
-  }
-}
-// Make it available globally for all modules / templates
-if(typeof window !== "undefined"){
-  window.safeCommodityBadgeHtml = safeCommodityBadgeHtml;
-}
-
 
 
   function scoreClass(score) {
@@ -136,73 +112,167 @@ if(typeof window !== "undefined"){
     if(stab100 >= 35) return { label: "Instable",    cls: "is-low", title: `Stabilité (UEX) : ${stab100}/100 — Instable` };
     return               { label: "Volatile",    cls: "is-low", title: `Stabilité (UEX) : ${stab100}/100 — Volatile` };
   }
-  function stockMeta(qtySCU){
-    const shipScu = num($("advUsableScu")?.value || 0);
-    const qty = Math.max(0, int(qtySCU ?? 0));
-    if(!shipScu || shipScu <= 0){
-      return { pct: null, label: "—", cls: "stock-unk", title: "Stock inconnu" };
-    }
+
+  async function fetchJson(url, opts = {}) {
 
   // ------------------------------------------------------------
-  // Commodity risk meta (Standard / Volatile / Risqué)
-  // Heuristic, data-driven: uses profitPerSCU, stability, stock ratio
+  // V1.13.62 — UEX PRO Guard (cache + inflight + retry + cooldown + countdown UI)
   // ------------------------------------------------------------
-  function commodityMeta(route, stab100, stockRatio01){
-    const pscu = num(route?.profitPerSCU ?? 0);
-    const stab = num(stab100 ?? 60);
-    const sr = num(stockRatio01 ?? 0);
+  const __UEX_GUARD = (window.__UEX_GUARD ||= {
+    cache:new Map(),          // url -> {ts,data}
+    inflight:new Map(),       // url -> Promise
+    cooldownUntil:0,
+    timer:null
+  });
 
-    // "Risqué" = strong margin + scarce stock + unstable
-    if(pscu >= 50 && sr < 0.30 && stab < 60){
-      return { key:"risky", label:"Risqué" };
-    }
-    // "Volatile" = margin above average + somewhat unstable
-    if(pscu >= 30 && stab < 70){
-      return { key:"volatile", label:"Volatile" };
-    }
-    return { key:"standard", label:"Standard" };
-  }
+  function __uexNow(){ return Date.now(); }
 
-  function commodityBadgeHtml(route){
-    const stab = stab100Value(route);
-    const sr = stockRatio(route);
-    const meta = commodityMeta(route, stab, sr);
-    return `<span class="commodity-pill commodity-${meta.key}" title="Risque marchandise: ${escapeHtml(meta.label)}">${escapeHtml(meta.label)}</span>`;
-  }
-
-  // Safety wrapper: never break scans if badge helper is missing/throws
-  function safeCommodityBadgeHtml(route){
-    try{
-      return (typeof commodityBadgeHtml === "function") ? commodityBadgeHtml(route) : "";
-    }catch(e){
-      return "";
-    }
-  }
-
-
-    const pct = Math.max(0, Math.min(100, Math.round((qty / shipScu) * 100)));
-    // Thresholds tuned for hauling UX:
-    // - Élevé: can fill most of the cargo
-    // - Moyen: partial fill
-    // - Faible: scarce / unreliable
-    let label="Faible", cls="stock-low";
-    if(pct >= 80){ label="Élevé"; cls="stock-high"; }
-    else if(pct >= 40){ label="Moyen"; cls="stock-mid"; }
+  function __uexGetEls(){
     return {
-      pct,
-      label,
-      cls,
-      title: `Stock estimé: ${pct}% du cargo (Qté dispo: ${qty} SCU / SCU utilisable: ${int(shipScu)})`
+      top3: document.getElementById("top3Row"),
+      list: document.getElementById("advGoodsList"),
+      analyzeBtn: document.getElementById("advRouteAnalyze"),
+      calcBtn: document.getElementById("advCalculate") || document.getElementById("advCalc") || null
     };
   }
 
+  function __uexSetTop3Message(html){
+    const els = __uexGetEls();
+    if(els.top3) els.top3.innerHTML = html;
+  }
 
-  async function fetchJson(url, opts = {}) {
-    const res = await fetch(url, { cache: "no-store", ...opts });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    try { updateTechFromPayload(json, url); } catch (_) {}
-    return json;
+  function __uexSetListMessage(html){
+    const els = __uexGetEls();
+    if(els.list) els.list.innerHTML = html;
+  }
+
+  function __uexSetButtonsDisabled(disabled){
+    const els = __uexGetEls();
+    for(const b of [els.analyzeBtn, els.calcBtn]){
+      if(!b) continue;
+      b.disabled = !!disabled;
+      b.classList.toggle("is-disabled", !!disabled);
+    }
+  }
+
+  function __uexStartCooldown(seconds){
+    const until = __uexNow() + (seconds*1000);
+    __UEX_GUARD.cooldownUntil = Math.max(__UEX_GUARD.cooldownUntil, until);
+    __uexSetButtonsDisabled(true);
+
+    // render immediately
+    const render = ()=>{
+      const remMs = Math.max(0, __UEX_GUARD.cooldownUntil - __uexNow());
+      const rem = Math.ceil(remMs/1000);
+      if(rem <= 0){
+        __uexSetButtonsDisabled(false);
+        if(__UEX_GUARD.timer) { clearInterval(__UEX_GUARD.timer); __UEX_GUARD.timer=null; }
+        // do not auto-fetch (avoid spam). User can click Calculer/Analyser again.
+        return;
+      }
+      __uexSetTop3Message(`<div class="uex-cooldown">UEX en limite (429). Nouvelle tentative dans <span class="cd-time">${rem}s</span>.</div>`);
+    };
+    render();
+    if(__UEX_GUARD.timer) clearInterval(__UEX_GUARD.timer);
+    __UEX_GUARD.timer = setInterval(render, 250);
+  }
+
+  function __uexIsCooldownActive(){
+    return __UEX_GUARD.cooldownUntil && __uexNow() < __UEX_GUARD.cooldownUntil;
+  }
+
+  function __uexCooldownRemaining(){
+    return Math.max(0, __UEX_GUARD.cooldownUntil - __uexNow());
+  }
+
+  async function __uexParseJsonSafe(res){
+    const ct = (res.headers && res.headers.get) ? (res.headers.get("content-type")||"") : "";
+    try{
+      if(ct.includes("application/json")) return await res.json();
+      const txt = await res.text();
+      try{ return JSON.parse(txt); }catch(_){ return { status:"error", message: txt || `HTTP ${res.status}` }; }
+    }catch(e){
+      return { status:"error", message: `HTTP ${res.status}` };
+    }
+  }
+
+  function __uexLooksLike429(resStatus, payload){
+    if(resStatus === 429) return true;
+    const msg = String(payload && (payload.message||payload.error||payload.statusText||"") || "").toLowerCase();
+    return msg.includes("429") || msg.includes("too many") || msg.includes("rate limit") || msg.includes("uex error 429");
+  }
+
+  async function __uexFetchWithRetry(url, opts){
+    const delays = [0, 1500, 3000];
+    let lastErr = null;
+
+    for(let attempt=0; attempt<delays.length; attempt++){
+      if(__uexIsCooldownActive()){
+        const rem = __uexCooldownRemaining();
+        const err = new Error("UEX_COOLDOWN");
+        err.code = "UEX_COOLDOWN";
+        err.cooldown_ms = rem;
+        throw err;
+      }
+
+      if(delays[attempt] > 0) await new Promise(r=>setTimeout(r, delays[attempt]));
+      try{
+        const res = await fetch(url, { cache:"no-store", ...opts });
+        const payload = await __uexParseJsonSafe(res);
+
+        // treat UEX 429 (even wrapped in 500) as cooldown trigger
+        if(!res.ok && __uexLooksLike429(res.status, payload)){
+          __uexStartCooldown(30);
+          const err = new Error("UEX_429");
+          err.code = "UEX_429";
+          err.payload = payload;
+          err.http_status = res.status;
+          lastErr = err;
+          continue; // retry
+        }
+
+        if(!res.ok){
+          const err = new Error(`HTTP ${res.status}`);
+          err.code = "HTTP_ERROR";
+          err.http_status = res.status;
+          err.payload = payload;
+          throw err;
+        }
+
+        try{ updateTechFromPayload(payload, url); }catch(_e){}
+        return payload;
+      }catch(e){
+        lastErr = e;
+        // if last attempt, throw
+      }
+    }
+    throw lastErr || new Error("UEX_FETCH_FAILED");
+  }
+
+    // 30s cache on identical URL
+    const ttl = 30000;
+    const now = __uexNow();
+
+    const cached = __UEX_GUARD.cache.get(url);
+    if (cached && (now - cached.ts) < ttl) {
+      return cached.data;
+    }
+
+    const inflight = __UEX_GUARD.inflight.get(url);
+    if (inflight) return await inflight;
+
+    const p = (async () => {
+      try {
+        const data = await __uexFetchWithRetry(url, opts);
+        __UEX_GUARD.cache.set(url, { ts: __uexNow(), data });
+        return data;
+      } finally {
+        __UEX_GUARD.inflight.delete(url);
+      }
+    })();
+
+    __UEX_GUARD.inflight.set(url, p);
+    return await p;
   }
 
   // unwrap contract v1.0 or tolerate legacy
@@ -846,10 +916,7 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
       return `
         <div class="top3-card goods-item" data-commodity="${escapeHtml(commodity)}">
           <div class="goods-name">${escapeHtml(commodity)}</div>
-            <div class="goods-sub goods-badges">${window.safeCommodityBadgeHtml(r)}</div>
           <div class="goods-sub">Qté: ${qty} SCU • +${fmt0(pscu)}/SCU</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
           <div class="goods-sub stab-line">Score: <span class="score-pill ${scoreClass(score100(r))}">${fmt0(score100(r))}</span>/100 <span class="stab-badge ${stabMeta(r).cls}" title="${escapeHtml(stabMeta(r).title)}">${escapeHtml(stabMeta(r).label)}</span></div>
           <div class="goods-profit">+${fmt0(profit)} aUEC</div>
         </div>
@@ -874,34 +941,6 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
     }catch(_){
       return (s||"").toString().toLowerCase();
     }
-  }
-
-
-  // ------------------------------------------------------------
-  // Fallback when A→B yields 0 results:
-  // - show actionable message
-  // - reuse global Top routes, filtered by From or To terminal name
-  // ------------------------------------------------------------
-  function filterRoutesByTerminal(routes, opts){
-    const fromK = normStr(opts?.from || "");
-    const toK   = normStr(opts?.to || "");
-    const hasFrom = !!fromK;
-    const hasTo   = !!toK;
-
-    return (Array.isArray(routes) ? routes : []).filter(r => {
-      const rf = normStr(r?.from?.name || "");
-      const rt = normStr(r?.to?.name || "");
-      if(hasFrom && rf === fromK) return true;
-      if(hasTo && rt === toK) return true;
-      return false;
-    });
-  }
-
-  async function ensureGlobalTopRoutes(){
-    const has = Array.isArray(state?.assisted?.lastRoutesRaw) && state.assisted.lastRoutesRaw.length > 0;
-    if(has) return state.assisted.lastRoutesRaw;
-    await fetchTopRoutes();
-    return Array.isArray(state?.assisted?.lastRoutesRaw) ? state.assisted.lastRoutesRaw : [];
   }
 
   function filterGoodsByQuery(all, q){
@@ -1074,7 +1113,6 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
         <div class="goods-item ${isLocked ? "is-locked" : ""}" role="listitem" data-commodity="${escapeHtml(commodity)}">
           <div class="goods-left">
             <div class="goods-name">${escapeHtml(commodity)}</div>
-            <div class="goods-sub goods-badges">${window.safeCommodityBadgeHtml(r)}</div>
             <div class="goods-sub">Qté: ${qty} SCU • Achat: ${fmt0(spend)} • +${fmt0(pscu)}/SCU</div>
           </div>
           <div class="goods-right">
@@ -1177,47 +1215,17 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
     const raw = String(name || "").trim();
     if (!raw) return null;
 
-    const key = raw.toLowerCase();
-
-    // 1) Fast path: if we already resolved it, use the map
-    state.advanced.terminalsByName = state.advanced.terminalsByName || {};
-    const exact = state.advanced.terminalsByName[key];
+    const n = raw.toLowerCase();
+    const map = state.advanced.terminalsByName || {};
+    const exact = map[n];
     if (exact?.id_terminal) return exact.id_terminal ?? null;
 
-    // 2) Try last autocomplete cache (what user likely picked)
-    const cached = Array.isArray(state?.terminalsCache?.items) ? state.terminalsCache.items : [];
-    let cand = cached.find(t => String(t?.name || "").toLowerCase() === key)
-            || cached.find(t => String(t?.name || "").toLowerCase().startsWith(key))
-            || cached.find(t => String(t?.name || "").toLowerCase().includes(key));
-    if (cand?.id_terminal) {
-      state.advanced.terminalsByName[key] = cand;
-      return cand.id_terminal ?? null;
-    }
-
-    // 3) Authoritative resolve: query API search with the provided text
-    try{
-      const url = `${PROXY_BASE}/v1/hauling/terminals/search?q=${encodeURIComponent(raw)}&game_version=${encodeURIComponent(GAME_VERSION)}`;
-      const payload = await fetchJson(url);
-      const { data } = unwrapV1(payload);
-      const terminals = Array.isArray(data?.terminals) ? data.terminals : [];
-      if (!terminals.length) return null;
-
-      // store for future resolution
-      terminals.slice(0, 50).forEach(t => {
-        const k = String(t?.name || "").trim().toLowerCase();
-        if (k) state.advanced.terminalsByName[k] = t;
-      });
-
-      cand = terminals.find(t => String(t?.name || "").toLowerCase() === key)
-          || terminals.find(t => String(t?.name || "").toLowerCase().startsWith(key))
-          || terminals.find(t => String(t?.name || "").toLowerCase().includes(key))
-          || terminals[0];
-
-      return cand?.id_terminal ?? null;
-    } catch(e){
-      console.warn("[hauling] resolveTerminalIdByName failed:", e);
-      return null;
-    }
+    // Fuzzy: contains / startsWith (helps when user types partial or missing suffix)
+    const terminals = state.advanced.terminals || [];
+    let cand = terminals.find(t => String(t?.name || "").toLowerCase() === n);
+    if (!cand) cand = terminals.find(t => String(t?.name || "").toLowerCase().startsWith(n));
+    if (!cand) cand = terminals.find(t => String(t?.name || "").toLowerCase().includes(n));
+    return cand?.id_terminal ?? null;
   }
 
   async function analyzeRouteAdvanced() {
@@ -1284,37 +1292,9 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
       renderGoodsList(results);
       try { setSortStatus(); } catch (_) {}
 
-      if(results.length === 0){
-        setAdvText("advRouteStatus", "OK • 0 résultat — aucun échange direct viable avec tes critères. Affichage de routes alternatives…");
-
-        // Fallback: show best routes FROM A, otherwise TO B, otherwise global top.
-        try{
-          const allTop = await ensureGlobalTopRoutes();
-          const fromName = ($("advRouteFrom")?.value || "").trim();
-          const toName = ($("advRouteTo")?.value || "").trim();
-
-          let fb = filterRoutesByTerminal(allTop, { from: fromName, to: "" });
-          let fbLabel = fromName ? `Alternatives depuis ${fromName}` : "Alternatives";
-          if(!fb.length){
-            fb = filterRoutesByTerminal(allTop, { from: "", to: toName });
-            fbLabel = toName ? `Alternatives vers ${toName}` : "Alternatives";
-          }
-          if(!fb.length){
-            fb = allTop;
-            fbLabel = "Alternatives globales";
-          }
-
-          const fbSorted = sortItems(applyRiskToResults(fb), getAdvSort());
-          renderTopRoutes(fbSorted, state.assisted.lastScan || null);
-          setAdvText("advCount", `${fbSorted.length} routes — ${fbLabel}`);
-        }catch(e){
-          console.warn("[hauling] fallback suggestions failed:", e);
-        }
-      } else {
-        setAdvText("advRouteStatus", `OK • ${results.length} résultats`);
-      }
+      setAdvText("advRouteStatus", `OK • ${results.length} résultats`);
       saveState();
-} catch (e) {
+    } catch (e) {
       console.warn("[hauling][adv] analyze failed:", e);
       setChip("Proxy/UEX indisponible", true);
       setAdvText("advRouteStatus", `Erreur: ${String(e?.message || e)}`);
@@ -1329,115 +1309,6 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
     if (v === "profit" || v === "pscu" || v === "score") return v;
     return "score";
   }
-  // ------------------------------------------------------------
-  // ADVANCED: Tolérance au risque = stabilité + zones + stocks
-  // - Faible : exclut zones risquées + exige stabilité élevée + stock élevé
-  // - Normal : pénalise zones risquées + exige stabilité minimale + stock moyen
-  // - Élevée : profit-first (pas de filtres zone/stock)
-  // Stock: utilise quantitySCU (proxy de disponibilité à l'achat) vs SCU utilisable.
-  // Zones "risquées": best-effort via champ system (ex: Pyro).
-  // ------------------------------------------------------------
-  const RISKY_SYSTEMS = ["pyro","nyx"];
-
-  function clamp01(x){
-    const v = num(x);
-    return Math.max(0, Math.min(1, v));
-  }
-
-  function stab100Value(r){
-    const raw =
-      (typeof r?.stability100 === "number" ? r.stability100 :
-      (typeof r?.stabilityScore === "number" ? r.stabilityScore :
-      (typeof r?.stability === "number" ? r.stability : null)));
-    if(raw === null || !Number.isFinite(raw)) return 60;
-    const s = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
-    return Math.max(0, Math.min(100, int(s) || 60));
-  }
-
-  function systemName(x){
-    return String(x || "").trim().toLowerCase();
-  }
-
-  function isRiskyZone(route){
-    const fs = systemName(route?.from?.system);
-    const ts = systemName(route?.to?.system);
-    return RISKY_SYSTEMS.includes(fs) || RISKY_SYSTEMS.includes(ts);
-  }
-
-  function stockRatio(route){
-    const shipScu = num($("advUsableScu")?.value || 0);
-    const qty = Math.max(0, int(route?.quantitySCU ?? 0));
-    if(shipScu <= 0) return 0;
-    return clamp01(qty / shipScu);
-  }
-
-  function riskPolicy(risk){
-    // minStab100: hard filter
-    // minStockRatio: hard filter
-    // riskyPenalty: score multiplier if risky zone is allowed
-    // stabPenaltyWeight: how much instability penalizes score
-    if(risk === "low")  return { minStab100: 70, minStockRatio: 0.60, riskyPenalty: 0.0,  stabPenaltyWeight: 0.55 };
-    if(risk === "mid")  return { minStab100: 40, minStockRatio: 0.30, riskyPenalty: 0.85, stabPenaltyWeight: 0.35 };
-    return               { minStab100:  0, minStockRatio: 0.00, riskyPenalty: 1.00, stabPenaltyWeight: 0.00 };
-  }
-
-  function applyRiskToResults(list){
-    const risk = (state?.advanced?.risk === "high" || state?.advanced?.risk === "mid" || state?.advanced?.risk === "low")
-      ? state.advanced.risk
-      : "low";
-
-    const pol = riskPolicy(risk);
-    const out = [];
-    for(const r of (Array.isArray(list) ? list : [])){
-      const risky = isRiskyZone(r);
-
-      // Zone filter
-      if(pol.riskyPenalty <= 0 && risky) continue;
-
-      // Stability filter
-      const stab = stab100Value(r);
-      if(pol.minStab100 > 0 && stab < pol.minStab100) continue;
-
-      // Stock filter
-      const sr = stockRatio(r);
-      if(pol.minStockRatio > 0 && sr < pol.minStockRatio) continue;
-
-      // Commodity filter/weighting (by tolerance)
-      const cMeta = commodityMeta(r, stab, sr);
-      if(risk === "low" && cMeta.key === "risky") continue;
-
-      // Base score: prefer finalScore (0..1), fallback to profitTotal normalized lightly
-      const base = clamp01(
-        (typeof r?.finalScore === "number" ? r.finalScore :
-        (typeof r?.finalScore100 === "number" ? (r.finalScore100 / 100) :
-        0))
-      );
-
-      // Stability penalty (low/mid)
-      const stabFactor = stab / 100;
-      const penalty = pol.stabPenaltyWeight * (1 - stabFactor);
-      let adj = clamp01(base * (1 - penalty));
-
-      // Risky zone penalty (mid)
-      if(risky && pol.riskyPenalty < 1) adj = clamp01(adj * pol.riskyPenalty);
-
-      // Stock soft boost for low/mid (encourage healthier supply)
-      if(risk !== "high"){
-        const stockBoost = 1 + 0.12 * (sr - 0.5); // +/-6% around mid
-        adj = clamp01(adj * stockBoost);
-      }
-
-      // Commodity risk weighting
-      if(risk === "low" && cMeta.key === "volatile") adj = clamp01(adj * 0.90);
-      if(risk === "mid" && cMeta.key === "risky") adj = clamp01(adj * 0.85);
-      if(risk === "high" && (cMeta.key === "risky" || cMeta.key === "volatile")) adj = clamp01(adj * 1.10);
-
-      out.push({ ...r, finalScore: adj, finalScore100: Math.round(adj * 100) });
-    }
-    return out;
-  }
-
-
 
   function sortItems(items, mode) {
     const arr = Array.isArray(items) ? [...items] : [];
@@ -1459,14 +1330,14 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
     const mode = getAdvSort();
 
     if (state.assisted.active && Array.isArray(state.assisted.lastRoutesRaw) && state.assisted.lastRoutesRaw.length) {
-      const sorted = sortItems(applyRiskToResults(state.assisted.lastRoutesRaw), mode);
+      const sorted = sortItems(state.assisted.lastRoutesRaw, mode);
       state.assisted.lastRoutes = sorted;
       renderTopRoutes(sorted, state.assisted.lastScan || null);
       return true;
     }
 
     if (!state.assisted.active && Array.isArray(state.routeCache.lastResultsRaw) && state.routeCache.lastResultsRaw.length) {
-      const sorted = sortItems(applyRiskToResults(state.routeCache.lastResultsRaw), mode);
+      const sorted = sortItems(state.routeCache.lastResultsRaw, mode);
       state.routeCache.lastResults = sorted;
       renderTop3(sorted);
       renderGoodsList(sorted);
@@ -1504,11 +1375,8 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
           <div class="top3-card goods-item" data-route="1"
                data-from="${escapeHtml(fromName)}" data-to="${escapeHtml(toName)}" data-commodity="${escapeHtml(commodity)}">
             <div class="goods-name">${escapeHtml(commodity)}</div>
-            <div class="goods-sub goods-badges">${window.safeCommodityBadgeHtml(r)}</div>
             <div class="goods-sub">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>
             <div class="goods-sub">Qté: ${qty} SCU • +${fmt0(pscu)}/SCU</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
             <div class="goods-sub stab-line">Score: <span class="score-pill ${scoreClass(score100(r))}">${fmt0(score100(r))}</span>/100 <span class="stab-badge ${stabMeta(r).cls}" title="${escapeHtml(stabMeta(r).title)}">${escapeHtml(stabMeta(r).label)}</span></div>
             <div class="goods-profit">+${fmt0(profit)} aUEC</div>
           </div>
@@ -1532,11 +1400,8 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
              data-from="${escapeHtml(fromName)}" data-to="${escapeHtml(toName)}" data-commodity="${escapeHtml(commodity)}">
           <div class="goods-left">
             <div class="goods-name">${escapeHtml(commodity)}</div>
-            <div class="goods-sub goods-badges">${window.safeCommodityBadgeHtml(r)}</div>
             <div class="goods-sub">${escapeHtml(fromName)}${escapeHtml(fromSys)} → ${escapeHtml(toName)}${escapeHtml(toSys)}</div>
             <div class="goods-sub">Qté: ${qty} SCU • +${fmt0(pscu)}/SCU</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
-            <div class="goods-sub">Stock: <span class="stock-pill ${stockMeta(qty).cls}" title="${escapeHtml(stockMeta(qty).title)}">${escapeHtml(stockMeta(qty).label)}</span>${stockMeta(qty).pct!==null?` • ${stockMeta(qty).pct}% cargo`:``}</div>
             <div class="goods-sub stab-line">Score: <span class="score-pill ${scoreClass(score100(r))}">${fmt0(score100(r))}</span>/100 <span class="stab-badge ${stabMeta(r).cls}" title="${escapeHtml(stabMeta(r).title)}">${escapeHtml(stabMeta(r).label)}</span></div>
           </div>
           <div class="goods-right">
@@ -1627,7 +1492,6 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
       if ($("advRouteJson")) $("advRouteJson").textContent = JSON.stringify(payload, null, 2);
 
       const routesRaw = Array.isArray(data?.routes) ? data.routes : [];
-      try { localStorage.setItem(TOP_ROUTES_CACHE_KEY, JSON.stringify({ at: Date.now(), routes: routesRaw })); } catch (_) {}
       state.assisted.lastRoutesRaw = routesRaw;
       const routes = sortItems(routesRaw, getAdvSort());
       // Optional: commodity-driven search (client side filter)
@@ -1658,21 +1522,7 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
       console.warn("[hauling][assist] top routes failed:", e);
       setChip("Proxy/UEX indisponible", true);
       setAdvText("advRouteStatus", `Erreur: ${String(e?.message || e)}`);
-            // Fallback: use last cached top routes if available
-      try {
-        const cached = JSON.parse(localStorage.getItem(TOP_ROUTES_CACHE_KEY) || "null");
-        if (cached && Array.isArray(cached.routes) && cached.routes.length) {
-          const cachedFiltered = applyRiskToResults(cached.routes);
-          const cachedSorted = sortItems(cachedFiltered, getAdvSort());
-          renderTopRoutes(cachedSorted, { cached: true, at: cached.at });
-          renderGoodsList(cachedSorted);
-          setAdvText("advRouteStatus", "Proxy indisponible — affichage cache.");
-        } else {
-          clearResultsArea("Erreur scan routes (voir console).");
-        }
-      } catch (_) {
-        clearResultsArea("Erreur scan routes (voir console).");
-      }
+      clearResultsArea("Erreur scan routes (voir console).");
     } finally {
       btn && (btn.disabled = false);
       saveState();
@@ -1689,10 +1539,9 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
         state.advanced.risk = (r === "high" || r === "mid" || r === "low") ? r : "low";
 
         $qa(".quick-btn[data-risk]").forEach(b => b.classList.toggle("is-active", b === btn));
-        setAdvText("advRiskHint", `${riskHintText(state.advanced.risk)}  Score = profit + stabilité + stock/zone (selon risque).`);
+        setAdvText("advRiskHint", `${riskHintText(state.advanced.risk)}  Score = profit pondéré par stabilité (selon risque).`);
         saveState();
-              applySortAndRender();
-});
+      });
     });
 
     const onTermInput = (e) => {
@@ -1753,7 +1602,7 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
       state.advanced.risk = "low";
       const lowBtn = $q('.quick-btn[data-risk="low"]');
       if (lowBtn) $qa(".quick-btn[data-risk]").forEach(b => b.classList.toggle("is-active", b === lowBtn));
-      setAdvText("advRiskHint", `${riskHintText("low")}  Score = profit + stabilité + stock/zone (selon risque).`);
+      setAdvText("advRiskHint", `${riskHintText("low")}  Score = profit pondéré par stabilité (selon risque).`);
 
       saveState();
     });
@@ -1775,7 +1624,7 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "�
     setAdvText("advCount", "—");
     setAdvText("advMaj", "MAJ : —");
     setChip("—", false);
-    setAdvText("advRiskHint", `${riskHintText(state.advanced.risk || "low")}  Score = profit + stabilité + stock/zone (selon risque).`);
+    setAdvText("advRiskHint", `${riskHintText(state.advanced.risk || "low")}  Score = profit pondéré par stabilité (selon risque).`);
 
     if ($("advRouteFrom")) $("advRouteFrom").value = state.advanced.fromName || "";
     if ($("advRouteTo")) $("advRouteTo").value = state.advanced.toName || "";
@@ -1858,5 +1707,74 @@ const pre = ($("advRouteFrom")?.value || "").trim();
 
 
 
-// Expose helpers for debugging / safety
-window.safeCommodityBadgeHtml = safeCommodityBadgeHtml;
+/* ============================================================
+   V1.13.62 — Calculer (Top 3) + Balise "!" (Aide)
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  const topCalc = document.getElementById("advTopCalc");
+  const infoBtn = document.getElementById("advInfoToggle");
+  const infoPanel = document.getElementById("advInfoPanel");
+
+  if (topCalc) {
+    topCalc.addEventListener("click", () => {
+      try {
+        // Prefer the Top Routes endpoint / routine (best route suggestions)
+        if (typeof fetchTopRoutes === "function") {
+          fetchTopRoutes();
+        } else if (typeof analyzeRouteAdvanced === "function") {
+          // Fallback: keep behaviour if only analysis exists
+          analyzeRouteAdvanced();
+        }
+      } catch (e) {
+        console.warn("[advTopCalc]", e);
+      }
+    });
+  }
+
+  if (infoBtn && infoPanel) {
+    infoBtn.addEventListener("click", () => {
+      infoPanel.classList.toggle("is-hidden");
+    });
+  }
+});
+
+
+function setAdvButtonsDisabled(disabled){
+  try{
+    const a = document.getElementById("advRouteAnalyze");
+    const c = document.getElementById("advTopCalc");
+    if(a) a.disabled = !!disabled;
+    if(c) c.disabled = !!disabled;
+  }catch(e){}
+}
+
+
+/* ============================================================
+   V1.13.62 — Calculer button (Top 3): trigger the same pipeline as "Analyser la route"
+   - Using click() on #advRouteAnalyze ensures we hit the real, already-wired handler.
+   - The "!" is now pure CSS hover tooltip (HTML/CSS), no JS needed.
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  const topCalc = document.getElementById("advTopCalc");
+  if (topCalc) {
+    topCalc.addEventListener("click", () => {
+      try {
+        const analyzeBtn = document.getElementById("advRouteAnalyze");
+        if (analyzeBtn) {
+          analyzeBtn.click();
+          return;
+        }
+        if (typeof analyzeRouteAdvanced === "function") {
+          analyzeRouteAdvanced();
+          return;
+        }
+        if (typeof fetchTopRoutes === "function") {
+          fetchTopRoutes();
+          return;
+        }
+      } catch (e) {
+        console.warn("[advTopCalc]", e);
+      }
+    });
+  }
+});

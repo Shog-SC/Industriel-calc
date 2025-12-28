@@ -1,6 +1,6 @@
-/* assets/css/hauling.css — V1.13.36
+/* assets/css/hauling.css — V1.13.61
    IMPORTANT: fichier complet (remplacement total)
-   Objectif: conserver la "neon vibe" + compat UI FRET V1.13.33.
+   Objectif: conserver la "neon vibe" + compat UI FRET V1.14.3.
    NOTE: Typo delegated to core.css (no fixed px font sizes).
 */
 
@@ -579,7 +579,7 @@
 }
 
 
-/* --- Hauling V1.13.33: Stability badges (best-effort) --- */
+/* --- Hauling V1.9.9: Stability badges (best-effort) --- */
 .stab-line{
   display:flex;
   gap:10px;
@@ -631,7 +631,7 @@
 }
 
 
-/* --- Hauling V1.13.33: Score color system --- */
+/* --- Hauling V1.10.6: Score color system --- */
 .score-pill{
   display:inline-flex;
   align-items:center;
@@ -650,34 +650,14 @@
 .score-low{ border-color: rgba(255,190,80,0.35); background: rgba(255,190,80,0.10); }
 .score-bad{ border-color: rgba(255,120,120,0.35); background: rgba(255,120,120,0.10); }
 
-
-
-.stock-pill{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width: 54px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: var(--font-xs);
-  line-height: 18px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(0,0,0,0.22);
-  margin-left: 4px;
-}
-.stock-high{ border-color: rgba(0,255,200,0.35); background: rgba(0,255,200,0.10); }
-.stock-mid{ border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.08); }
-.stock-low{ border-color: rgba(255,190,80,0.35); background: rgba(255,190,80,0.10); }
-.stock-unk{ border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); opacity: .85; }
-/* --- Hauling V1.13.33: widen left "Contexte (avancé)" --- */
+/* --- Hauling V1.10.6: widen left "Contexte (avancé)" --- */
 @media (min-width: 981px){
   .layout-advanced{ grid-template-columns: 360px 1fr; }
 }
 
 
 /* ==============================
-   Addons FRET (baseline) — V1.13.33
+   Addons FRET (baseline) — V1.12.9
    - Badges Stabilité
    - Score color system (aliases)
    - Contexte (avancé) plus large
@@ -743,7 +723,7 @@
 }
 
 /* --- Versions techniques (bar + panel) — centered & clickable --- */
-:root{ --hauling-css-version: "V1.13.33"; }
+:root{ --hauling-css-version: "V1.12.9"; }
 
 .techbar{
   position: fixed;
@@ -827,7 +807,7 @@
 
 
 
-/* V1.13.33: Versions techniques — layout "Mining-like" */
+/* V1.12.9: Versions techniques — layout "Mining-like" */
 .techbar--mining{max-width:1100px}
 .techbar-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid rgba(0,230,255,.35);background:rgba(0,0,0,.22);box-shadow:0 0 0 1px rgba(0,230,255,.10) inset;font-weight:900}
 .techbar-link{background:transparent;border:1px solid rgba(0,230,255,.25);color:rgba(180,245,255,.95);padding:6px 12px;border-radius:999px;cursor:pointer}
@@ -951,7 +931,7 @@
 
 
 /* =========================================================
-   V1.13.33 — Mode switch alignment (2K reference)
+   V1.13.5 — Mode switch alignment (2K reference)
    Scope: Hauling ONLY
    Goal:
    - Center the capsule under the hero (like Salvage)
@@ -980,7 +960,7 @@
 
 
 /* =========================================================
-   V1.13.33 — Hide legacy non-functional "Versions techniques" menu (V1.13.33)
+   V1.13.6 — Hide legacy non-functional "Versions techniques" menu (V1.12.9)
    Reason: FRET currently shows two version UIs. We keep ONLY the MINING-like footer (version-footer)
    and hide the legacy techbar/techpanel layer (often injected by older hauling.js builds).
    ========================================================= */
@@ -991,7 +971,7 @@
   pointer-events: none !important;
 }
 
-/* Stability badge — 5 levels (V1.13.33) */
+/* Stability badge — 5 levels (V1.13.7) */
 .stab-badge.is-ok2{
   border-color: rgba(60,190,255,0.38);
   background: rgba(60,190,255,0.14);
@@ -1006,7 +986,7 @@
 }
 
 /* =========================================================
-   Top 3 conseillées — card layout (V1.13.33)
+   Top 3 conseillées — card layout (V1.13.8)
    Reorder for readability: title+profit, route line, pills + stability badge.
    ========================================================= */
 .top3-row{
@@ -1115,7 +1095,7 @@
 }
 
 /* ============================================================
-   V1.13.33 – Masquage sécurisé: "Temps max boucle"
+   V1.13.24 – Masquage sécurisé: "Temps max boucle"
    IMPORTANT: on ne supprime pas le champ du DOM (dépendances JS),
    on le masque uniquement (aucun impact layout).
 ============================================================ */
@@ -1124,23 +1104,109 @@
 }
 
 
+/* ------------------------------------------------------------
+   V1.13.61 — UEX cooldown banner (Top 3 area)
+------------------------------------------------------------ */
+.uex-cooldown{
+  padding:10px 12px;
+  border:1px dashed rgba(231,236,255,.18);
+  border-radius:12px;
+  color:rgba(231,236,255,.88);
+  background:rgba(0,0,0,.14);
+}
+.uex-cooldown .cd-time{
+  font-variant-numeric: tabular-nums;
+  font-weight:700;
+}
+
+
 /* ============================================================
-   V1.13.33 – Commodity risk pills (Standard / Volatile / Risqué)
-============================================================ */
-.commodity-pill{
+   V1.13.61 — Top 3 controls (Calculer + !)
+   ============================================================ */
+.subhead-top3 .subhead-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.info-dot{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(231,236,255,.20);
+  background:rgba(0,0,0,.18);
+  color:rgba(231,236,255,.92);
+  font-weight:800;
+  line-height:1;
   display:inline-flex;
   align-items:center;
-  gap:6px;
-  padding:2px 8px;
-  border-radius:999px;
-  font-size:12px;
-  line-height:18px;
-  border:1px solid var(--border);
-  background:rgba(255,255,255,.06);
-  color:var(--text);
-  white-space:nowrap;
+  justify-content:center;
+  cursor:pointer;
 }
-.commodity-standard{ opacity:.85; }
-.commodity-volatile{ border-color:rgba(255,193,7,.35); }
-.commodity-risky{ border-color:rgba(255,77,77,.40); }
-.goods-badges{ margin-top:4px; }
+.info-dot:hover{ filter:brightness(1.08); }
+.info-panel{
+  margin:10px 0 14px 0;
+  border:1px solid rgba(231,236,255,.14);
+  background:rgba(0,0,0,.14);
+  border-radius:14px;
+  padding:12px 12px;
+}
+.info-panel.is-hidden{ display:none; }
+.info-title{
+  font-weight:800;
+  margin-bottom:8px;
+}
+.info-list{
+  margin:0;
+  padding-left:18px;
+}
+.info-list li{ margin:6px 0; color:rgba(231,236,255,.86); }
+
+
+/* ============================================================
+   V1.13.62 — "!" tooltip (mouse hover) + cyan accent next to title
+   ============================================================ */
+.subhead-title{
+  display:inline-flex;
+  gap:10px;
+  align-items:center;
+}
+.info-dot-inline{
+  position:relative;
+  width:24px;
+  height:24px;
+  border-radius:999px;
+  border:1px solid rgba(0, 229, 255, .55);
+  background:rgba(0, 229, 255, .08);
+  color:rgba(0, 229, 255, .95);
+  font-weight:900;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:help;
+  user-select:none;
+}
+.info-dot-inline:hover{
+  filter:brightness(1.08);
+  box-shadow:0 0 0 2px rgba(0, 229, 255, .12);
+}
+.info-dot-inline::after{
+  content:attr(data-tip);
+  position:absolute;
+  left:50%;
+  top:calc(100% + 10px);
+  transform:translateX(-50%);
+  width:min(520px, 70vw);
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(231,236,255,.16);
+  background:rgba(0,0,0,.78);
+  color:rgba(231,236,255,.92);
+  font-weight:600;
+  line-height:1.35;
+  white-space:normal;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .12s ease;
+  z-index:50;
+}
+.info-dot-inline:hover::after{ opacity:1; }

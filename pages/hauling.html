@@ -1,4 +1,4 @@
-<!-- pages/hauling.html — V1.13.36 -->
+<!-- pages/hauling.html — V1.13.62 -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="../assets/css/core.css" />
 
   <!-- Module styles (scoped) -->
-  <link rel="stylesheet" href="../assets/css/hauling.css?v=V1.13.36" />
+  <link rel="stylesheet" href="../assets/css/hauling.css" />
 </head>
 
 <body class="page-hauling">
@@ -278,8 +278,8 @@
               <button id="advUnlock" class="btn btn-small" type="button">Déverrouiller</button>
             </div>
 
-            <div class="subhead">Top 3 conseillées</div>
-            <div id="top3Row" class="top3-row">
+            <div class="subhead subhead-split subhead-top3">  <span class="subhead-title">Top 3 conseillées    <span class="info-dot info-dot-inline" data-tip="Score : indice de classement (rendement + risque + disponibilité). Variable : niveau d’incertitude (stocks/prix), Élevé = plus volatile. Tolérance au risque : influence le classement. Stocks faibles = route moins viable. UEX : en cas de limite (429), un cooldown s’affiche ici.">!</span>  </span>  <div class="subhead-actions">    <button id="advTopCalc" class="btn btn-small" type="button">Calculer</button>  </div></div>
+<div id="top3Row" class="top3-row">
               <div class="empty">Chargement…</div>
             </div>
 
@@ -306,7 +306,7 @@
 <!-- Version footer (support) — style MINING -->
 <div class="version-footer page-hauling-version" id="versionFooter">
   <button id="versionToggle" class="version-bar" type="button" aria-expanded="false">
-    <div class="version-main" id="versionMainText">FRET V1.13.35 • PU 4.5</div>
+    <div class="version-main" id="versionMainText">FRET V1.13.24 • PU 4.5</div>
     <div class="version-cta">Détails</div>
   </button>
 
@@ -348,6 +348,6 @@
 </div>
 
 
-  <script src="../assets/js/hauling.js?v=V1.13.36"></script>
+  <script src="../assets/js/hauling.js"></script>
 </body>
 </html>

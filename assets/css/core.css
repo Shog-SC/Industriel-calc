@@ -1,4 +1,4 @@
-/* core.css - Version V1.5.30
+/* core.css - Version V1.5.37
    Global UI: Background image + Neon/Glass theme (theme-neon) + centered navigation under title.
    Patch goals (V1.3.9):
    - Increase core specificity so it overrides module-scoped selectors like .page-hauling .panel
@@ -733,31 +733,22 @@ button:disabled{ opacity:.55; cursor:not-allowed; }
 
 
 
-/* HUB header actions (Discord buttons top-right)
-   V1.5.23 — Keep original HUB layout (no wrap) + prevent overlap by constraining width.
-   Note: the Discord userbox itself is compacted in hub-discord-widget.css.
-*/
+/* HUB header actions — top right controls (HUB only) */
 body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions{
-  position:absolute;
-  top:18px;
-  right:18px;
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:10px;
-  z-index: 30;
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 
-/* HUB hero spacing — keep calibrated gap between HERO and "État du HUB" (V1.5.27) */
-body:not(.page-hauling):not(.page-salvage):not(.page-mining) .hub-hero-card{
-  margin-bottom: 34px !important;
-}
-
-
-  /* Prevent layout changes: do NOT wrap; instead rely on compact userbox + ellipsis */
+  /* Prevent layout changes: do NOT wrap; rely on compact userbox + ellipsis */
   flex-wrap: nowrap;
 
   /* Constrain the action row within viewport */
   max-width: calc(100vw - 36px);
+  z-index: 50;
 }
 
 body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions > *{
@@ -766,11 +757,16 @@ body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions > *
 
 @media (max-width: 980px){
   body:not(.page-hauling):not(.page-salvage):not(.page-mining) .header-actions{
-    position:static;
-    justify-content:center;
-    margin-top:10px;
+    position: static;
+    justify-content: center;
+    margin-top: 10px;
     max-width: 100%;
   }
+}
+
+/* HUB hero spacing — keep calibrated gap between HERO and "État du HUB" */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .hub-hero-card{
+  margin-bottom: 34px !important;
 }
 
 
@@ -1046,6 +1042,19 @@ body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="h
 }
 body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="mining"] .card-title{
   color: var(--accent-mining) !important;
+}
+
+/* HUB – Vaisseaux accent ONLY (V1.5.31)
+   Goal: On HUB only, "Vaisseaux" card title (and chips) should be violet,
+   matching other module identity colors, without affecting the module page.
+*/
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="ships"] .card-title{
+  color: var(--accent2) !important; /* violet */
+}
+
+/* Chips: subtle border tint for Vaisseaux (HUB only) */
+body:not(.page-hauling):not(.page-salvage):not(.page-mining) .card[data-href*="ships"] .chip{
+  border-color: color-mix(in srgb, var(--accent2) 35%, rgba(231,236,255,.16)) !important;
 }
 
 /* Chips: subtle border tint per module (HUB only) */
@@ -1356,7 +1365,7 @@ body.page-salvage .version-bar{
 
   background: rgba(10, 22, 34, .55);
   border: 1px solid rgba(70, 140, 170, .30);
-  box-shadow: 0 0 0 1px rgba(0,0,0,25), 0 10px 28px rgba(0,0,0,22);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 10px 28px rgba(0,0,0,.22);
   backdrop-filter: blur(8px);
 }
 
@@ -1367,7 +1376,7 @@ body.page-salvage .version-bar:hover{
 body.page-salvage .version-main{
   font-weight: 700;
   letter-spacing: .2px;
-  color: rgba(255,255,255,92);
+  color: rgba(255,255,255,.92);
   font-size: var(--font-sm);
 }
 
@@ -1384,7 +1393,7 @@ body.page-salvage .version-details{
 
   background: rgba(8, 18, 28, .62);
   border: 1px solid rgba(70, 140, 170, .25);
-  box-shadow: 0 0 0 1px rgba(0,0,0,22), 0 10px 26px rgba(0,0,0,18);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.22), 0 10px 26px rgba(0,0,0,.18);
   backdrop-filter: blur(10px);
 }
 
@@ -1398,7 +1407,7 @@ body.page-salvage .version-details-header{
 
 body.page-salvage .version-details-title{
   font-weight: 800;
-  color: rgba(255,255,255,90);
+  color: rgba(255,255,255,.90);
   font-size: var(--font-sm);
 }
 
@@ -1415,12 +1424,12 @@ body.page-salvage .version-col{
 }
 
 body.page-salvage .version-k{
-  color: rgba(255,255,255,70);
+  color: rgba(255,255,255,.70);
   font-size: var(--font-xs);
 }
 
 body.page-salvage .version-v{
-  color: rgba(255,255,255,92);
+  color: rgba(255,255,255,.92);
   font-size: var(--font-xs);
   font-weight: 700;
 }
@@ -1450,3 +1459,44 @@ body.page-salvage .is-hidden{ display:none !important; }
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+/* =========================================================
+   HUB SAFE POLISH — Header actions placement
+   Goal:
+   - Keep Discord/Support buttons centered above HUB title
+   - Preserve a vertical gap so Discord user card (avatar/pseudo) never overlaps the title blocks
+   Scope: HUB only
+   Added: V1.5.37
+========================================================= */
+body:not(.page-hauling):not(.page-mining):not(.page-salvage):not(.page-ships) .header-actions{
+  position: relative !important;     /* override any fixed/absolute */
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  transform: none !important;
+
+  width: min(980px, 92vw);
+  margin: 14px auto 12px;            /* "echo" space above title */
+  padding: 0 6px;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;          /* keep buttons grouped on the right inside centered container */
+  gap: 10px;
+  flex-wrap: wrap;
+
+  z-index: 10;
+}
+
+@media (max-width: 640px){
+  body:not(.page-hauling):not(.page-mining):not(.page-salvage):not(.page-ships) .header-actions{
+    justify-content: center;
+    margin: 12px auto 10px;
+  }
+}
+
+/* Ensure HUB title block never touches header-actions when Discord user card is shown */
+body:not(.page-hauling):not(.page-mining):not(.page-salvage):not(.page-ships) .hero-card{
+  margin-top: 0;                      /* rely on header-actions margin for spacing */
+}
+

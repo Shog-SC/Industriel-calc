@@ -134,6 +134,19 @@
               <a class="btn-ghost" href="./pages/mining.html">Ouvrir</a>
             </div>
           </div>
+          <div class="card card-clickable" role="link" tabindex="0" data-href="./pages/ships.html">
+            <div class="card-title">Vaisseaux</div>
+            <div class="chip-row">
+              <span class="chip">Recherche</span>
+              <span class="chip">Capacités</span>
+              <span class="chip">Prix</span>
+            </div>
+            <div class="card-desc">Base de données vaisseaux (SCU, équipage, armement, prix et points de vente).</div>
+            <div class="card-actions">
+              <a class="btn-ghost" href="./pages/ships.html">Ouvrir</a>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -169,7 +182,7 @@
         <div class="panel-title">Version</div>
         <div class="panel-note">
           <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;">
-            <span class="badge badge-h"><strong>HUB</strong> : V1.0.8</span>
+            <span class="badge badge-h"><strong>HUB</strong> : V1.0.9</span>
             <span id="coreCssVersion" class="badge badge-h badge-tech">core.css : —</span>
             <span class="badge badge-h">PU : 4.5</span>
           </div>
@@ -183,32 +196,8 @@
   <script src="./assets/js/auth.js" defer></script>
   <script src="./assets/js/hub-discord-widget.js" defer></script>
   <script src="./assets/js/core.js" defer></script>
-
   <script>
-    // Collapsible Twitch card
-    (function(){
-      const card = document.getElementById('twitchCard');
-      const head = card?.querySelector('.collapsible-head');
-      if(!card || !head) return;
-      head.addEventListener('click', (e) => {
-        if(e.target.closest('button') || e.target.closest('a')) return;
-        card.dataset.open = card.dataset.open === "true" ? "false" : "true";
-      });
-    })();
-
-    // LIVE badge (statique, sans API)
-    (function(){
-      const badge = document.getElementById('liveBadge');
-      const dot = badge?.querySelector('.dot');
-      const text = document.getElementById('liveText');
-      if(!badge || !text) return;
-      // OFFLINE par défaut
-      badge.classList.add('badge-off');
-      text.textContent = "OFFLINE";
-      if(dot) dot.style.display = "none";
-    })();
-
-    // Read core.css version
+    // Read core.css version (HUB badge)
     (function(){
       const el = document.getElementById('coreCssVersion');
       const coreLink = document.querySelector('link[href*="core.css"]');
@@ -218,10 +207,14 @@
         .then(css => {
           const m = css.match(/core\.css\s*-\s*Version\s*(V[0-9\.]+)/i);
           if(m) el.textContent = "core.css : " + m[1];
-        });
+        })
+        .catch(() => {});
     })();
   </script>
-<script>
+
+
+  
+  <script>
   // Cards: make entire module card clickable (keyboard + mouse)
   (function(){
     const cards = document.querySelectorAll('.card[data-href]');

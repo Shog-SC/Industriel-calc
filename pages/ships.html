@@ -1,0 +1,116 @@
+<!-- pages/ships.html — V1.0.38 -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VAISSEAUX — Base & Recherche</title>
+
+  <!-- Core theme (background + neon) -->
+  <link rel="stylesheet" href="../assets/css/core.css" />
+
+  <!-- Module styles (scoped) -->
+  <link rel="stylesheet" href="../assets/css/ships.css?v=V1.0.19" />
+</head>
+
+<body class="page-ships">
+  <div class="page-wrap theme-neon">
+    <div class="ships-shell">
+
+      <!-- Top actions -->
+      <div class="top-actions">
+        <a class="btn-pill" href="../index.html">← HUB</a>
+        <a class="btn-pill btn-cyan" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">DISCORD</a>
+        <a class="btn-pill btn-strong" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">Support</a>
+      </div>
+
+      <!-- Hero -->
+      <header class="hero-card">
+        <h1 class="page-title">VAISSEAUX</h1>
+        <div class="page-subtitle">Recherche rapide des capacités et prix (IRL / in-game) + filtre rôle — PU 4.5</div>
+      </header>
+
+      <!-- Content -->
+      <section class="section ships-section">
+        <div class="panel panel-strong">
+          <div class="panel-head">
+            <div class="panel-title">Recherche</div>
+            <div id="shipsDbStatus" class="chip chip-soft">Chargement…</div>
+          </div>
+
+          <div class="ships-search">
+            <label class="ships-label" for="shipQuery">Nom du vaisseau</label>
+            <div class="ships-search-row">
+              <input id="shipQuery" class="input ships-input" type="text" placeholder="Tape le nom du vaisseau… (ex: C2, Caterpillar, Cutlass)" autocomplete="off" />
+              <button id="shipClear" class="btn btn-ghost" type="button" aria-label="Effacer">Effacer</button>
+            </div>
+            <div class="ships-filter-row">
+              <div class="ships-filter-top">
+                
+<div class="ships-filter-row">
+  <div class="ships-filter-top">
+    <label class="ships-filter-label" for="shipMaker">Constructeur</label>
+    <span class="ships-mini">(marque)</span>
+  </div>
+  <select id="shipMaker" class="ships-select">
+    <option value="__ALL__">Tous les constructeurs</option>
+  </select>
+</div>
+
+  <label class="ships-filter-label" for="shipRole">Rôle</label>
+                <span class="ships-mini">(référence Erkul / RSI)</span>
+              </div>
+              <select id="shipRole" class="ships-select">
+                <option value="__ALL__">Tous les rôles</option>
+              </select>
+            </div>
+
+<div id="shipResults" class="ships-results" role="listbox" aria-label="Résultats"></div>
+          </div>
+        </div>
+
+        <div class="panel panel-strong ships-details-panel">
+          <div class="panel-head">
+            <div class="panel-title">Fiche vaisseau</div>
+            <div id="shipSelectedBadge" class="chip chip-soft">Aucun vaisseau sélectionné</div>
+          </div>
+
+          <div id="shipCard" class="ship-card is-empty">
+            <div class="empty">Tape un nom, puis sélectionne un vaisseau.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Version footer -->
+      <div class="version-footer page-ships-version" id="versionFooter">
+        <button id="versionToggle" class="version-bar" type="button" aria-expanded="false">
+          <div class="version-main" id="versionMainText">VAISSEAUX V1.0.38 • PU 4.5</div>
+          <div class="version-cta">Détails</div>
+        </button>
+
+        <div id="versionDetails" class="version-details is-hidden">
+          <div class="version-details-header">
+            <div class="version-details-title">Versions techniques</div>
+            <button id="copyVersionsBtn" class="btn" type="button">Copier</button>
+          </div>
+
+          <div class="version-grid" role="table" aria-label="Versions techniques VAISSEAUX">
+            <div class="version-col">
+              <div class="version-k" role="cell">Module</div><div class="version-v" role="cell" id="tvModuleShips">—</div>
+              <div class="version-k" role="cell">Core</div><div class="version-v" role="cell" id="tvCoreShips">—</div>
+              <div class="version-k" role="cell">DB</div><div class="version-v" role="cell" id="tvDbShips">—</div>
+            </div>
+          </div>
+
+          <div class="version-details-note">
+            <div class="tech-details" id="versionCopyText">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="../assets/js/ships.js?v=V1.2.26" defer></script>
+</body>
+</html>
