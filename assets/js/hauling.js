@@ -1,13 +1,13 @@
-/* hauling.js â€” V1.14.31 FULL (CITY_FILTER_FIX) */
+/* hauling.js â€” V1.14.41 FULL (NO_JANALITE_FILTER) */
 
 (() => {
   "use strict";
 
-  const VERSION = "V1.14.40 FULL (TOP3_ORIGIN_LIVE)";
+  const VERSION = "V1.14.41 FULL";
 
 
-const HTML_VERSION = "V1.13.91";
-const CSS_VERSION = "V1.13.91";
+const HTML_VERSION = "V1.13.92";
+const CSS_VERSION = "V1.13.92";
 function getAdvOriginQuery(){
   const el = document.getElementById("advRouteFrom")
         || document.getElementById("advOrigin")
@@ -1121,6 +1121,30 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "â€
     }
   }
 
+
+  // ------------------------------------------------------------
+  // Exclusions (business rule): remove certain commodities from all results.
+  // Example: Janalite is intentionally excluded from the hauling module.
+  const EXCLUDED_COMMODITIES = new Set(["janalite"]);
+
+  function isExcludedCommodity(name){
+    const n = normStr(name || "").trim();
+    if (!n) return false;
+    if (EXCLUDED_COMMODITIES.has(n)) return true;
+    // allow "Janalite (something)" / variants if upstream adds labels
+    for (const ex of EXCLUDED_COMMODITIES){
+      if (n.startsWith(ex + " ")) return true;
+      if (n.startsWith(ex + "â€”")) return true;
+      if (n.startsWith(ex + "-")) return true;
+      if (n.startsWith(ex + "(")) return true;
+    }
+    return false;
+  }
+
+  function filterExcludedRoutes(routes){
+    return (routes || []).filter(r => !isExcludedCommodity(r?.commodity || ""));
+  }
+
   function filterGoodsByQuery(all, q){
     const query = normStr(q).trim();
     if (!query) return all;
@@ -1188,7 +1212,8 @@ function setAdvText(id, v) { const el = $(id); if (el) el.textContent = v || "â€
           try{
             // If we already have routes cached, just filter and render without calling the proxy.
             if (!needScan){
-              const routesRaw = Array.isArray(state.assisted.lastRoutesRaw) ? state.assisted.lastRoutesRaw : [];
+              const routesRaw0 = Array.isArray(state.assisted.lastRoutesRaw) ? state.assisted.lastRoutesRaw : [];
+              const routesRaw = filterExcludedRoutes(routesRaw0);
               const routes = sortItems(routesRaw, getAdvSort());
               const routesFiltered = filterRoutesByCommodity(routes, q);
               unlockCommodity();
@@ -2062,7 +2087,8 @@ function renderTopRoutes(routes, scanMeta) {
 
       if ($("advRouteJson")) $("advRouteJson").textContent = JSON.stringify(payload, null, 2);
 
-      const routesRaw = Array.isArray(data?.routes) ? data.routes : [];
+      const routesRaw0 = Array.isArray(data?.routes) ? data.routes : [];
+      const routesRaw = filterExcludedRoutes(routesRaw0);
       state.assisted.lastRoutesRaw = routesRaw;
       const routes = sortItems(routesRaw, getAdvSort());
       // Optional: commodity-driven search (client side filter)
