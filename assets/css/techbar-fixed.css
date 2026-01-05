@@ -1,0 +1,27 @@
+/* assets/css/techbar-fixed.css — Version V1.0.0
+   Purpose: shared Techbar layout helpers (minimized baseline).
+   Note: This file exists to prevent 404/MIME errors when referenced by pages.
+*/
+
+:root{
+  --techbar-height: 64px;
+}
+
+/* Ensure header actions never overlap the Techbar */
+.header-actions, .techbar-actions{
+  position: relative;
+  z-index: 20;
+}
+
+/* Basic spacing so page content doesn't sit under fixed bars */
+.page-content{
+  padding-top: calc(var(--techbar-height) + 12px);
+}
+
+/* Utility: safe fixed bar container (if used) */
+.techbar-fixed{
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(10px);
+}

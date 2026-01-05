@@ -1,4 +1,4 @@
-/* assets/css/mining.css — Version V1.3.29
+/* assets/css/mining.css — Version V1.3.35
    Module: MINAGE (Mode Débutant)
    Règles:
    - Ne PAS re-skin .panel / .card / inputs : géré par core.css
@@ -17,7 +17,7 @@
 }
 
 .page-mining .mining-container{
-  width: min(1280px, 100%);
+  width: min(1520px, 100%);
   position: relative;
 }
 
@@ -75,7 +75,7 @@
 /* Layout grid */
 .page-mining .mining-grid{
   display: grid;
-  grid-template-columns: minmax(620px, 1.25fr) minmax(460px, 1fr);
+  grid-template-columns: minmax(740px, 1.25fr) minmax(620px, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -1119,3 +1119,113 @@
   .ore-selected-meta{ font-size: 11px; }
   .ore-value{ font-size: 12px; }
 }
+/* ---------- Top 3 vendeurs (global, minerai actif) ---------- */
+.top-sellers-panel{
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.18);
+}
+.top-sellers-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.top-sellers-title{
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.top-sellers-ore-label{
+  opacity: 0.9;
+  font-weight: 600;
+}
+.top-sellers-list{
+  display: grid;
+  gap: 6px;
+}
+.top-sellers-empty{
+  opacity: 0.7;
+  font-size: 0.92rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255,255,255,0.12);
+}
+.top-sellers-note{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 6px 0 10px;
+  border-radius: 12px;
+
+  /* Callout "attention" : vente brute (non raffiné) */
+  border: 1px solid rgba(255, 198, 90, 0.35);
+  background: rgba(255, 198, 90, 0.10);
+  color: rgba(255, 232, 190, 0.95);
+
+  font-size: var(--font-xs);
+  line-height: 1.25;
+  opacity: 1;
+}
+
+.top-sellers-note__icon{
+  flex: 0 0 auto;
+  line-height: 1;
+  margin-top: 1px;
+  font-size: 13px;
+}
+
+.top-sellers-note__text{
+  flex: 1 1 auto;
+}
+
+
+.top-seller-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.12);
+}
+.top-seller-name{
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.top-seller-price{
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+/* ---------- Minerai actif (badge + surbrillance) ---------- */
+.ore-row.is-active{
+  border-color: rgba(0, 255, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.18) inset;
+}
+.ore-item.is-selected{
+  position: relative;
+}
+.ore-active-badge{
+  margin-left: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.25px;
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: rgba(0, 255, 255, 0.10);
+  color: rgba(220, 255, 255, 0.95);
+}
+
+
+/* Modifier (réservé) */
+.top-sellers-note--warning{}

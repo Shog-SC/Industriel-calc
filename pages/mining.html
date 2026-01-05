@@ -1,4 +1,4 @@
-<!-- pages/mining.html — Version V1.3.23
+<!-- pages/mining.html — Version V1.3.32
      Module: MINAGE (Mode Débutant)
      Repo: https://shog-sc.github.io/Industriel-calc/
 -->
@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="../assets/css/core.css" />
   
   <link rel="stylesheet" href="../assets/css/techbar-fixed.css?v=V1.0.0" />
-<link rel="stylesheet" href="../assets/css/mining.css?v=V1.3.28" />
+<link rel="stylesheet" href="../assets/css/mining.css?v=V1.3.35" />
 </head>
 
 <body class="page-mining">
@@ -197,6 +197,19 @@
 
           <div class="ore-list ore-selected-list" id="oreSelectedList" aria-label="Minerais sélectionnés"></div>
 
+          <div class="top-sellers-panel" id="topSellersPanel" aria-label="Top vendeurs">
+            <div class="top-sellers-head">
+              <div class="top-sellers-title">Top 3 vendeurs</div>
+              <div class="top-sellers-ore">
+                <span class="top-sellers-ore-label" id="topSellersOreLabel">—</span>
+              </div>
+            </div>
+            <div class="top-sellers-note top-sellers-note--warning" role="note"><span class="top-sellers-note__icon" aria-hidden="true">⚠</span><span class="top-sellers-note__text">Prix affichés : revente brute (minerai non raffiné).</span></div>
+            <div class="top-sellers-list" id="topSellersList">
+              <div class="top-sellers-empty">Sélectionne un minerai…</div>
+            </div>
+          </div>
+
           <div class="ratio-badge" id="oreUnitRatio">1 SCU = 1 000 mSCU · 1 mSCU = 0.001 SCU</div>
           <div class="hint" id="oreQtyHint"></div>
           <div class="hint" id="oreCapHint"></div>
@@ -210,7 +223,15 @@
 
   <!-- JS (RELATIF AU FICHIER) -->
   <script src="../assets/js/miningShips.js"></script>
-  <script src="../assets/js/mining.js?v=V1.4.24"></script>
+  <script>
+    // MINING Live API default (Worker UEX proxy)
+    window.SC_HUB_CONFIG = window.SC_HUB_CONFIG || {};
+    window.SC_HUB_CONFIG.MINING_LIVE_ENABLED = true;
+    window.SC_HUB_CONFIG.MINING_LIVE_API_BASE = "https://miningliveapibase.yoyoastico74.workers.dev/api/mining";
+    window.SC_HUB_CONFIG.MINING_LIVE_PREFER = "best"; // best terminal price (no avg)
+    window.SC_HUB_CONFIG.MINING_LIVE_TOP = window.SC_HUB_CONFIG.MINING_LIVE_TOP || 5;
+  </script>
+  <script src="../assets/js/mining.js?v=V1.4.38"></script>
 
   <!-- Version technique (MINAGE) -->
   <div class="page-mining-version" aria-label="Version technique">

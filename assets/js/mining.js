@@ -1,4 +1,4 @@
-/* assets/js/mining.js — Version V1.4.24
+/* assets/js/mining.js — Version V1.4.38
    Module: MINAGE (Mode Débutant) — Mega Package (suite)
    Changements V1.2.1 :
    - Suppression des phrases/hints demandés (texte UI)
@@ -109,6 +109,8 @@
   // Ore mode
   const elOreAvailList = $("#oreAvailList");
   const elOreSelectedList = $("#oreSelectedList");
+  const elTopSellersOreLabel = $("#topSellersOreLabel");
+  const elTopSellersList = $("#topSellersList");
   const elOreUnitLabel = $("#oreUnitLabel");
   const elOreQtyHint = $("#oreQtyHint");
   const elOreUnitRatio = $("#oreUnitRatio");
@@ -174,8 +176,294 @@
 
   let selectedOreKeysShip = [];
   let selectedOreKeysRoc = [];
+  let activeOreKeyShip = null;
+  let activeOreKeyRoc = null;
+  let miningLiveLastOresMap = null;
   let oreQtyByKeyShip = Object.create(null);
   let oreQtyByKeyRoc = Object.create(null);
+
+
+  // ---------- Mining Live API (Worker) ----------
+  // This optional overlay replaces local ore prices with live UEX-derived prices served by your Worker.
+  // Config (optional):
+  //   window.SC_HUB_CONFIG = {
+  //     MINING_LIVE_ENABLED: true,
+  //     MINING_LIVE_API_BASE: "https://miningliveapibase.yoyoastico74.workers.dev/api/mining",
+  //     MINING_LIVE_PREFER: "avg",   // "avg" | "last"
+  //     MINING_LIVE_TOP: 5
+  //   };
+  const MINING_LIVE_DEFAULT_BASE = "https://miningliveapibase.yoyoastico74.workers.dev/api/mining";
+  let miningLiveLastFetchAt = 0;
+  let miningLiveInFlight = null;
+  let miningLiveMeta = null;
+  let miningLiveStatusEl = null;
+
+  function miningLiveEnsureStatusEl(){
+    if (miningLiveStatusEl) return miningLiveStatusEl;
+    const panel = document.getElementById("oreSelectedPanel");
+    if (!panel) return null;
+    let el = panel.querySelector(".mining-live-status");
+    if (!el){
+      el = document.createElement("div");
+      el.className = "mining-live-status";
+      // Insert under the unit ratio line if present, else at the bottom
+      const anchor = document.getElementById("oreUnitRatio");
+      if (anchor && anchor.parentElement === panel){
+        anchor.insertAdjacentElement("afterend", el);
+      } else {
+        panel.appendChild(el);
+      }
+    }
+    miningLiveStatusEl = el;
+    return el;
+  }
+
+  function miningLiveFormatTs(ts){
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const ms = (n < 2e10) ? (n * 1000) : n; // seconds -> ms heuristic
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+  }
+
+  function miningLiveSetStatus(kind, details){
+    const el = miningLiveEnsureStatusEl();
+    if (!el) return;
+    const cfg = miningLiveGetConfig();
+    const baseShort = (cfg.base || "").replace(/^https?:\/\//i, "").replace(/\/api\/mining\/?$/i, "");
+    let text = "Source prix : Local";
+    if (kind === "loading") text = `Source prix : Live UEX (${cfg.prefer}) — chargement…`;
+    if (kind === "live"){
+      const ts = details && details.updated_at ? miningLiveFormatTs(details.updated_at) : null;
+      text = `Source prix : Live UEX (${cfg.prefer})${ts ? " — maj " + ts : ""}`;
+    }
+    if (kind === "error"){
+      text = `Source prix : Local (Live UEX indisponible)`;
+    }
+    el.textContent = text + (baseShort ? ` • ${baseShort}` : "");
+    el.style.cssText = "margin-top:10px;font-size:12px;opacity:.85;";
+  }
+
+
+  function miningLiveGetConfig(){
+    const cfg = (window.SC_HUB_CONFIG && typeof window.SC_HUB_CONFIG === "object") ? window.SC_HUB_CONFIG : {};
+    const enabled = cfg.MINING_LIVE_ENABLED !== false; // enabled by default once a base is present
+    const preferRaw = String(cfg.MINING_LIVE_PREFER || "avg").toLowerCase();
+    const prefer = "best"; // forced: best terminal price (no avg)
+    const top = Math.min(10, Math.max(1, Number.parseInt(String(cfg.MINING_LIVE_TOP ?? 5), 10) || 5));
+
+    let base = String(cfg.MINING_LIVE_API_BASE || MINING_LIVE_DEFAULT_BASE).trim();
+    base = miningLiveSanitizeBase(base);
+
+    return {
+      enabled: Boolean(enabled),
+      base,
+      prefer,
+      top,
+      minIntervalMs: 60 * 1000
+    };
+  }
+
+  function miningLiveSanitizeBase(base){
+    let b = String(base || "").trim();
+    if (!b) return "";
+    b = b.replace(/\s+/g, "");
+    b = b.replace(/\/+$/, "");
+
+    // Make base absolute to avoid relative-fetch mistakes (e.g. "miningliveapibase...").
+    // Allowed inputs:
+    //  - https://host/api/mining
+    //  - //host/api/mining
+    //  - /api/mining  (same-origin)
+    //  - host/api/mining
+    if (!/^https?:\/\//i.test(b)){
+      if (b.startsWith("//")){
+        b = "https:" + b;
+      } else if (b.startsWith("/")){
+        b = (window.location && window.location.origin ? window.location.origin : "") + b;
+      } else {
+        b = "https://" + b;
+      }
+    }
+
+    // If user pasted an endpoint, strip it back to the base
+    b = b.replace(/\/(health|ores)(\?.*)?$/i, "");
+    b = b.replace(/\/debug\/commodities(\?.*)?$/i, "");
+    return b.replace(/\/+$/, "");
+  }
+
+  function miningLiveMakeOresUrl(base, keys, prefer, top){
+    const qp = new URLSearchParams();
+    qp.set("keys", keys.join(","));
+    qp.set("prefer", prefer);
+    qp.set("top", String(top));
+    return base + "/ores?" + qp.toString();
+  }
+
+  
+  async function miningLivePingHealth(base){
+    try{
+      const b = miningLiveSanitizeBase(base);
+      if (!b) return { ok:false, error:"no_base" };
+      const url = b + "/health";
+      const res = await fetch(url, { method: "GET", headers: { "Accept":"application/json" } });
+      if (!res.ok) return { ok:false, error:"http_"+res.status };
+      const j = await res.json().catch(()=>null);
+      return { ok:true, data:j };
+    }catch(e){
+      return { ok:false, error:String(e && e.message ? e.message : e) };
+    }
+  }
+
+async function miningLiveFetchOres(keys, prefer, top){
+    const cfg = miningLiveGetConfig();
+    if (!cfg.enabled) return null;
+
+    const uniq = Array.from(new Set(keys.filter(Boolean)));
+    if (!uniq.length) return null;
+
+    // Try both base styles to survive Worker route mounting differences.
+    const basesToTry = [];
+    if (cfg.base) basesToTry.push(cfg.base);
+    if (cfg.base && !/\/api\/mining$/i.test(cfg.base)) basesToTry.push(cfg.base.replace(/\/+$/,"") + "/api/mining");
+
+    let lastErr = null;
+
+    for (const b of basesToTry){
+      const url = miningLiveMakeOresUrl(b, uniq, prefer, top);
+      try{
+        const res = await fetch(url, { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok){
+          lastErr = new Error((data && data.message) ? data.message : ("HTTP " + res.status));
+          continue;
+        }
+        // Accept both `ores` and `data` contract
+        const ores = (data && (data.ores || data.data)) ? (data.ores || data.data) : null;
+        if (ores && typeof ores === "object"){
+          return {
+            oresMap: ores,
+            meta: {
+              updated_at: data && (data.updated_at ?? data.updatedAt),
+              source: data && data.source,
+              prefer: data && data.prefer,
+              top: data && data.top
+            }
+          };
+        }
+lastErr = new Error("Invalid live payload.");
+      }catch(e){
+        lastErr = e;
+      }
+    }
+
+    throw lastErr || new Error("Live fetch failed.");
+  }
+
+  function miningLiveApplyOverlay(oresMap){
+    if (!oresMap || typeof oresMap !== "object") return 0;
+    miningLiveLastOresMap = oresMap;
+
+    let changed = 0;
+
+    function applyToDataset(ds){
+      if (!ds || !Array.isArray(ds.ores)) return;
+      for (const o of ds.ores){
+        const live = oresMap[o.key];
+        if (!live) continue;
+
+        const p = Number(live.price_auEc_per_scu);
+        if (Number.isFinite(p) && p > 0){
+          o.price_auEc_per_scu = p;
+        }
+
+        // Optional debug fields (Worker V1.1.1+)
+        if (live.price_last != null && Number.isFinite(Number(live.price_last))) {
+          o.price_last = Number(live.price_last);
+        } else {
+          delete o.price_last;
+        }
+        if (live.price_avg != null && Number.isFinite(Number(live.price_avg))) {
+          o.price_avg = Number(live.price_avg);
+        } else {
+          delete o.price_avg;
+        }
+        if (live.price_field) {
+          o.price_field = String(live.price_field);
+        } else {
+          delete o.price_field;
+        }
+
+        // Sellers (Top terminals)
+        const sellersArr = Array.isArray(live.sellers) ? live.sellers : [];
+        const normalizedSellers = sellersArr
+          .map((s) => ({
+            name: (s && (s.display_name || s.name)) ? String(s.display_name || s.name) : "Terminal",
+            price_auEc_per_scu: Number(s && (s.price_auEc_per_scu ?? s.price_auec_per_scu ?? s.price)),
+          }))
+          .filter((s) => Number.isFinite(s.price_auEc_per_scu) && s.price_auEc_per_scu > 0);
+
+        if (normalizedSellers.length > 0) {
+          o.sellers = normalizedSellers;
+        } else if (Number.isFinite(Number(live.best_sell)) && Number(live.best_sell) > 0) {
+          const bestName = live.best_sell_terminal_name || live.best_sell_terminal || live.best_sell_terminal_slug || "Meilleur terminal";
+          o.sellers = [{
+            name: String(bestName),
+            price_auEc_per_scu: Number(live.best_sell),
+          }];
+        } else {
+          // Do not wipe local sellers if Live has none
+          if (!Array.isArray(o.sellers)) o.sellers = [];
+        }
+
+        o.__live_ts = Date.now();
+        changed++;
+      }
+    }
+
+    applyToDataset(oreDataShip);
+    applyToDataset(oreDataRoc);
+
+    return changed;
+  }
+
+  function miningLiveRefreshCurrentSelection(force=false){
+    const cfg = miningLiveGetConfig();
+    if (!cfg.enabled || !cfg.base) return;
+
+    const now = Date.now();
+    if (!force && (now - miningLiveLastFetchAt) < cfg.minIntervalMs) return;
+    if (miningLiveInFlight) return;
+
+    const { selectedKeys } = getActiveOreDataset();
+    const keys = Array.isArray(selectedKeys) ? selectedKeys : [];
+    if (!keys.length){ miningLiveSetStatus("local"); return; }
+
+    miningLiveSetStatus("loading");
+
+    miningLiveInFlight = miningLiveFetchOres(keys, cfg.prefer, cfg.top)
+      .then((payload) => {
+        const oresMap = payload && payload.oresMap ? payload.oresMap : payload;
+        miningLiveMeta = payload && payload.meta ? payload.meta : null;
+        miningLiveApplyOverlay(oresMap);
+        miningLiveLastFetchAt = Date.now();
+        miningLiveSetStatus("live", miningLiveMeta);
+        try { updateVersionFooterLive(); } catch(e) {}
+        // Re-render and recompute to reflect live prices
+        renderOreChips();
+        compute();
+      })
+      .catch((e) => {
+        // Silent fail (no blocking UI). Debug in console.
+        console.warn("[MINING] Live API unavailable:", e && e.message ? e.message : e);
+        miningLiveSetStatus("error");
+      })
+      .finally(() => {
+        miningLiveInFlight = null;
+      });
+  }
 
   // ---------- UI helpers ----------
   function closeMenu(menuEl, btnEl){
@@ -251,6 +539,7 @@
     setOreUnitLabel();
 
     compute();
+    miningLiveRefreshCurrentSelection(true);
     closeMenu(elTypePickerMenu, elTypePickerBtn);
   }
 
@@ -385,7 +674,103 @@ oreDataRoc = await res.json();
     if (t === "ship") return Array.isArray(selectedOreKeysShip) ? selectedOreKeysShip : [];
     if (t === "roc" || t === "rocds") return Array.isArray(selectedOreKeysRoc) ? selectedOreKeysRoc : [];
     return [];
+  }  function getActiveOreKey(){
+    const t = getType();
+    return isVehicleType(t) ? activeOreKeyRoc : activeOreKeyShip;
   }
+
+  function setActiveOreKey(key, opts = {}){
+    const t = getType();
+    const k = key ? String(key) : null;
+
+    if (isVehicleType(t)) {
+      activeOreKeyRoc = k;
+    } else {
+      activeOreKeyShip = k;
+    }
+
+    if (!opts.silent){
+      try { renderOreChips(); } catch(e) {}
+      try { renderTopSellersGlobal(); } catch(e) {}
+    }
+  }
+
+  function ensureActiveOreKey(selectedKeys){
+    const keys = Array.isArray(selectedKeys) ? selectedKeys : [];
+    const cur = getActiveOreKey();
+    if (cur && keys.includes(cur)) return cur;
+
+    const fallback = keys.length ? keys[keys.length - 1] : null;
+    if (fallback !== cur){
+      setActiveOreKey(fallback, { silent: true });
+    }
+    return fallback;
+  }
+
+  function renderTopSellersGlobal(){
+    if (!elTopSellersList) return;
+
+    const { data } = getActiveOreDataset();
+    const selectedKeys = getSelectedOreKeys();
+    const activeKey = ensureActiveOreKey(selectedKeys);
+
+    if (!activeKey){
+      if (elTopSellersOreLabel) elTopSellersOreLabel.textContent = "—";
+      elTopSellersList.innerHTML = '<div class="top-sellers-empty">Sélectionne un minerai…</div>';
+      return;
+    }
+
+    const ore = (data && Array.isArray(data.ores)) ? data.ores.find(o => o && o.key === activeKey) : null;
+    if (elTopSellersOreLabel) elTopSellersOreLabel.textContent = ore && ore.name ? ore.name : "—";
+
+    const sellers = (ore && Array.isArray(ore.sellers)) ? ore.sellers : [];
+    if (!sellers.length){
+      elTopSellersList.innerHTML = '<div class="top-sellers-empty">Vendeurs indisponibles</div>';
+      return;
+    }
+
+    const useMSCU = isVehicleType(getType());
+    const unit = useMSCU ? "mSCU" : "SCU";
+    const scale = useMSCU ? 1000 : 1; // sellers are in aUEC/SCU
+
+    const normalized = sellers
+      .map((s) => {
+        const name = String(
+          s?.name ?? s?.location_name ?? s?.terminal_name ?? s?.station_name ?? s?.outpost_name ?? s?.city ?? s?.location ?? "Terminal"
+        );
+        const p = Number(s?.price_auEc_per_scu ?? s?.price ?? s?.price_sell ?? s?.price_last ?? s?.price_avg ?? s?.price_sell_avg);
+        return { name, price: p };
+      })
+      .filter((x) => x && x.name && Number.isFinite(x.price) && x.price > 0)
+      .sort((a,b) => b.price - a.price)
+      .slice(0, 3);
+
+    if (!normalized.length){
+      elTopSellersList.innerHTML = '<div class="top-sellers-empty">Vendeurs indisponibles</div>';
+      return;
+    }
+
+    elTopSellersList.innerHTML = "";
+    normalized.forEach((it) => {
+      const row = document.createElement("div");
+      row.className = "top-seller-row";
+
+      const n = document.createElement("div");
+      n.className = "top-seller-name";
+      n.textContent = it.name;
+
+      const p = document.createElement("div");
+      p.className = "top-seller-price";
+      const perUnit = it.price / scale;
+      p.textContent = `${fmtInt(perUnit)} aUEC/${unit}`;
+
+      row.appendChild(n);
+      row.appendChild(p);
+      elTopSellersList.appendChild(row);
+    });
+  }
+
+
 
   function toggleSelectedOreKey(key){
     const keys = getSelectedOreKeys();
@@ -393,10 +778,25 @@ oreDataRoc = await res.json();
     if (idx >= 0) {
       keys.splice(idx, 1);
       setSelectedOreKeys(keys);
+
+      // If we removed the active ore, move active to the last remaining selection.
+      const cur = getActiveOreKey();
+      if (cur === key){
+        const nextActive = keys.length ? keys[keys.length - 1] : null;
+        setActiveOreKey(nextActive, { silent: true });
+      }
+
+      try { miningLiveRefreshCurrentSelection(true); } catch(e) {}
       return { changed: true, action: "remove" };
     }
-keys.push(key);
+
+    keys.push(key);
     setSelectedOreKeys(keys);
+
+    // Newly added ore becomes active.
+    setActiveOreKey(key, { silent: true });
+
+    try { miningLiveRefreshCurrentSelection(true); } catch(e) {}
     return { changed: true, action: "add" };
   }
 
@@ -470,8 +870,10 @@ keys.push(key);
 
       btn.addEventListener("click", () => {
         const r = toggleSelectedOreKey(ore.key);
-renderOreChips();
+        setActiveOreKey(ore.key, { silent: true });
+        renderOreChips();
         compute();
+        renderTopSellersGlobal();
       });
 
       elOreAvailList.appendChild(btn);
@@ -505,9 +907,14 @@ renderOreChips();
       oreBtn.className = "ore-item is-selected";
       const color = ore.color || "#64748b";
       oreBtn.style.setProperty("--ore-dot", color);
-      oreBtn.innerHTML = `<span class="ore-dot" aria-hidden="true"></span><span class="ore-name">${ore.name}</span>`;
+      const activeKey = ensureActiveOreKey(selectedKeys);
+      const isActive = ore.key === activeKey;
+      oreBtn.innerHTML = `<span class="ore-dot" aria-hidden="true"></span><span class="ore-name">${ore.name}</span>${isActive ? '<span class="ore-active-badge">ACTIF</span>' : ""}`;
+      row.classList.toggle("is-active", isActive);
       oreBtn.addEventListener("click", () => {
-        toggleSelectedOreKey(ore.key);
+        // Set as active (removal only via cross)
+        setActiveOreKey(ore.key);
+        renderTopSellersGlobal();
         renderOreChips();
         compute();
       });
@@ -523,6 +930,8 @@ renderOreChips();
       qty.addEventListener("input", () => {
         const v = clamp(floatSafe(qty.value), 0, 1_000_000);
         qtyMap[ore.key] = v;
+        setActiveOreKey(ore.key, { silent: true });
+        renderTopSellersGlobal();
         compute();
       });
 
@@ -550,6 +959,7 @@ renderOreChips();
         toggleSelectedOreKey(ore.key);
         renderOreChips();
         compute();
+        miningLiveRefreshCurrentSelection();
       });
       row.appendChild(rmBtn);
 
@@ -736,7 +1146,19 @@ renderOreChips();
           if (row){
             const elPrice = row.querySelector(".ore-price");
             const elSub = row.querySelector(".ore-subtotal");
-            if (elPrice) elPrice.textContent = (Number.isFinite(p) && p > 0) ? fmtInt(p) : "—";
+            if (elPrice) {
+              elPrice.textContent = (Number.isFinite(p) && p > 0) ? fmtInt(p) : "—";
+              // Debug tooltip for Regolith parity: show last/avg when available (from Live API)
+              const pLast = (ore && Number.isFinite(ore.price_last)) ? ore.price_last : null;
+              const pAvg = (ore && Number.isFinite(ore.price_avg)) ? ore.price_avg : null;
+              const pField = (ore && ore.price_field) ? String(ore.price_field) : null;
+              const tips = [];
+              if (pLast != null) tips.push(`last: ${fmtInt(pLast)}`);
+              if (pAvg != null) tips.push(`avg: ${fmtInt(pAvg)}`);
+              if (pField) tips.push(`field: ${pField}`);
+              if (tips.length) elPrice.title = tips.join(" | ");
+              else elPrice.removeAttribute("title");
+            }
             if (elSub) elSub.textContent = subtotal > 0 ? fmtInt(subtotal) : "—";
           }
         }
@@ -847,7 +1269,7 @@ renderOreChips();
       if (elBadgeStable) elBadgeStable.style.display = "inline-flex";
     }
 
-    if (elSellersList) elSellersList.innerHTML = "";
+    if (elSellersList) if (elSellersList) elSellersList.innerHTML = "";
     if (elSellersNote) elSellersNote.textContent = "Disponible uniquement en mode Minerai.";
 
     if (mode === "ore") {
@@ -891,7 +1313,7 @@ renderOreChips();
 
             row.appendChild(left);
             row.appendChild(right);
-            elSellersList.appendChild(row);
+            if (elSellersList) elSellersList.appendChild(row);
           });
 
           if (elSellersNote) elSellersNote.textContent = "";
@@ -945,7 +1367,23 @@ document.addEventListener("keydown", (e) => {
 
 
   // ---------- Version footer (compact + copy) ----------
-  function initVersionFooter(){
+  
+  function updateVersionFooterLive(){
+    // Non-blocking: enrich the existing version footer with live info.
+    if (!miningLiveMeta) return;
+    const el = document.getElementById("miningDataVer");
+    if (el){
+      const base = miningLiveGetConfig().base;
+      const ts = miningLiveMeta.updated_at ? miningLiveFormatTs(miningLiveMeta.updated_at) : null;
+      const baseShort = (base || "").replace(/^https?:\/\//i, "").replace(/\/api\/mining\/?$/i, "");
+      const parts = ["UEX live", `prefer:${miningLiveGetConfig().prefer}`];
+      if (ts) parts.push("maj:" + ts);
+      if (baseShort) parts.push(baseShort);
+      el.textContent = parts.join(" • ");
+    }
+  }
+
+function initVersionFooter(){
     const toggleBtn = document.getElementById("versionToggle");
     const details = document.getElementById("versionDetails");
     const copyBtn = document.getElementById("copyVersionsBtn");
@@ -1014,11 +1452,22 @@ document.addEventListener("keydown", (e) => {
         }
       });
     }
+
+    try { updateVersionFooterLive(); } catch(e) {}
   }
 
 
   // ---------- Init ----------
   async function init(){
+    // Live API quick health ping (non-blocking)
+    try{
+      const cfg = window.SC_HUB_CONFIG || {};
+      const base = cfg.MINING_LIVE_API_BASE || DEFAULT_MINING_LIVE_BASE;
+      if (cfg.MINING_LIVE_ENABLED !== false){
+        miningLivePingHealth(base).then(()=>{});
+      }
+    }catch(e){}
+
 
     // Sanitize mining type options (FPS removed) + ensure unit switching is consistent
     if (elType){
@@ -1039,7 +1488,12 @@ document.addEventListener("keydown", (e) => {
     try { await loadOreDataShip(); } catch(e) { console.error(e); }
     try { await loadOreDataRoc(); } catch(e) { console.error(e); }
 
+    // Initial live overlay (non-blocking)
+    try { miningLiveRefreshCurrentSelection(true); } catch(e){}
+
     initVersionFooter();
+    // Set initial live status line
+    try { miningLiveSetStatus(miningLiveMeta ? "live" : "local", miningLiveMeta); } catch(e) {}
 
     resetAll();
   }
@@ -1435,7 +1889,7 @@ function miningInitVersionFooter(){
   const closedLabel = document.getElementById("miningVersionClosedLabel");
   if(!bar || !details || !cta || !closedLabel) return;
 
-  const jsV = "V1.4.25";
+  const jsV = "V1.4.27";
   const cssV = "V1.3.29";
   const coreV = miningGetCssVar("--core-css-version") || "—";
   const dataV = (window.MINING_DATA_VERSION) ? String(window.MINING_DATA_VERSION) : "assets/data/*";
