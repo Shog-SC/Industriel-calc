@@ -1,4 +1,4 @@
-/* assets/css/mining.css - Version V1.3.97 */
+/* assets/css/mining.css - Version V1.3.98_SCROLLBAR_HARMONIZED */
 /* assets/css/mining.css — Version V1.3.80
    Module: MINAGE (Mode Débutant)
    Règles:
@@ -2593,3 +2593,82 @@
   color: rgba(255,255,255,0.65);
   line-height: 1.35;
 }
+
+/* =========================================================
+   SCROLLBAR — MINING (harmonisé avec le style glass/cyan)
+   Version: V1.3.98 (SCROLLBAR_HARMONIZED)
+   - Scope strict: .page-mining uniquement
+   - Compat: Firefox (scrollbar-color/width) + WebKit (::-webkit-scrollbar)
+   ========================================================= */
+
+/* Reduce layout jump when scrollbars appear/disappear (supported browsers) */
+.page-mining{
+  scrollbar-gutter: stable;
+}
+
+/* ---------- Firefox ---------- */
+.page-mining,
+.page-mining *{
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 229, 255, 0.55) rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- WebKit (Chrome / Edge / Brave / Opera) ---------- */
+.page-mining ::-webkit-scrollbar{
+  width: 10px;
+  height: 10px;
+}
+
+.page-mining ::-webkit-scrollbar-track{
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.page-mining ::-webkit-scrollbar-thumb{
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  background: linear-gradient(
+    180deg,
+    rgba(0, 229, 255, 0.30),
+    rgba(0, 229, 255, 0.55)
+  );
+
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 0 10px rgba(0, 229, 255, 0.18);
+}
+
+.page-mining ::-webkit-scrollbar-thumb:hover{
+  background: linear-gradient(
+    180deg,
+    rgba(0, 229, 255, 0.38),
+    rgba(0, 229, 255, 0.70)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+    0 0 12px rgba(0, 229, 255, 0.28);
+}
+
+.page-mining ::-webkit-scrollbar-thumb:active{
+  background: linear-gradient(
+    180deg,
+    rgba(0, 229, 255, 0.45),
+    rgba(0, 229, 255, 0.85)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.16),
+    0 0 14px rgba(0, 229, 255, 0.34);
+}
+
+.page-mining ::-webkit-scrollbar-corner{
+  background: transparent;
+}
+
+.page-mining ::-webkit-scrollbar-button{
+  width: 0;
+  height: 0;
+  display: none;
+}
+

@@ -36,7 +36,9 @@
 
 <script>
 (() => {
-  const STORAGE_KEY = "shog.discord.user";
+  const USER_KEY = "shog.discord.user";
+  const TOKEN_KEY = "shog.discord.token";
+  const TOKEN_META_KEY = "shog.discord.token.meta";
 
   const statusLine = document.getElementById("statusLine");
   const debugLine  = document.getElementById("debugLine");
@@ -54,16 +56,15 @@
     actions.style.display = "flex";
   }
 
-  function safeParseDiscordPayload(base64){
+  function safeParseB64Json(base64){
     // Worker encodes with: btoa(unescape(encodeURIComponent(str)))
     // Decode with: decodeURIComponent(escape(atob(b64)))
     const json = decodeURIComponent(escape(atob(base64)));
-    const user = JSON.parse(json);
-    return user;
+    return JSON.parse(json);
   }
 
   function cleanUrl(){
-    // Remove querystring with payload from history
+    // Remove querystring + hash from history
     try { history.replaceState({}, "", location.pathname); } catch(_) {}
   }
 
@@ -75,7 +76,9 @@
   // Buttons (fallback)
   goHubBtn.addEventListener("click", redirectToHub);
   clearBtn.addEventListener("click", () => {
-    try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    try { localStorage.removeItem(USER_KEY); } catch(_) {}
+    try { sessionStorage.removeItem(TOKEN_KEY); } catch(_) {}
+    try { sessionStorage.removeItem(TOKEN_META_KEY); } catch(_) {}
     setStatus("Session effacée. Redirection vers le HUB…");
     cleanUrl();
     setTimeout(redirectToHub, 350);
@@ -85,6 +88,11 @@
   const params = new URLSearchParams(location.search);
   const d = params.get("d"); // IMPORTANT: worker sends ?d=<base64>
 
+  // Token can be provided in hash: #t=<base64> (preferred), or query ?t=...
+  const hashRaw = (location.hash || "").startsWith("#") ? location.hash.slice(1) : "";
+  const hashParams = new URLSearchParams(hashRaw);
+  const t = hashParams.get("t") || params.get("t");
+
   if(!d){
     setStatus("Aucune donnée reçue. Redirection vers le HUB…");
     cleanUrl();
@@ -93,14 +101,14 @@
   }
 
   try {
-    const user = safeParseDiscordPayload(d);
+    const user = safeParseB64Json(d);
 
     // Minimal validation
     if(!user || !user.discordId || !user.username){
       throw new Error("Payload Discord invalide (champs manquants).");
     }
 
-    const stored = {
+    const storedUser = {
       discordId: String(user.discordId),
       username: String(user.username),
       globalName: user.globalName ?? null,
@@ -108,9 +116,26 @@
       ts: Date.now()
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    localStorage.setItem(USER_KEY, JSON.stringify(storedUser));
 
-    setStatus(`Connecté : ${stored.globalName || stored.username}. Redirection vers le HUB…`);
+    // If token provided, store it in sessionStorage for same-tab redirect to HUB.
+    if (t) {
+      const tok = safeParseB64Json(t);
+      if (tok && tok.access_token) {
+        sessionStorage.setItem(TOKEN_KEY, String(tok.access_token));
+        const meta = {
+          token_type: tok.token_type || "Bearer",
+          scope: tok.scope || "identify",
+          expires_in: tok.expires_in ?? null,
+          obtained_at: tok.obtained_at ?? Date.now(),
+          expires_at: tok.expires_at ?? null
+        };
+        sessionStorage.setItem(TOKEN_META_KEY, JSON.stringify(meta));
+      }
+    }
+
+    const hasToken = !!sessionStorage.getItem(TOKEN_KEY);
+    setStatus(`Connecté : ${storedUser.globalName || storedUser.username}. Token: ${hasToken ? "OK" : "ABSENT"} • Redirection vers le HUB…`);
     cleanUrl();
     setTimeout(redirectToHub, 450);
   } catch (e) {
