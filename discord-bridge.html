@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Connexion Discord — Bridge</title>
   <meta name="robots" content="noindex,nofollow" />
+  <meta name="referrer" content="no-referrer" />
   <style>
     html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0b1118; color:#e7ecff;}
     .wrap{height:100%; display:flex; align-items:center; justify-content:center; padding:24px;}
-    .card{max-width:720px; width:100%; border:1px solid rgba(231,236,255,.12); background:rgba(255,255,255,.03);
+    .card{max-width:780px; width:100%; border:1px solid rgba(231,236,255,.12); background:rgba(255,255,255,.03);
       border-radius:16px; padding:18px 18px; box-shadow:0 8px 40px rgba(0,0,0,.35);}
     .h1{font-weight:900; font-size:18px; margin:0 0 8px;}
     .p{opacity:.9; margin:0 0 12px; line-height:1.45;}
@@ -18,6 +19,7 @@
       font-weight:900; padding:10px 12px; border-radius:999px; cursor:pointer;}
     .btn.secondary{border-color:rgba(231,236,255,.14); background:rgba(255,255,255,.03); color:rgba(231,236,255,.92);}
     .small{font-size:12px; opacity:.75;}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px;}
   </style>
 </head>
 <body>
@@ -27,18 +29,21 @@
       <p class="p" id="statusLine">Traitement en cours.</p>
       <div class="mono" id="debugLine" style="display:none;"></div>
       <div class="row" id="actions" style="display:none;">
-        <button class="btn" id="goHub">Retour au HUB</button>
+        <button class="btn" id="goHub">Retour</button>
         <button class="btn secondary" id="clearSession">Effacer la session</button>
       </div>
-      <p class="small" style="margin-top:12px;">Cette page sert uniquement de passerelle OAuth (Discord → HUB). Tu peux la garder telle quelle.</p>
+      <p class="small" style="margin-top:12px;">
+        Bridge OAuth : stocke l'utilisateur (<code>localStorage: shog.discord.user</code>) et, si fourni, le token (<code>sessionStorage: shog.discord.token</code>), puis redirige.
+      </p>
     </div>
   </div>
 
 <script>
 (() => {
-  const USER_KEY = "shog.discord.user";
-  const TOKEN_KEY = "shog.discord.token";
-  const TOKEN_META_KEY = "shog.discord.token.meta";
+  const STORAGE_USER_KEY = "shog.discord.user";
+  const STORAGE_TOKEN_KEY = "shog.discord.token";
+  const STORAGE_TOKEN_META_KEY = "shog.discord.token.meta";
+  const STORAGE_RETURN_TO = "shog.returnTo";
 
   const statusLine = document.getElementById("statusLine");
   const debugLine  = document.getElementById("debugLine");
@@ -52,94 +57,125 @@
     debugLine.style.display = "";
     debugLine.textContent = msg;
   }
-  function showActions(){
-    actions.style.display = "flex";
-  }
+  function showActions(){ actions.style.display = "flex"; }
 
-  function safeParseB64Json(base64){
+  function safeAtobJson(b64){
     // Worker encodes with: btoa(unescape(encodeURIComponent(str)))
     // Decode with: decodeURIComponent(escape(atob(b64)))
-    const json = decodeURIComponent(escape(atob(base64)));
+    const json = decodeURIComponent(escape(atob(b64)));
     return JSON.parse(json);
   }
 
+  function parseParams(){
+    const out = new URLSearchParams(location.search);
+    // Merge hash params too (preferred for tokens)
+    if (location.hash && location.hash.length > 1) {
+      const hp = new URLSearchParams(location.hash.slice(1));
+      for (const [k, v] of hp.entries()) out.set(k, v);
+    }
+    return out;
+  }
+
   function cleanUrl(){
-    // Remove querystring + hash from history
     try { history.replaceState({}, "", location.pathname); } catch(_) {}
   }
 
-  function redirectToHub(){
-    // Redirect to the current HUB (repo renamed to Industriel-calc).
-    location.replace("https://shog-sc.github.io/Industriel-calc/");
+  function redirectToReturnTo(){
+    const fallback = "https://shog-sc.github.io/Industriel-calc/";
+    let target = fallback;
+    try {
+      const rt = sessionStorage.getItem(STORAGE_RETURN_TO);
+      if (rt && /^https?:\/\//i.test(rt)) target = rt;
+      sessionStorage.removeItem(STORAGE_RETURN_TO);
+    } catch(_) {}
+    location.replace(target);
   }
 
-  // Buttons (fallback)
-  goHubBtn.addEventListener("click", redirectToHub);
+  goHubBtn.addEventListener("click", redirectToReturnTo);
   clearBtn.addEventListener("click", () => {
-    try { localStorage.removeItem(USER_KEY); } catch(_) {}
-    try { sessionStorage.removeItem(TOKEN_KEY); } catch(_) {}
-    try { sessionStorage.removeItem(TOKEN_META_KEY); } catch(_) {}
-    setStatus("Session effacée. Redirection vers le HUB…");
+    try { localStorage.removeItem(STORAGE_USER_KEY); } catch(_) {}
+    try { sessionStorage.removeItem(STORAGE_TOKEN_KEY); } catch(_) {}
+    try { sessionStorage.removeItem(STORAGE_TOKEN_META_KEY); } catch(_) {}
+    setStatus("Session effacée. Redirection…");
     cleanUrl();
-    setTimeout(redirectToHub, 350);
+    setTimeout(redirectToReturnTo, 250);
   });
 
-  // Main
-  const params = new URLSearchParams(location.search);
-  const d = params.get("d"); // IMPORTANT: worker sends ?d=<base64>
+  const params = parseParams();
 
-  // Token can be provided in hash: #t=<base64> (preferred), or query ?t=...
-  const hashRaw = (location.hash || "").startsWith("#") ? location.hash.slice(1) : "";
-  const hashParams = new URLSearchParams(hashRaw);
-  const t = hashParams.get("t") || params.get("t");
+  // User payload (base64 JSON) expected in d
+  const d = params.get("d");
+  // Token payload can be:
+  //  - raw access_token in t
+  //  - base64 JSON in t (ex: {access_token, token_type, scope, expires_in, expires_at})
+  //  - direct OAuth implicit: access_token in hash (#access_token=...)
+  const t = params.get("t") || null;
+  const accessTokenFromHash = params.get("access_token") || null;
 
-  if(!d){
-    setStatus("Aucune donnée reçue. Redirection vers le HUB…");
+  if (!d) {
+    setStatus("Aucune donnée reçue. Redirection…");
     cleanUrl();
-    setTimeout(redirectToHub, 350);
+    setTimeout(redirectToReturnTo, 350);
     return;
   }
 
   try {
-    const user = safeParseB64Json(d);
+    const user = safeAtobJson(d);
 
-    // Minimal validation
-    if(!user || !user.discordId || !user.username){
-      throw new Error("Payload Discord invalide (champs manquants).");
+    if (!user || !user.discordId || !user.username) {
+      throw new Error("Payload Discord invalide (champs manquants)." );
     }
 
     const storedUser = {
       discordId: String(user.discordId),
       username: String(user.username),
-      globalName: user.globalName ?? null,
-      avatar: user.avatar ?? null,
+      globalName: (user.globalName ?? null),
+      avatar: (user.avatar ?? null),
       ts: Date.now()
     };
 
-    localStorage.setItem(USER_KEY, JSON.stringify(storedUser));
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(storedUser));
 
-    // If token provided, store it in sessionStorage for same-tab redirect to HUB.
-    if (t) {
-      const tok = safeParseB64Json(t);
-      if (tok && tok.access_token) {
-        sessionStorage.setItem(TOKEN_KEY, String(tok.access_token));
-        const meta = {
-          token_type: tok.token_type || "Bearer",
-          scope: tok.scope || "identify",
-          expires_in: tok.expires_in ?? null,
-          obtained_at: tok.obtained_at ?? Date.now(),
-          expires_at: tok.expires_at ?? null
-        };
-        sessionStorage.setItem(TOKEN_META_KEY, JSON.stringify(meta));
+    // Token handling
+    // Priority: implicit hash access_token, else t
+    const rawToken = accessTokenFromHash || t;
+    if (rawToken) {
+      let token = null;
+      let meta = null;
+
+      // Try base64 JSON first
+      try {
+        const obj = safeAtobJson(rawToken);
+        if (obj && typeof obj === "object") {
+          token = (obj.access_token || obj.token || null);
+          meta = {
+            token_type: obj.token_type || "Bearer",
+            scope: obj.scope || null,
+            expires_in: obj.expires_in || null,
+            expires_at: obj.expires_at || null,
+            ts: Date.now()
+          };
+        }
+      } catch(_) {
+        // Not base64 JSON — assume raw token string
+        token = String(rawToken);
+        meta = { token_type: "Bearer", scope: null, expires_in: null, expires_at: null, ts: Date.now() };
+      }
+
+      if (token) {
+        sessionStorage.setItem(STORAGE_TOKEN_KEY, token);
+        sessionStorage.setItem(STORAGE_TOKEN_META_KEY, JSON.stringify(meta));
       }
     }
 
-    const hasToken = !!sessionStorage.getItem(TOKEN_KEY);
-    setStatus(`Connecté : ${storedUser.globalName || storedUser.username}. Token: ${hasToken ? "OK" : "ABSENT"} • Redirection vers le HUB…`);
+    const hasToken = !!sessionStorage.getItem(STORAGE_TOKEN_KEY);
+
+    setStatus(`Connecté : ${storedUser.globalName || storedUser.username}. ${hasToken ? "Token OK. " : "(Token absent : SaveRuns indisponible tant que l'OAuth ne le transmet pas.) "}Redirection…`);
     cleanUrl();
-    setTimeout(redirectToHub, 450);
+    setTimeout(redirectToReturnTo, 450);
+
   } catch (e) {
-    setStatus("Erreur pendant la connexion. Tu peux retourner au HUB.");
+    setStatus("Erreur pendant la connexion. Tu peux retourner." );
     showDebug(String(e && e.message ? e.message : e));
     showActions();
   }
