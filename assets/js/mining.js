@@ -2040,8 +2040,8 @@ function miningInitVersionFooter(){
   const closedLabel = document.getElementById("miningVersionClosedLabel");
   if(!bar || !details || !cta || !closedLabel) return;
 
-  const jsV = "V1.4.57";
-  const cssV = "V1.3.46";
+  const jsV = "V1.4.58";
+  const cssV = "V1.3.99";
   const coreV = miningGetCssVar("--core-css-version") || "-";
   const dataV = (window.MINING_DATA_VERSION) ? String(window.MINING_DATA_VERSION) : "assets/data/*";
 

@@ -1,5 +1,5 @@
-/* assets/css/mining.css - Version V1.3.98_SCROLLBAR_HARMONIZED */
-/* assets/css/mining.css — Version V1.3.80
+/* assets/css/mining.css - Version V1.3.99_AUTH_WIDGET */
+/* assets/css/mining.css — Version V1.3.99_AUTH_WIDGET
    Module: MINAGE (Mode Débutant)
    Règles:
    - Ne PAS re-skin .panel / .card / inputs : géré par core.css
@@ -2672,3 +2672,11 @@
   display: none;
 }
 
+
+
+/* SHOG AUTH WIDGET (HUB) */
+.page-mining .top-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.page-mining .top-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+@media (max-width: 980px){
+  .page-mining .top-actions-right{justify-content:center;width:100%;}
+}
