@@ -1,4 +1,4 @@
-/* salvage.css - Version V1.4.50
+/* salvage.css - Version V1.4.51_AUTH_WIDGET
    - Typo delegated to core.css (no fixed px font sizes)
 */
 
@@ -10,6 +10,14 @@
 
 
 
+
+
+/* --- Auth widget header layout (SALVAGE) --- */
+.page-salvage .header-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.page-salvage .header-actions-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+@media (max-width: 720px){
+  .page-salvage .header-actions-right{justify-content:center;width:100%;}
+}
 /* --- V1.4.32 Surface sync ---
    Ensure Salvage uses EXACT Core panel surface (same as other pages).
    This prevents any accidental darker overrides from older salvage.css versions.

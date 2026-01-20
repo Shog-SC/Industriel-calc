@@ -1,4 +1,4 @@
-<!-- pages/hauling.html — V1.13.84 -->
+<!-- pages/hauling.html — V1.13.87_TOPACTIONS_RIGHT -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../assets/css/core.css" />
 <!-- Module styles (scoped) -->
   <link rel="stylesheet" href="../assets/css/hauling.css" />
+  <link rel="stylesheet" href="../assets/css/hub-discord-widget.css?v=1.0.7">
 </head>
 
 <body class="page-hauling">
@@ -18,10 +19,22 @@
 
       <!-- Top actions -->
       <div class="top-actions">
-        <a class="btn-pill" href="../index.html">← HUB</a>
-        <a class="btn-pill btn-cyan" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener">DISCORD</a>
-        <a class="btn-pill btn-strong" href="https://discord.com/channels/1428047802805653640/1453446130858852422" target="_blank" rel="noopener noreferrer">Support</a>
+      <div class="top-actions-left" aria-hidden="true"></div>
+      <div class="top-actions-group">
+        <a class="btn-pill btn-hub" href="../index.html">← HUB</a>
+        <a class="btn-pill btn-discord" href="https://discord.gg/dJ50SRh" target="_blank" rel="noopener noreferrer">DISCORD</a>
+        <a class="btn-pill btn-support" href="https://discord.com/channels/1428047802805653640/1453446130858852242" target="_blank" rel="noopener noreferrer">Support</a>
+        <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login" data-has-token="0">
+  <button id="shogDiscordLoginBtn" class="shog-auth-btn shog-auth-login">Login</button>
+  <div id="shogDiscordUserBox" class="shog-auth-user" hidden>
+    <img id="shogDiscordAvatar" class="shog-auth-avatar" alt="" />
+    <span id="shogDiscordName" class="shog-auth-name"></span>
+    <button id="shogDiscordLogoutBtn" class="shog-auth-btn shog-auth-logout">Logout</button>
+  </div>
+
+</div>
       </div>
+    </div>
 
       <!-- Hero -->
       <header class="hero-card">
@@ -372,5 +385,7 @@
 <script defer src="../assets/js/techbar.js?v=V1.0.0"></script>
 
 <script defer src="../assets/js/support-tools.js?v=V1.0.0"></script>
+  <script src="../assets/js/auth.js?v=1.1.0" defer></script>
+  <script src="../assets/js/hub-discord-widget.js?v=1.0.7" defer></script>
 </body>
 </html>

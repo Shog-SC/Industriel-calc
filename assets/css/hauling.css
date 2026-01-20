@@ -1,9 +1,18 @@
-/* assets/css/hauling.css — V1.13.92
+/* assets/css/hauling.css — V1.13.93_AUTH_WIDGET
    IMPORTANT: fichier complet (remplacement total)
    Objectif: conserver la "neon vibe" + compat UI FRET V1.14.3.
    NOTE: Typo delegated to core.css (no fixed px font sizes).
 */
 
+
+
+/* --- Auth widget header layout (FRET) --- */
+.page-hauling .top-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.page-hauling .top-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.page-hauling .top-actions-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+@media (max-width: 720px){
+  .page-hauling .top-actions-right{justify-content:center;width:100%;}
+}
 .page-hauling{
   --neo-cyan: #00e6ff;
   --neo-cyan-soft: rgba(0,230,255,.22);

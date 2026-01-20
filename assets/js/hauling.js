@@ -1,13 +1,13 @@
-/* hauling.js — V1.14.41 FULL (NO_JANALITE_FILTER) */
+/* hauling.js — V1.14.42_AUTH_WIDGET */
 
 (() => {
   "use strict";
 
-  const VERSION = "V1.14.41 FULL";
+  const VERSION = "V1.14.42_AUTH_WIDGET";
 
 
-const HTML_VERSION = "V1.13.92";
-const CSS_VERSION = "V1.13.92";
+const HTML_VERSION = "V1.13.93_AUTH_WIDGET";
+const CSS_VERSION = "V1.13.93_AUTH_WIDGET";
 function getAdvOriginQuery(){
   const el = document.getElementById("advRouteFrom")
         || document.getElementById("advOrigin")
@@ -22,10 +22,10 @@ function getAdvOriginQuery(){
   // ------------------------------------------------------------
   const TECH = {
     module: "FRET",
-    moduleVersion: "V1.14.27",
-    html: "V1.14.27",
-    css: "V1.14.27",
-    js: "V1.14.27",
+    moduleVersion: "V1.14.42",
+    html: "V1.13.93_AUTH_WIDGET",
+    css: "V1.13.93_AUTH_WIDGET",
+    js: "V1.14.42_AUTH_WIDGET",
     core: "V1.5.20",
     ships: "v2.0.5",
     pu: "4.5"

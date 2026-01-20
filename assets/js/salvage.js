@@ -1,4 +1,4 @@
-/* assets/js/salvage.js — V1.4.41 FULL Recyclage (Salvage) — PU 4.5
+/* assets/js/salvage.js — V1.4.42_AUTH_WIDGET FULL Recyclage (Salvage) — PU 4.5
 ---------------------------------------------------------------------------
 Objectifs V1.4.25
 - FIX contrat UEX: supporte payload LEGACY (cmat/rmc à la racine) ET payload V1 (data.cmat/data.rmc)
@@ -14,7 +14,7 @@ Objectifs V1.4.25
 
   /* ----------------------------- CONFIG & CONSTANTES ------------------------------*/
 
-  const APP_VERSION = "V1.4.40";
+  const APP_VERSION = "V1.4.42";
   const DEFAULT_GAME_VERSION = "4.5";
 
   // IMPORTANT:
@@ -1662,10 +1662,10 @@ window.__salvageChartHover = function (event, canvas) {
 (function () {
   const TECH = {
     module: "RECYCLAGE",
-    moduleVersion: "V1.4.35",
-    html: "V1.4.35",
-    css: "V1.4.38",
-    js: "V1.4.38",
+    moduleVersion: "V1.4.48",
+    html: "V1.4.48_AUTH_WIDGET",
+    css: "V1.4.51_AUTH_WIDGET",
+    js: "V1.4.42",
     core: "V1.5.20",
     ships: "v2.0.5",
     pu: "4.5",
