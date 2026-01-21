@@ -1,4 +1,4 @@
-<!-- pages/mining.html — Version V1.4.61_TOPACTIONS_RIGHT
+<!-- pages/mining.html — Version V1.4.61_SAVE_RUNS_WIDGET
      Module: MINAGE (Mode Débutant)
      Repo: https://shog-sc.github.io/Industriel-calc/
 -->
@@ -12,11 +12,11 @@
 <!-- CSS (RELATIF AU FICHIER) -->
 <link href="../assets/css/core.css" rel="stylesheet"/>
 <link href="../assets/css/hub-discord-widget.css?v=V1.0.7" rel="stylesheet"/>
+<link rel="stylesheet" href="../assets/css/runs-ui.css?v=V1.0.0" />
 <link href="../assets/css/techbar-fixed.css?v=V1.0.0" rel="stylesheet"/>
 <link href="../assets/css/mining.css?v=1.3.99" rel="stylesheet"/>
-  <link rel="stylesheet" href="../assets/css/runs-ui.css?v=V1.0.0">
 </head>
-<body class="page-mining">
+<body class="page-mining" data-shog-module="mining">
 <div class="mining-shell">
 <div class="mining-container">
 <!-- HEADER -->
@@ -29,10 +29,9 @@
         <a class="btn-pill btn-hub" href="../index.html">← HUB</a>
       <a class="btn-pill" href="https://discord.gg/d30S9R8" target="_blank" rel="noopener noreferrer">Rejoindre Discord</a>
       <a class="btn-pill" href="https://discord.com/channels/1428047802805653640/1453446103858852422" target="_blank" rel="noopener noreferrer">Support</a>
-    </div>
-      <button id="shogSaveRunBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Save</button>
-      <button id="shogRunsBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Runs</button>
-
+          <button id="shogSaveRunBtn" class="btn-pill shog-run-btn" type="button" style="display:none;">Save</button>
+      <button id="shogRunsBtn" class="btn-pill shog-run-btn" type="button" style="display:none;">Runs</button>
+</div>
 
     <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login">
       <button id="shogDiscordLoginBtn" class="shog-discord-login" type="button">Login</button>
@@ -441,7 +440,7 @@
   </script>
 <script defer src="../assets/js/auth.js?v=V1.1.0"></script>
 <script defer src="../assets/js/hub-discord-widget.js?v=V1.0.7"></script>
-  <script src="../assets/js/runs-ui.js?v=V1.0.0" defer></script>
+<script src="../assets/js/runs-ui.js?v=V1.0.0"></script>
 <script src="../assets/js/mining.js?v=1.5.33"></script>
 <!-- Version technique (MINAGE) -->
 <div aria-label="Version technique" class="page-mining-version">
