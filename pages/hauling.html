@@ -1,4 +1,4 @@
-<!-- pages/hauling.html — V1.13.88_SAVE_RUNS_WIDGET -->
+<!-- pages/hauling.html — V1.13.89_SAVE_RUNS_WIDGET_LOGIN_FIX -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -28,11 +28,11 @@
                 <button id="shogSaveRunBtn" class="btn-pill shog-run-btn" type="button" style="display:none;">Save</button>
         <button id="shogRunsBtn" class="btn-pill shog-run-btn" type="button" style="display:none;">Runs</button>
 <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login" data-has-token="0">
-  <button id="shogDiscordLoginBtn" class="shog-auth-btn shog-auth-login">Login</button>
-  <div id="shogDiscordUserBox" class="shog-auth-user" hidden>
-    <img id="shogDiscordAvatar" class="shog-auth-avatar" alt="" />
-    <span id="shogDiscordName" class="shog-auth-name"></span>
-    <button id="shogDiscordLogoutBtn" class="shog-auth-btn shog-auth-logout">Logout</button>
+  <button id="shogDiscordLoginBtn" class="shog-discord-login" type="button">Login</button>
+  <div id="shogDiscordUserBox" class="shog-discord-userbox" style="display:none;">
+    <img id="shogDiscordAvatar" class="shog-discord-avatar" src="" alt=""/>
+    <span id="shogDiscordUsername" class="shog-discord-username">—</span>
+    <button id="shogDiscordLogoutBtn" class="shog-discord-logout" type="button">Logout</button>
   </div>
 
 </div>
