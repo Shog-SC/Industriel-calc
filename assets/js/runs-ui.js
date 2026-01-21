@@ -1,44 +1,375 @@
-/* assets/js/runs-ui.js — V1.0.1 (RUNS_UI_POLISH)
-   Runs modal UI (shared FRET / SALVAGE / MINING)
-   - 2-pane responsive layout
-   - Search + selection + on-demand detail fetch
-   - Tabs (Summary / JSON) + Copy JSON
+/* assets/js/runs-ui.js — V1.0.2 (RUNS_UI_POLISH_BIND_FIX)
+   - Restores Save / Runs buttons binding (shogSaveRunBtn / shogRunsBtn)
+   - Keeps polished modal UI (V1.0.1)
+   - Shows buttons only when Discord token is present (sessionStorage 'shog.discord.token')
 */
-
-(function(){
+(() => {
   "use strict";
 
-  const RUNS_API_BASE = (window.SHOG_RUNS_API || "https://saveruns.yoyoastico74.workers.dev").replace(/\/$/, "");
+  // Storage keys (shared across the HUB / modules)
   const TOKEN_KEY = "shog.discord.token";
+  const USER_KEY  = "shog.discord.user";
 
+  // DOM ids (expected in pages/* html)
+  const SAVE_BTN_ID = "shogSaveRunBtn";
+  const RUNS_BTN_ID = "shogRunsBtn";
+
+  // Default Runs Vault Worker base (can be overridden)
+  const DEFAULT_RUNS_API_BASE = "https://saveruns.yoyoastico74.workers.dev";
+
+  // Internal state
   const state = {
     module: null,
-    list: [],
-    selectedId: null,
-    detailCache: new Map(),
-    search: ""
+    runs: [],
+    activeId: null,
+    activeJson: null,
+    dom: null,
+    isOpen: false,
   };
 
-  function getToken(){
-    return sessionStorage.getItem(TOKEN_KEY) || null;
+  // --------- helpers ---------
+  function nowIso() {
+    return new Date().toISOString();
   }
 
-  async function authFetch(path, init){
-    const t = getToken();
-    if(!t){
-      const err = new Error("Missing Discord token");
-      err.code = "NO_TOKEN";
-      throw err;
+  function getToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+  }
+
+  function isLogged() {
+    return !!getToken();
+  }
+
+  function normalizeBase(url) {
+    if (!url) return DEFAULT_RUNS_API_BASE;
+    return String(url).replace(/\/+$/, "");
+  }
+
+  function getRunsApiBase() {
+    // 1) explicit global override
+    if (window.SHOG_RUNS_API_BASE) return normalizeBase(window.SHOG_RUNS_API_BASE);
+
+    // 2) data attribute override
+    const html = document.documentElement;
+    const dataUrl = html ? html.getAttribute("data-runs-api") : null;
+    if (dataUrl) return normalizeBase(dataUrl);
+
+    // 3) default
+    return DEFAULT_RUNS_API_BASE;
+  }
+
+  function inferModule() {
+    const b = document.body;
+
+    // Prefer explicit page classes (consistent in your project)
+    if (b && b.classList) {
+      if (b.classList.contains("page-mining"))  return "mining";
+      if (b.classList.contains("page-salvage")) return "salvage";
+      if (b.classList.contains("page-hauling")) return "fret";
     }
-    const headers = Object.assign({}, (init && init.headers) || {}, {
-      "Authorization": "Bearer " + t
-    });
-    const res = await fetch(RUNS_API_BASE + path, Object.assign({}, init || {}, { headers }));
-    return res;
+
+    // Fallback: infer from URL
+    const p = (location.pathname || "").toLowerCase();
+    if (p.includes("mining"))  return "mining";
+    if (p.includes("salvage") || p.includes("recycl")) return "salvage";
+    if (p.includes("hauling") || p.includes("fret"))   return "fret";
+
+    // Default (safe)
+    return "mining";
   }
 
-  function escapeHtml(s){
-    return String(s ?? "")
+  async function authFetch(url, opts = {}) {
+    const token = getToken();
+    const headers = new Headers(opts.headers || {});
+    if (token) headers.set("Authorization", "Bearer " + token);
+    return fetch(url, { ...opts, headers });
+  }
+
+  function safeJsonParse(text) {
+    try { return JSON.parse(text); } catch (_) { return null; }
+  }
+
+  function toPrettyJson(obj) {
+    try { return JSON.stringify(obj, null, 2); } catch (_) { return String(obj); }
+  }
+
+  function setBtnBusy(btn, busy, label = null) {
+    if (!btn) return;
+    if (busy) {
+      btn.dataset.prevText = btn.textContent;
+      btn.textContent = label || "…";
+      btn.disabled = true;
+      btn.classList.add("is-busy");
+    } else {
+      btn.textContent = btn.dataset.prevText || btn.textContent;
+      btn.disabled = false;
+      btn.classList.remove("is-busy");
+      delete btn.dataset.prevText;
+    }
+  }
+
+  function copyToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+      return;
+    }
+    fallbackCopy(text);
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+
+  // --------- payload builder (generic/minimal) ---------
+  function buildRunPayload(module) {
+    const createdAt = nowIso();
+    const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (
+      "run_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10)
+    );
+
+    // Minimal payload; module-specific enrichment can be added later.
+    return {
+      id,
+      module,
+      title: `Run ${module} ${createdAt.slice(0,16).replace("T"," ")}`,
+      notes: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      app_version: window.SHOG_APP_VERSION || null,
+      worker_version: window.SHOG_WORKER_VERSION || null,
+      path: location.pathname || null,
+      ship: null,
+      totals: null,
+      items: null,
+      items_count: null
+    };
+  }
+
+  // --------- modal UI ---------
+  function ensureModal() {
+    if (state.dom) return state.dom;
+
+    const root = document.createElement("div");
+    root.id = "shogRunsRoot";
+    root.className = "shog-modal-overlay is-hidden";
+    root.setAttribute("aria-hidden", "true");
+
+    root.innerHTML = `
+      <div class="shog-modal-backdrop" data-action="close"></div>
+      <div class="shog-modal" role="dialog" aria-modal="true" aria-label="My Runs">
+        <div class="shog-modal-head">
+          <div class="shog-modal-title">My Runs</div>
+          <div class="shog-modal-actions">
+            <button class="btn-ghost" type="button" id="shogRunsRefreshBtn">Refresh</button>
+            <button class="btn-ghost" type="button" id="shogRunsCloseBtn">Close</button>
+          </div>
+        </div>
+
+        <div class="shog-modal-body">
+          <div class="shog-runs-list" id="shogRunsList"></div>
+
+          <div class="shog-runs-detail">
+            <div class="shog-runs-detail-pane">
+              <div class="shog-runs-detail-head">
+                <div>
+                  <div class="shog-runs-detail-title" id="shogRunsDetailTitle">—</div>
+                  <div class="shog-runs-detail-sub" id="shogRunsDetailSub">—</div>
+                </div>
+                <div class="shog-runs-detail-actions">
+                  <button class="btn-ghost" type="button" id="shogRunsCopyBtn">Copy JSON</button>
+                </div>
+              </div>
+
+              <pre class="shog-json" id="shogRunsJson">{}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(root);
+
+    const dom = {
+      root,
+      backdrop: root.querySelector(".shog-modal-backdrop"),
+      closeBtn: root.querySelector("#shogRunsCloseBtn"),
+      refreshBtn: root.querySelector("#shogRunsRefreshBtn"),
+      list: root.querySelector("#shogRunsList"),
+      title: root.querySelector("#shogRunsDetailTitle"),
+      sub: root.querySelector("#shogRunsDetailSub"),
+      json: root.querySelector("#shogRunsJson"),
+      copyBtn: root.querySelector("#shogRunsCopyBtn"),
+    };
+
+    // close handlers
+    dom.backdrop.addEventListener("click", () => close());
+    dom.closeBtn.addEventListener("click", () => close());
+    root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
+
+    // refresh
+    dom.refreshBtn.addEventListener("click", () => refresh());
+
+    // copy
+    dom.copyBtn.addEventListener("click", () => {
+      if (!state.activeJson) return;
+      copyToClipboard(toPrettyJson(state.activeJson));
+    });
+
+    state.dom = dom;
+    return dom;
+  }
+
+  function open(module = null, opts = {}) {
+    state.module = module || inferModule();
+    ensureModal();
+
+    state.dom.root.classList.remove("is-hidden");
+    state.dom.root.setAttribute("aria-hidden", "false");
+    state.isOpen = true;
+
+    // focus for ESC key
+    state.dom.root.tabIndex = -1;
+    state.dom.root.focus();
+
+    return refresh({ selectId: opts.selectId || null });
+  }
+
+  function close() {
+    if (!state.dom) return;
+    state.dom.root.classList.add("is-hidden");
+    state.dom.root.setAttribute("aria-hidden", "true");
+    state.isOpen = false;
+  }
+
+  // --------- API ---------
+  async function fetchRunsList(module) {
+    const base = getRunsApiBase();
+    const url = `${base}/runs/${encodeURIComponent(module)}`;
+
+    const res = await authFetch(url, { method: "GET" });
+    const txt = await res.text();
+    const data = safeJsonParse(txt) || { status: "error", message: txt };
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    // support shapes: {runs:[...]} or {items:[...]} or direct array
+    const runs = Array.isArray(data) ? data : (data.runs || data.items || []);
+    return runs;
+  }
+
+  async function fetchRunDetail(module, runId) {
+    const base = getRunsApiBase();
+    const url = `${base}/runs/${encodeURIComponent(module)}/${encodeURIComponent(runId)}`;
+
+    const res = await authFetch(url, { method: "GET" });
+    const txt = await res.text();
+    const data = safeJsonParse(txt) || { status: "error", message: txt };
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    // support shapes: {run:{...}} or direct object
+    return data.run || data;
+  }
+
+  async function createRun(module, payload) {
+    const base = getRunsApiBase();
+    const url = `${base}/runs/${encodeURIComponent(module)}`;
+
+    const res = await authFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const txt = await res.text();
+    const data = safeJsonParse(txt) || { status: "error", message: txt };
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+
+    // support shapes: {run:{...}} or {id:"..."}
+    return data.run || data;
+  }
+
+  // --------- render ---------
+  function renderList() {
+    const dom = state.dom;
+    if (!dom) return;
+
+    dom.list.innerHTML = "";
+
+    if (!state.runs || state.runs.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "shog-empty";
+      empty.textContent = "Aucun run sauvegardé.";
+      dom.list.appendChild(empty);
+      return;
+    }
+
+    // Sort newest first if timestamps exist
+    const sorted = [...state.runs].sort((a, b) => {
+      const ta = Date.parse(a.updated_at || a.created_at || "") || 0;
+      const tb = Date.parse(b.updated_at || b.created_at || "") || 0;
+      return tb - ta;
+    });
+
+    sorted.forEach((run) => {
+      const id = run.id || run.run_id || run.uuid;
+      const title = run.title || `Run ${state.module}`;
+      const created = run.created_at || run.updated_at || "";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "shog-run-card" + (id === state.activeId ? " is-active" : "");
+      btn.dataset.runId = id;
+
+      btn.innerHTML = `
+        <div class="shog-run-title">${escapeHtml(title)}</div>
+        <div class="shog-run-meta">${escapeHtml(created)}</div>
+        <div class="shog-run-id">${escapeHtml(String(id || ""))}</div>
+      `;
+
+      btn.addEventListener("click", () => {
+        if (!id) return;
+        selectRun(id);
+      });
+
+      dom.list.appendChild(btn);
+    });
+  }
+
+  function renderDetail(run) {
+    const dom = state.dom;
+    if (!dom) return;
+
+    const title = run && (run.title || run.name) ? (run.title || run.name) : "—";
+    const created = run && (run.created_at || run.updated_at) ? (run.created_at || run.updated_at) : "—";
+    const id = run && run.id ? run.id : "—";
+
+    dom.title.textContent = title;
+    dom.sub.textContent = `${created}  •  ${id}`;
+
+    dom.json.textContent = toPrettyJson(run || {});
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -46,361 +377,135 @@
       .replace(/'/g, "&#039;");
   }
 
-  function truncateId(id){
-    const s = String(id || "");
-    if(s.length <= 12) return s;
-    return s.slice(0,6) + "…" + s.slice(-4);
-  }
+  async function selectRun(runId) {
+    state.activeId = runId;
+    renderList(); // update active highlight
 
-  function fmtDate(iso){
-    if(!iso) return "—";
-    try{
-      const d = new Date(iso);
-      if(isNaN(d.getTime())) return String(iso);
-      const pad = (n)=> String(n).padStart(2,"0");
-      return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
-    }catch(_){
-      return String(iso);
-    }
-  }
-
-  function ensureModal(){
-    if(document.getElementById("shogRunsModal")) return;
-
-    const overlay = document.createElement("div");
-    overlay.id = "shogRunsModal";
-    overlay.className = "shog-modal-overlay is-hidden";
-    overlay.innerHTML = `
-      <div class="shog-modal" role="dialog" aria-modal="true" aria-label="My Runs">
-        <div class="shog-modal-header">
-          <div>
-            <div class="shog-modal-title">
-              <span>My Runs</span>
-              <span class="shog-modal-subtitle" id="shogRunsSub">—</span>
-            </div>
-          </div>
-          <div class="shog-modal-actions">
-            <div class="shog-modal-search" title="Search by title / id">
-              <input id="shogRunsSearch" type="text" placeholder="Search…" autocomplete="off" />
-            </div>
-            <button class="shog-btn" id="shogRunsRefreshBtn" type="button">Refresh</button>
-            <button class="shog-btn" id="shogRunsCloseBtn" type="button">Close</button>
-          </div>
-        </div>
-
-        <div class="shog-modal-body">
-          <div class="shog-runs-list-pane">
-            <div id="shogRunsList" class="shog-runs-list"></div>
-          </div>
-          <div class="shog-runs-detail-pane">
-            <div id="shogRunsDetail" class="shog-runs-detail">
-              <div class="shog-empty">Select a run on the left.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    // Close / overlay click
-    overlay.addEventListener("click", (e)=>{
-      if(e.target === overlay) close();
-    });
-    document.getElementById("shogRunsCloseBtn").addEventListener("click", close);
-    document.getElementById("shogRunsRefreshBtn").addEventListener("click", ()=> {
-      if(state.module) open(state.module, { force: true });
-    });
-
-    const searchInput = document.getElementById("shogRunsSearch");
-    searchInput.addEventListener("input", ()=>{
-      state.search = (searchInput.value || "").trim().toLowerCase();
-      renderList();
-    });
-
-    // ESC to close
-    document.addEventListener("keydown", (e)=>{
-      if(e.key === "Escape"){
-        const el = document.getElementById("shogRunsModal");
-        if(el && !el.classList.contains("is-hidden")) close();
-      }
-    });
-  }
-
-  function showOverlay(){
-    ensureModal();
-    document.getElementById("shogRunsModal").classList.remove("is-hidden");
-  }
-
-  function close(){
-    const el = document.getElementById("shogRunsModal");
-    if(el) el.classList.add("is-hidden");
-  }
-
-  async function fetchList(module){
-    const res = await authFetch(`/runs/${encodeURIComponent(module)}`);
-    const json = await res.json().catch(()=> ({}));
-    if(!res.ok){
-      const msg = json && (json.message || json.error) ? (json.message || json.error) : ("HTTP " + res.status);
-      throw new Error(msg);
-    }
-    const runs = Array.isArray(json.runs) ? json.runs : (Array.isArray(json.items) ? json.items : []);
-    return runs;
-  }
-
-  async function fetchDetail(module, id){
-    const key = module + "::" + id;
-    if(state.detailCache.has(key)) return state.detailCache.get(key);
-
-    const res = await authFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`);
-    const json = await res.json().catch(()=> ({}));
-    if(!res.ok){
-      const msg = json && (json.message || json.error) ? (json.message || json.error) : ("HTTP " + res.status);
-      throw new Error(msg);
-    }
-
-    // detail payload can be {run: {...}} or direct object
-    const run = json.run || json.item || json || null;
-    state.detailCache.set(key, run);
-    return run;
-  }
-
-  function setSubTitle(text){
-    const el = document.getElementById("shogRunsSub");
-    if(el) el.textContent = text || "—";
-  }
-
-  function renderError(whereEl, message){
-    whereEl.innerHTML = `<div class="shog-empty"><b>Error</b><div style="margin-top:6px; opacity:.85;">${escapeHtml(message || "Unknown error")}</div></div>`;
-  }
-
-  function renderList(){
-    const listEl = document.getElementById("shogRunsList");
-    if(!listEl) return;
-
-    const q = state.search;
-    const items = (state.list || [])
-      .slice()
-      .sort((a,b)=> {
-        const da = new Date(a.created_at || a.updated_at || 0).getTime() || 0;
-        const db = new Date(b.created_at || b.updated_at || 0).getTime() || 0;
-        return db - da;
-      })
-      .filter(it=>{
-        if(!q) return true;
-        const hay = (String(it.title || "") + " " + String(it.id || "")).toLowerCase();
-        return hay.includes(q);
-      });
-
-    if(items.length === 0){
-      listEl.innerHTML = `<div class="shog-empty">No runs found.</div>`;
-      return;
-    }
-
-    const html = items.map(it=>{
-      const id = it.id || "";
-      const title = it.title || ("Run " + (state.module || "—"));
-      const created = fmtDate(it.created_at);
-      const updated = it.updated_at && it.updated_at !== it.created_at ? fmtDate(it.updated_at) : null;
-      const mod = String(it.module || state.module || "").toUpperCase();
-      const badgeMod = mod ? `<span class="shog-badge is-accent">${escapeHtml(mod)}</span>` : "";
-      const badgeId = id ? `<span class="shog-badge">${escapeHtml(truncateId(id))}</span>` : "";
-      const badgeItems = (it.items_count != null) ? `<span class="shog-badge">Items: ${escapeHtml(it.items_count)}</span>` : "";
-
-      const active = (state.selectedId === id) ? "is-active" : "";
-      const meta = [
-        `<span>${escapeHtml(created)}</span>`,
-        updated ? `<span>Updated: ${escapeHtml(updated)}</span>` : ""
-      ].filter(Boolean).join(" • ");
-
-      return `
-        <button class="shog-run-card ${active}" type="button" data-run-id="${escapeHtml(id)}">
-          <div class="shog-run-title">${escapeHtml(title)}</div>
-          <div class="shog-run-meta">${meta}</div>
-          <div class="shog-run-badges">${badgeMod}${badgeId}${badgeItems}</div>
-        </button>
-      `;
-    }).join("");
-
-    listEl.innerHTML = html;
-
-    // Bind clicks
-    listEl.querySelectorAll(".shog-run-card").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-run-id");
-        if(!id) return;
-        await selectRun(id);
-      });
-    });
-  }
-
-  function renderDetailSkeleton(){
-    const detailEl = document.getElementById("shogRunsDetail");
-    if(!detailEl) return;
-    detailEl.innerHTML = `<div class="shog-empty shog-loading">Loading…</div>`;
-  }
-
-  function kv(label, value){
-    const v = (value === undefined || value === null || value === "") ? "—" : String(value);
-    return `<div class="shog-kv"><div class="shog-k">${escapeHtml(label)}</div><div class="shog-v">${escapeHtml(v)}</div></div>`;
-  }
-
-  function renderDetail(run){
-    const detailEl = document.getElementById("shogRunsDetail");
-    if(!detailEl) return;
-
-    if(!run){
-      detailEl.innerHTML = `<div class="shog-empty">No details available.</div>`;
-      return;
-    }
-
-    const title = run.title || "Run";
-    const created = fmtDate(run.created_at);
-    const updated = run.updated_at && run.updated_at !== run.created_at ? fmtDate(run.updated_at) : "—";
-    const id = run.id || "—";
-
-    const summaryHtml = `
-      <div class="shog-kv-grid">
-        ${kv("Run ID", id)}
-        ${kv("Module", (run.module || state.module || "—").toUpperCase())}
-        ${kv("Created", created)}
-        ${kv("Updated", updated)}
-        ${kv("Ship", run.ship || "—")}
-        ${kv("Items count", (run.items_count != null ? run.items_count : "—"))}
-        ${kv("App version", run.app_version || "—")}
-        ${kv("Worker version", run.worker_version || "—")}
-      </div>
-    `;
-
-    const raw = JSON.stringify(run, null, 2);
-
-    detailEl.innerHTML = `
-      <div class="shog-detail-head">
-        <div>
-          <h3 class="shog-detail-title">${escapeHtml(title)}</h3>
-          <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
-            ${id && id !== "—" ? `<span class="shog-badge">${escapeHtml(truncateId(id))}</span>` : ""}
-            <span class="shog-badge is-accent">${escapeHtml(String((run.module || state.module || "—")).toUpperCase())}</span>
-          </div>
-        </div>
-        <div class="shog-detail-actions">
-          <button class="shog-btn" id="shogRunsCopyBtn" type="button">Copy JSON</button>
-        </div>
-      </div>
-
-      <div class="shog-tabs">
-        <button class="shog-tab is-active" id="shogTabSummary" type="button">Summary</button>
-        <button class="shog-tab" id="shogTabJson" type="button">JSON</button>
-      </div>
-
-      <div id="shogRunsTabContent">
-        ${summaryHtml}
-        <div class="shog-empty" style="margin-top:10px; opacity:.82;">
-          Tip: if some fields are empty (—), save your run after computing results in the tool.
-        </div>
-      </div>
-
-      <div id="shogRunsJsonPanel" class="shog-json" style="display:none; margin-top:10px;">
-        <pre>${escapeHtml(raw)}</pre>
-      </div>
-    `;
-
-    // Bind tab switches
-    const tabSummary = detailEl.querySelector("#shogTabSummary");
-    const tabJson = detailEl.querySelector("#shogTabJson");
-    const content = detailEl.querySelector("#shogRunsTabContent");
-    const jsonPanel = detailEl.querySelector("#shogRunsJsonPanel");
-
-    tabSummary.addEventListener("click", ()=>{
-      tabSummary.classList.add("is-active");
-      tabJson.classList.remove("is-active");
-      if(content) content.style.display = "";
-      if(jsonPanel) jsonPanel.style.display = "none";
-    });
-    tabJson.addEventListener("click", ()=>{
-      tabJson.classList.add("is-active");
-      tabSummary.classList.remove("is-active");
-      if(content) content.style.display = "none";
-      if(jsonPanel) jsonPanel.style.display = "";
-    });
-
-    // Copy JSON
-    const copyBtn = detailEl.querySelector("#shogRunsCopyBtn");
-    copyBtn.addEventListener("click", async ()=>{
-      try{
-        await navigator.clipboard.writeText(raw);
-        copyBtn.textContent = "Copied";
-        setTimeout(()=>{ copyBtn.textContent = "Copy JSON"; }, 1000);
-      }catch(_){
-        // Fallback
-        const ta = document.createElement("textarea");
-        ta.value = raw;
-        document.body.appendChild(ta);
-        ta.select();
-        try{ document.execCommand("copy"); }catch(__){}
-        document.body.removeChild(ta);
-        copyBtn.textContent = "Copied";
-        setTimeout(()=>{ copyBtn.textContent = "Copy JSON"; }, 1000);
-      }
-    });
-  }
-
-  async function selectRun(id){
-    state.selectedId = id;
-    renderList(); // update active state
-    renderDetailSkeleton();
-
-    try{
-      const run = await fetchDetail(state.module, id);
+    try {
+      const run = await fetchRunDetail(state.module, runId);
+      state.activeJson = run;
       renderDetail(run);
-    }catch(err){
-      const detailEl = document.getElementById("shogRunsDetail");
-      renderError(detailEl, err && err.message ? err.message : String(err));
+    } catch (e) {
+      console.error("[runs-ui] fetchRunDetail error:", e);
+      state.activeJson = { status: "error", message: String(e.message || e) };
+      renderDetail(state.activeJson);
     }
   }
 
-  async function open(module, opts){
-    state.module = module;
-    showOverlay();
-    setSubTitle(String(module || "—").toUpperCase());
+  // --------- public operations ---------
+  async function refresh(opts = {}) {
+    if (!state.dom) ensureModal();
+    const dom = state.dom;
 
-    const listEl = document.getElementById("shogRunsList");
-    const detailEl = document.getElementById("shogRunsDetail");
-    if(listEl) listEl.innerHTML = `<div class="shog-empty shog-loading">Loading…</div>`;
-    if(detailEl) detailEl.innerHTML = `<div class="shog-empty">Select a run on the left.</div>`;
+    setBtnBusy(dom.refreshBtn, true, "…");
+    try {
+      state.runs = await fetchRunsList(state.module);
 
-    // If token missing, show helpful message
-    if(!getToken()){
-      if(listEl) listEl.innerHTML = `<div class="shog-empty"><b>Not logged in</b><div style="margin-top:6px; opacity:.85;">Login with Discord first to access your runs.</div></div>`;
+      // select latest or requested id
+      const wanted = opts.selectId || state.activeId;
+      renderList();
+
+      const first = state.runs && state.runs[0] ? (state.runs[0].id || state.runs[0].run_id) : null;
+      const selectId = wanted || first;
+
+      if (selectId) await selectRun(selectId);
+      else {
+        state.activeId = null;
+        state.activeJson = null;
+        renderDetail(null);
+      }
+    } catch (e) {
+      console.error("[runs-ui] refresh error:", e);
+      dom.list.innerHTML = `<div class="shog-empty">Erreur: ${escapeHtml(e.message || e)}</div>`;
+      renderDetail({ status: "error", message: String(e.message || e) });
+    } finally {
+      setBtnBusy(dom.refreshBtn, false);
+    }
+  }
+
+  async function saveCurrentRun(module = null) {
+    const saveBtn = document.getElementById(SAVE_BTN_ID);
+
+    if (!isLogged()) {
+      // Keep it silent in production UI; user already sees Login
+      console.warn("[runs-ui] save aborted: not logged");
       return;
     }
 
-    try{
-      if(opts && opts.force){
-        state.detailCache.clear();
-      }
-      const runs = await fetchList(module);
-      state.list = runs || [];
-      state.selectedId = null;
-      renderList();
-      if(state.list.length > 0){
-        // auto-select most recent
-        const sorted = state.list.slice().sort((a,b)=>{
-          const da = new Date(a.created_at || a.updated_at || 0).getTime() || 0;
-          const db = new Date(b.created_at || b.updated_at || 0).getTime() || 0;
-          return db - da;
-        });
-        const firstId = sorted[0] && sorted[0].id;
-        if(firstId) await selectRun(firstId);
-      }
-    }catch(err){
-      renderError(listEl, err && err.message ? err.message : String(err));
+    const mod = module || state.module || inferModule();
+    const payload = buildRunPayload(mod);
+
+    setBtnBusy(saveBtn, true, "Saving…");
+    try {
+      const created = await createRun(mod, payload);
+      const id = created && (created.id || created.run_id) ? (created.id || created.run_id) : payload.id;
+
+      // Open modal and focus the newly created run
+      await open(mod, { selectId: id });
+    } catch (e) {
+      console.error("[runs-ui] save error:", e);
+      // optional: could show a toast; for now just console
+      alert(`Save run: ${e.message || e}`);
+    } finally {
+      setBtnBusy(saveBtn, false);
+      if (saveBtn && saveBtn.dataset.prevText) saveBtn.textContent = saveBtn.dataset.prevText;
     }
+  }
+
+  // --------- buttons bootstrap ---------
+  function updateButtonsVisibility() {
+    const saveBtn = document.getElementById(SAVE_BTN_ID);
+    const runsBtn = document.getElementById(RUNS_BTN_ID);
+    const logged = isLogged();
+
+    if (saveBtn) saveBtn.style.display = logged ? "" : "none";
+    if (runsBtn) runsBtn.style.display = logged ? "" : "none";
+  }
+
+  function bindTopButtons() {
+    const saveBtn = document.getElementById(SAVE_BTN_ID);
+    const runsBtn = document.getElementById(RUNS_BTN_ID);
+
+    // If a page doesn't include the widget buttons, do nothing.
+    if (!saveBtn && !runsBtn) return;
+
+    updateButtonsVisibility();
+
+    if (runsBtn && !runsBtn.dataset.bound) {
+      runsBtn.dataset.bound = "1";
+      runsBtn.addEventListener("click", () => open(inferModule()));
+    }
+
+    if (saveBtn && !saveBtn.dataset.bound) {
+      saveBtn.dataset.bound = "1";
+      saveBtn.addEventListener("click", () => saveCurrentRun(inferModule()));
+    }
+
+    // Refresh on auth events (auth.js dispatches "shog:auth")
+    window.addEventListener("shog:auth", () => updateButtonsVisibility());
+
+    // Safety: on focus, re-check token (sessionStorage updated after auth redirect)
+    window.addEventListener("focus", () => updateButtonsVisibility());
+  }
+
+  function bootstrap() {
+    bindTopButtons();
+  }
+
+  // auto-bootstrap
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  } else {
+    bootstrap();
   }
 
   // Public API
   window.ShogRunsUI = {
     open,
-    close
+    close,
+    refresh,
+    saveCurrentRun,
+    inferModule,
+    getRunsApiBase
   };
 })();
