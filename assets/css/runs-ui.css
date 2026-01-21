@@ -1,0 +1,111 @@
+/* runs-ui.css — V1.0.0
+   Player Runs UI (Save/Runs): modal + list + details.
+*/
+
+.shog-run-btn { white-space: nowrap; }
+
+#shogRunsModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: none;
+  z-index: 9999;
+  padding: 24px;
+}
+
+#shogRunsModal {
+  max-width: 980px;
+  margin: 0 auto;
+  background: #12141a;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 70px rgba(0,0,0,.6);
+}
+
+#shogRunsModalHeader {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+#shogRunsModalHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+#shogRunsModalHeader .shog-runs-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#shogRunsModalBody {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: 520px;
+}
+
+@media (max-width: 900px) {
+  #shogRunsModalBody { grid-template-columns: 1fr; }
+}
+
+.shogRunsList {
+  border-right: 1px solid rgba(255,255,255,.10);
+  max-height: 520px;
+  overflow: auto;
+}
+
+.shogRunsListItem {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.shogRunsListItem:hover { background: rgba(255,255,255,.04); }
+
+.shogRunsListItem.active { background: rgba(255,255,255,.07); }
+
+.shogRunsMetaLine {
+  font-size: 12px;
+  opacity: .85;
+  margin-top: 3px;
+}
+
+.shogRunsDetail {
+  padding: 12px 14px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.shogRunsDetail pre {
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 12px;
+  padding: 10px 12px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.shogRunsHint { font-size: 12px; opacity: .85; }
+
+.shogRunsToast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  background: #0f1218;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: none;
+  z-index: 10000;
+  max-width: 360px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  font-size: 12px;
+}

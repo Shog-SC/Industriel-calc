@@ -1,4 +1,4 @@
-<!-- pages/hauling.html — V1.13.87_TOPACTIONS_RIGHT -->
+<!-- pages/hauling.html — V1.13.88_TOPACTIONS_RIGHT -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -11,6 +11,7 @@
 <!-- Module styles (scoped) -->
   <link rel="stylesheet" href="../assets/css/hauling.css" />
   <link rel="stylesheet" href="../assets/css/hub-discord-widget.css?v=1.0.7">
+  <link rel="stylesheet" href="../assets/css/runs-ui.css?v=V1.0.0">
 </head>
 
 <body class="page-hauling">
@@ -24,7 +25,9 @@
         <a class="btn-pill btn-hub" href="../index.html">← HUB</a>
         <a class="btn-pill btn-discord" href="https://discord.gg/dJ50SRh" target="_blank" rel="noopener noreferrer">DISCORD</a>
         <a class="btn-pill btn-support" href="https://discord.com/channels/1428047802805653640/1453446130858852242" target="_blank" rel="noopener noreferrer">Support</a>
-        <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login" data-has-token="0">
+              <button id="shogSaveRunBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Save</button>
+      <button id="shogRunsBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Runs</button>
+<div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login" data-has-token="0">
   <button id="shogDiscordLoginBtn" class="shog-auth-btn shog-auth-login">Login</button>
   <div id="shogDiscordUserBox" class="shog-auth-user" hidden>
     <img id="shogDiscordAvatar" class="shog-auth-avatar" alt="" />
@@ -381,7 +384,8 @@
 </div>
 
 
-  <script src="../assets/js/hauling.js"></script>
+    <script src="../assets/js/runs-ui.js?v=V1.0.0" defer></script>
+<script src="../assets/js/hauling.js"></script>
 <script defer src="../assets/js/techbar.js?v=V1.0.0"></script>
 
 <script defer src="../assets/js/support-tools.js?v=V1.0.0"></script>

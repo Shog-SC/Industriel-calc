@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- pages/salvage.html — V1.4.48_AUTH_WIDGET (tech footer attached to graph panel) -->
+<!-- pages/salvage.html — V1.4.49_AUTH_WIDGET_SAVE_RUNS (layout-safe, Login preserved) -->
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
@@ -9,6 +9,7 @@
   <link rel="icon" href="../assets/img/favicon.ico" />
   <link rel="stylesheet" href="../assets/css/core.css" />
   <link rel="stylesheet" href="../assets/css/hub-discord-widget.css?v=V1.0.7" />
+  <link rel="stylesheet" href="../assets/css/runs-ui.css?v=V1.0.0" />
   <link rel="stylesheet" href="../assets/css/salvage.css?v=V1.4.51_AUTH_WIDGET" />
 </head>
 
@@ -22,6 +23,10 @@
           <div class="header-actions-group">
             <a class="btn-primary btn-discord" href="https://discord.gg/d3Q5RJ35gr" target="_blank" rel="noopener noreferrer">Discord</a>
             <a class="btn-ghost" href="https://discord.com/channels/1428047802805653640/1453446130858852422" target="_blank" rel="noopener noreferrer">Support</a>
+
+            <!-- Player Runs (hidden until logged) -->
+            <button id="shogSaveBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Save</button>
+            <button id="shogRunsBtn" class="btn-ghost shog-run-btn" type="button" style="display:none;">Runs</button>
           </div>
 
           <div id="shogDiscordAuth" class="shog-discord-auth" data-login-url="https://salvage-auth.yoyoastico74.workers.dev/auth/discord/login">
@@ -400,7 +405,7 @@
 
           </div>
         </div>
-      
+
 <div class="panel inner-panel" id="advPriceHistoryPanel" style="margin-top:14px;">
   <div class="panel-title panel-title-sm">Historique des prix (UEX) <span title="Courbes : historique des prix UEX (tendance).
 Spot : meilleur prix actuel (best sell) au moment T.
@@ -425,7 +430,7 @@ Un écart est normal si le marché vient de bouger." style="margin-left:6px; fon
   <!-- Version footer (support) — attached to graph panel -->
   <div class="version-footer page-salvage-version" id="versionFooter">
     <button id="versionToggle" class="version-bar" type="button" aria-expanded="false">
-      <div class="version-main" id="versionMainText">RECYCLAGE V1.4.48 • PU 4.5</div>
+      <div class="version-main" id="versionMainText">RECYCLAGE V1.4.49 • PU 4.5</div>
       <div class="version-cta">Détails</div>
     </button>
 
@@ -468,11 +473,12 @@ Un écart est normal si le marché vient de bouger." style="margin-left:6px; fon
   <script src="../assets/js/core.js" defer></script>
   <script src="../assets/js/uex-token.js" defer></script>
 
-<script defer src="../assets/js/auth.js?v=V1.1.0"></script>
-<script defer src="../assets/js/hub-discord-widget.js?v=V1.0.7"></script>
-  <script src="../assets/js/salvage.js?v=V1.4.42_AUTH_WIDGET" defer></script>
-<script defer src="../assets/js/techbar.js?v=V1.0.0"></script>
+  <script defer src="../assets/js/auth.js?v=V1.1.0"></script>
+  <script defer src="../assets/js/hub-discord-widget.js?v=V1.0.7"></script>
+  <script defer src="../assets/js/runs-ui.js?v=V1.0.0"></script>
 
-<script defer src="../assets/js/support-tools.js?v=V1.0.0"></script>
+  <script src="../assets/js/salvage.js?v=V1.4.42_AUTH_WIDGET" defer></script>
+  <script defer src="../assets/js/techbar.js?v=V1.0.0"></script>
+  <script defer src="../assets/js/support-tools.js?v=V1.0.0"></script>
 </body>
 </html>
