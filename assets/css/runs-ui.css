@@ -1,111 +1,272 @@
-/* runs-ui.css — V1.0.0
-   Player Runs UI (Save/Runs): modal + list + details.
+/* assets/css/runs-ui.css — V1.0.1 (RUNS_UI_POLISH)
+   - Improved modal layout (2-pane, responsive)
+   - Better list cards + detail summary
+   - Tabs (Summary / JSON) + search
 */
 
-.shog-run-btn { white-space: nowrap; }
+.shog-modal-overlay{
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.55);
+  z-index:9999;
+  backdrop-filter: blur(8px);
+}
+.shog-modal-overlay.is-hidden{ display:none; }
 
-#shogRunsModalOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  display: none;
-  z-index: 9999;
-  padding: 24px;
+.shog-modal{
+  width:min(1180px, 96vw);
+  height:min(760px, 92vh);
+  background:rgba(10,16,24,.92);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+  display:flex; flex-direction:column;
+  overflow:hidden;
 }
 
-#shogRunsModal {
-  max-width: 980px;
-  margin: 0 auto;
-  background: #12141a;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 18px 70px rgba(0,0,0,.6);
+/* Header */
+.shog-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
 }
-
-#shogRunsModalHeader {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.10);
+.shog-modal-title{
+  display:flex; align-items:baseline; gap:10px;
+  font-weight:900;
+  letter-spacing:.2px;
 }
-
-#shogRunsModalHeader h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: .2px;
+.shog-modal-subtitle{
+  font-weight:600;
+  opacity:.75;
+  font-size:12px;
 }
-
-#shogRunsModalHeader .shog-runs-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.shog-modal-actions{
+  display:flex; align-items:center; gap:10px;
 }
+.shog-modal-search{
+  display:flex; align-items:center;
+  background:rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:12px;
+  padding:8px 10px;
+  min-width:280px;
+}
+.shog-modal-search input{
+  width:100%;
+  background:transparent;
+  border:none;
+  outline:none;
+  color:inherit;
+  font-size:13px;
+}
+.shog-modal-search input::placeholder{ opacity:.65; }
 
-#shogRunsModalBody {
-  display: grid;
+/* Body */
+.shog-modal-body{
+  display:grid;
   grid-template-columns: 360px 1fr;
-  min-height: 520px;
+  min-height:0;
+  flex:1;
 }
 
-@media (max-width: 900px) {
-  #shogRunsModalBody { grid-template-columns: 1fr; }
+.shog-runs-list-pane{
+  border-right:1px solid rgba(255,255,255,.08);
+  min-height:0;
+  overflow:hidden;
+}
+.shog-runs-detail-pane{
+  min-height:0;
+  overflow:hidden;
 }
 
-.shogRunsList {
-  border-right: 1px solid rgba(255,255,255,.10);
-  max-height: 520px;
-  overflow: auto;
+.shog-runs-list{
+  height:100%;
+  overflow:auto;
+  padding:12px;
+}
+.shog-runs-detail{
+  height:100%;
+  overflow:auto;
+  padding:14px 16px 18px;
 }
 
-.shogRunsListItem {
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+/* List cards */
+.shog-run-card{
+  width:100%;
+  text-align:left;
+  background:rgba(0,0,0,.20);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  padding:12px 12px 10px;
+  cursor:pointer;
+  transition: transform .08s ease, border-color .12s ease, background .12s ease;
+  margin-bottom:10px;
+}
+.shog-run-card:hover{
+  transform: translateY(-1px);
+  border-color: rgba(0,229,255,.28);
+  background:rgba(0,0,0,.26);
+}
+.shog-run-card.is-active{
+  border-color: rgba(0,229,255,.45);
+  box-shadow: 0 0 0 1px rgba(0,229,255,.20) inset;
 }
 
-.shogRunsListItem:hover { background: rgba(255,255,255,.04); }
-
-.shogRunsListItem.active { background: rgba(255,255,255,.07); }
-
-.shogRunsMetaLine {
-  font-size: 12px;
-  opacity: .85;
-  margin-top: 3px;
+.shog-run-title{
+  font-weight:900;
+  font-size:14px;
+  line-height:1.25;
+  margin:0 0 6px;
+}
+.shog-run-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  opacity:.85;
+  font-size:12px;
+}
+.shog-run-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:8px;
+}
+.shog-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.05);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+.shog-badge.is-accent{
+  border-color: rgba(0,229,255,.25);
+  background: rgba(0,229,255,.08);
 }
 
-.shogRunsDetail {
-  padding: 12px 14px;
-  max-height: 520px;
-  overflow: auto;
+/* Detail header + summary */
+.shog-detail-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.shog-detail-title{
+  font-size:18px;
+  font-weight:950;
+  line-height:1.1;
+  margin:0;
+}
+.shog-detail-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.shog-kv-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  margin:10px 0 14px;
+}
+.shog-kv{
+  background:rgba(0,0,0,.20);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.shog-k{
+  font-size:11px;
+  font-weight:900;
+  opacity:.75;
+  letter-spacing:.2px;
+  margin-bottom:4px;
+}
+.shog-v{
+  font-size:13px;
+  font-weight:800;
+  word-break:break-word;
 }
 
-.shogRunsDetail pre {
-  background: rgba(0,0,0,.35);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 12px;
-  padding: 10px 12px;
-  overflow: auto;
-  font-size: 12px;
-  line-height: 1.35;
+/* Tabs */
+.shog-tabs{
+  display:flex;
+  gap:8px;
+  margin: 4px 0 10px;
+}
+.shog-tab{
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);
+  color:inherit;
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+}
+.shog-tab.is-active{
+  border-color: rgba(0,229,255,.30);
+  background: rgba(0,229,255,.10);
 }
 
-.shogRunsHint { font-size: 12px; opacity: .85; }
+/* JSON panel */
+.shog-json{
+  background:rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+  padding:12px;
+  overflow:auto;
+}
+.shog-json pre{
+  margin:0;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12.5px;
+  line-height:1.45;
+}
 
-.shogRunsToast {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  background: #0f1218;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  padding: 10px 12px;
-  display: none;
-  z-index: 10000;
-  max-width: 360px;
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-  font-size: 12px;
+/* Empty / loading */
+.shog-empty{
+  padding:14px 12px;
+  opacity:.80;
+  border:1px dashed rgba(255,255,255,.12);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+}
+.shog-loading{
+  opacity:.85;
+}
+
+/* Buttons harmonisation (fallback if core buttons missing) */
+.shog-btn{
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  border-radius:12px;
+  padding:8px 10px;
+  font-weight:900;
+  font-size:12px;
+  cursor:pointer;
+}
+.shog-btn:hover{
+  border-color: rgba(0,229,255,.28);
+  background:rgba(255,255,255,.06);
+}
+
+/* Responsive */
+@media (max-width: 920px){
+  .shog-modal-body{ grid-template-columns: 1fr; }
+  .shog-runs-list-pane{ border-right:none; border-bottom:1px solid rgba(255,255,255,.08); }
+  .shog-modal-search{ min-width: 180px; }
+  .shog-kv-grid{ grid-template-columns: 1fr; }
 }
