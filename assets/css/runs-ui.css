@@ -1,452 +1,360 @@
-/* assets/css/runs-ui.css — V1.0.4 (RUNS_UI_LAYOUT_FIX)
-   Scoped UI for Save / Runs modal (Mining / Fret / Recyclage)
+/* assets/css/runs-ui.css — V1.0.1 (RUNS_LAYOUT_REWORK)
+   ---------------------------------------------------------------------------
+   UI "Save / Runs" (FRET / MINING / SALVAGE) — Layout & hierarchy pass.
+   Goals:
+   - Header controls aligned (Sort + Search + Actions) without overlap.
+   - Two-column body (Runs list / Details) with proper scrolling.
+   - More readable cards + consistent button sizing.
    Notes:
-   - All selectors are scoped under .shog-runs-overlay to avoid collisions.
-   - Uses safe CSS only (no color-mix()). Backdrop blur is guarded by @supports.
+   - CSS is intentionally resilient: it targets several possible overlay/modal IDs/classes.
 */
 
-.shog-runs-overlay{
-  position:fixed;
-  inset:0;
-  z-index:9999;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:24px;
-  background:rgba(0,0,0,.55);
+:root{
+  --ru-bg: rgba(7, 12, 18, .82);
+  --ru-surface: rgba(12, 19, 28, .72);
+  --ru-surface-2: rgba(18, 27, 38, .68);
+  --ru-border: rgba(255,255,255,.10);
+  --ru-border-2: rgba(255,255,255,.14);
+  --ru-text: rgba(245, 248, 255, .92);
+  --ru-muted: rgba(245, 248, 255, .64);
+  --ru-muted-2: rgba(245, 248, 255, .45);
+  --ru-shadow: 0 10px 40px rgba(0,0,0,.55);
+  --ru-radius: 18px;
+  --ru-radius-sm: 12px;
+  --ru-gap: 14px;
+  --ru-gap-sm: 10px;
+  --ru-accent: rgba(0, 180, 210, .95);
+  --ru-accent-2: rgba(0, 180, 210, .25);
 }
 
-@supports ((-webkit-backdrop-filter: blur(6px)) or (backdrop-filter: blur(6px))) {
-  .shog-runs-overlay{ 
-    background: rgba(0,0,0,.42);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-  }
-}
-
-.shog-runs-modal{
-  width:min(1280px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  border-radius:18px;
-  border:1px solid rgba(0, 214, 255, .18);
-  background: rgba(6, 12, 20, .88);
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-}
-
-.shog-runs-header{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:14px 16px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  background: rgba(3, 10, 18, .72);
-}
-
-.shog-runs-title{
-  font-weight:900;
-  letter-spacing:.3px;
-  font-size:18px;
-  color:#e7f9ff;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  white-space:nowrap;
-}
-
-.shog-runs-title .shog-runs-badge{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:4px 10px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:800;
-  border:1px solid rgba(0, 214, 255, .22);
-  background: rgba(0, 214, 255, .08);
-  color:#bff4ff;
-}
-
-.shog-runs-actions{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-
-.shog-runs-search{
-  width: 260px;
-  max-width: 40vw;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.05);
-  color:#e8f9ff;
-  outline:none;
-}
-
-.shog-runs-search::placeholder{ color: rgba(232,249,255,.55); }
-
-.shog-runs-select{
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 12px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.05);
-  color:#e8f9ff;
-  outline:none;
-}
-
-.shog-runs-btn{
-  height:34px;
-  padding:0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 214, 255, .25);
-  background: rgba(0, 214, 255, .10);
-  color:#e7f9ff;
-  cursor:pointer;
-  font-weight:900;
-  letter-spacing:.2px;
-}
-
-.shog-runs-btn:hover{ background: rgba(0, 214, 255, .16); }
-.shog-runs-btn:active{ transform: translateY(1px); }
-
-.shog-runs-btn.ghost{
-  border-color: rgba(255,255,255,.16);
-  background: rgba(255,255,255,.05);
-}
-.shog-runs-btn.ghost:hover{ background: rgba(255,255,255,.08); }
-
-.shog-runs-btn.danger{
-  border-color: rgba(255, 88, 88, .40);
-  background: rgba(255, 88, 88, .10);
-}
-.shog-runs-btn.danger:hover{ background: rgba(255, 88, 88, .16); }
-
-.shog-runs-body{
-  display:grid;
-  grid-template-columns: 340px 1fr;
-  gap: 14px;
-  padding: 14px 16px 16px 16px;
-  min-height: 0;
-  flex: 1;
-}
-
-/* LEFT LIST */
-.shog-runs-list{
-  min-height:0;
-  overflow:auto;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:14px;
-  background: rgba(255,255,255,.03);
-}
-
-.shog-runs-list-empty{
-  padding:14px;
-  opacity:.8;
-  color: rgba(232,249,255,.85);
-}
-
-.shog-runs-item{
-  padding: 12px 12px;
-  border-bottom:1px solid rgba(255,255,255,.06);
-  cursor:pointer;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:10px;
-}
-
-.shog-runs-item:last-child{ border-bottom:none; }
-
-.shog-runs-item:hover{
-  background: rgba(0, 214, 255, .06);
-}
-
-.shog-runs-item.is-active{
-  background: rgba(0, 214, 255, .10);
-  outline: 1px solid rgba(0, 214, 255, .18);
-}
-
-.shog-runs-item-main{
-  min-width:0;
-}
-
-.shog-runs-item-title{
-  font-weight:900;
-  color:#e7f9ff;
-  font-size:14px;
-  line-height:1.25;
-  margin-bottom:6px;
-}
-
-.shog-runs-item-meta{
-  font-size:12px;
-  color: rgba(232,249,255,.72);
-  line-height:1.25;
-}
-
-.shog-runs-item-id{
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size:11px;
-  color: rgba(232,249,255,.60);
-  word-break: break-all;
-  margin-top:4px;
-}
-
-.shog-runs-item-actions{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex:0 0 auto;
-}
-
-.shog-runs-iconbtn{
-  width:30px;
-  height:30px;
-  border-radius: 10px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.05);
-  color:#e7f9ff;
-  cursor:pointer;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-.shog-runs-iconbtn:hover{ background: rgba(255,255,255,.08); }
-.shog-runs-iconbtn.danger{
-  border-color: rgba(255, 88, 88, .35);
-  background: rgba(255, 88, 88, .08);
-}
-.shog-runs-iconbtn.danger:hover{ background: rgba(255, 88, 88, .14); }
-
-/* RIGHT DETAILS */
-.shog-runs-detail{
-  min-height:0;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:14px;
-  background: rgba(255,255,255,.03);
-  display:flex;
-  flex-direction:column;
-}
-
-.shog-runs-detail-empty{
-  padding:14px;
-  opacity:.85;
-  color: rgba(232,249,255,.85);
-}
-
-.shog-runs-detail-top{
-  padding: 12px 12px 10px 12px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-}
-
-.shog-runs-detail-title{
-  font-weight:900;
-  color:#e7f9ff;
-  font-size:16px;
-  line-height:1.25;
-  margin:0;
-}
-
-.shog-runs-detail-sub{
-  margin-top:6px;
-  font-size:12px;
-  color: rgba(232,249,255,.72);
-  line-height:1.25;
-}
-
-.shog-runs-detail-actions{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-
-.shog-runs-tabs{
-  display:flex;
-  gap:8px;
-  padding: 10px 12px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  background: rgba(3, 10, 18, .32);
-}
-
-.shog-runs-tab{
-  height:30px;
-  padding:0 12px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.16);
-  background: rgba(255,255,255,.04);
-  color: rgba(232,249,255,.88);
-  cursor:pointer;
-  font-weight:900;
-  font-size:12px;
-}
-
-.shog-runs-tab:hover{ background: rgba(255,255,255,.07); }
-.shog-runs-tab.is-active{
-  border-color: rgba(0, 214, 255, .28);
-  background: rgba(0, 214, 255, .10);
-  color:#e7f9ff;
-}
-
-.shog-runs-panels{
-  flex:1;
-  min-height:0;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-}
-
-.shog-runs-panel{
-  flex:1;
-  min-height:0;
-  overflow:auto;
-  padding: 12px;
-}
-
-.shog-runs-kv{
-  display:grid;
-  grid-template-columns: 180px 1fr;
-  gap:10px 12px;
-}
-
-.shog-runs-kv .k{
-  font-size:12px;
-  color: rgba(232,249,255,.70);
-}
-.shog-runs-kv .v{
-  font-size:12px;
-  color:#e7f9ff;
-  word-break: break-word;
-}
-
-.shog-runs-notes{
-  margin-top:12px;
-  border-top:1px dashed rgba(255,255,255,.12);
-  padding-top:12px;
-}
-
-.shog-runs-notes label{
-  display:block;
-  font-size:12px;
-  font-weight:900;
-  color: rgba(232,249,255,.88);
-  margin-bottom:6px;
-}
-.shog-runs-notes textarea{
-  width:100%;
-  min-height:84px;
-  resize:vertical;
-  padding:10px 12px;
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.05);
-  color:#e7f9ff;
-  outline:none;
-}
-
-.shog-runs-json{
-  border:1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.35);
-  border-radius:12px;
-  padding: 12px;
-  overflow:auto;
-  font-size:12px;
-  line-height:1.45;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  color:#e7f9ff;
-  white-space: pre;
-  tab-size: 2;
-}
-
-.shog-runs-footer{
-  padding: 10px 12px;
-  border-top:1px solid rgba(255,255,255,.08);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  color: rgba(232,249,255,.72);
-  font-size:12px;
-  background: rgba(3, 10, 18, .32);
-}
-
-.shog-runs-toast{
-  position: fixed;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  padding: 10px 14px;
-  border-radius: 999px;
-  border:1px solid rgba(0, 214, 255, .25);
-  background: rgba(0, 214, 255, .10);
-  color:#e7f9ff;
-  font-weight:900;
-  z-index: 10000;
-  box-shadow: 0 10px 40px rgba(0,0,0,.40);
-}
-
-/* CONFIRM DIALOG (simple) */
-.shog-runs-confirm{
+/* ---------------------------------------------------------------------------
+   Overlay root (support multiple possible IDs/classes)
+--------------------------------------------------------------------------- */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay){
   position: fixed;
   inset: 0;
-  z-index: 10001;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 24px;
+  z-index: 9999;
+  display: none; /* shown by JS */
+  place-items: center;
+  padding: 22px;
   background: rgba(0,0,0,.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.shog-runs-confirm-card{
-  width: min(520px, calc(100vw - 48px));
-  border-radius: 16px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(6, 12, 20, .92);
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-  overflow:hidden;
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay).open,
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)[data-open="1"]{
+  display: grid;
 }
 
-.shog-runs-confirm-head{
-  padding: 14px 16px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  font-weight:900;
-  color:#e7f9ff;
+/* ---------------------------------------------------------------------------
+   Modal / Panel container (support multiple possible class names)
+--------------------------------------------------------------------------- */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-modal, .runs-panel, .runs-window, .runsui-modal){
+  width: min(1240px, 96vw);
+  height: min(580px, 88vh);
+  border-radius: var(--ru-radius);
+  background: linear-gradient(180deg, rgba(10,16,24,.92), rgba(6,11,18,.92));
+  border: 1px solid var(--ru-border);
+  box-shadow: var(--ru-shadow);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
-.shog-runs-confirm-body{
-  padding: 14px 16px 12px 16px;
-  color: rgba(232,249,255,.88);
-  font-size:13px;
-  line-height:1.45;
+/* ---------------------------------------------------------------------------
+   Header
+--------------------------------------------------------------------------- */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-header, .runsui-header, header){
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--ru-gap);
+  align-items: end;
+  padding: 18px 18px 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
-.shog-runs-confirm-actions{
-  padding: 12px 16px 16px 16px;
-  display:flex;
-  justify-content:flex-end;
-  gap:10px;
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-title, .runsui-title, h1, h2, h3){
+  margin: 0;
+  color: var(--ru-text);
+  font-weight: 800;
+  letter-spacing: .2px;
 }
 
-@media (max-width: 980px){
-  .shog-runs-body{
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-subtitle, .runsui-subtitle, .subtitle){
+  margin-top: 4px;
+  color: var(--ru-muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+/* Header controls: make it a flexible, non-overlapping toolbar */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar){
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px 12px;
+  min-width: min(720px, 100%);
+}
+
+/* Sort select (e.g. "Newest") */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  select{
+  order: 1;
+  flex: 0 1 340px;   /* prevents full-width stretching */
+  min-width: 180px;
+  max-width: 520px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ru-border);
+  background: rgba(10,16,24,.70);
+  color: var(--ru-text);
+  outline: none;
+}
+
+/* Search input */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  :is(input[type="search"], input[placeholder*="Search"], input[placeholder*="search"]){
+  order: 2;
+  flex: 0 0 240px;
+  max-width: 320px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ru-border);
+  background: rgba(10,16,24,.70);
+  color: var(--ru-text);
+  outline: none;
+  position: static !important; /* overrides any absolute positioning */
+  top: auto !important;
+  right: auto !important;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  :is(input[type="search"], input[placeholder*="Search"], input[placeholder*="search"])::placeholder{
+  color: var(--ru-muted-2);
+}
+
+/* Header action buttons (Refresh / Export / Close) */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  button{
+  order: 3;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 180, 210, .55);
+  background: rgba(0, 180, 210, .14);
+  color: var(--ru-text);
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: pointer;
+  transition: transform .06s ease, background .12s ease, border-color .12s ease;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  button:hover{
+  background: rgba(0, 180, 210, .22);
+  border-color: rgba(0, 180, 210, .75);
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  button:active{
+  transform: translateY(1px);
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  button[data-variant="danger"],
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+  button.danger{
+  border-color: rgba(220, 70, 70, .70);
+  background: rgba(220, 70, 70, .14);
+}
+
+/* ---------------------------------------------------------------------------
+   Body layout (Runs list / Details)
+--------------------------------------------------------------------------- */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-body, .runs-content, .runsui-content){
+  padding: 14px 18px 18px 18px;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: var(--ru-gap);
+  min-height: 0; /* allows proper child scrolling */
+}
+
+/* Left list column */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-list, .runsui-list, .runs-list-col){
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(12, 19, 28, .45);
+  border-radius: var(--ru-radius);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 1fr;
+  min-height: 0;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-list, .runsui-list, .runs-list-col) > *{
+  min-height: 0;
+}
+
+/* If list uses an inner scroller */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-list-scroll, .runsui-list-scroll, ul, ol){
+  overflow: auto;
+  padding: 10px;
+  margin: 0;
+  list-style: none;
+}
+
+/* Run item card */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-item, .runs-item, li){
+  background: rgba(10,16,24,.55);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--ru-radius);
+  padding: 12px 12px;
+  margin: 0 0 10px 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-item, .runs-item, li).active,
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-item, .runs-item, li)[data-active="1"]{
+  border-color: rgba(0, 180, 210, .45);
+  box-shadow: 0 0 0 1px rgba(0, 180, 210, .18) inset;
+}
+
+/* Run item title */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-title, .runs-item-title, strong){
+  color: var(--ru-text);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+/* Run item meta lines */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-meta, .runs-item-meta, .meta, small, .muted){
+  color: var(--ru-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Run item actions (edit/delete icons) */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-actions, .runs-item-actions){
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-actions, .runs-item-actions)
+  button{
+  height: 34px;
+  width: 34px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(18, 27, 38, .55);
+  color: var(--ru-text);
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-actions, .runs-item-actions)
+  button:hover{
+  border-color: rgba(255,255,255,.18);
+  background: rgba(18, 27, 38, .72);
+}
+
+/* ---------------------------------------------------------------------------
+   Details panel (right)
+--------------------------------------------------------------------------- */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-detail, .runs-details, .runsui-detail, .detail){
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(12, 19, 28, .45);
+  border-radius: var(--ru-radius);
+  overflow: auto;
+  padding: 14px;
+  min-height: 0;
+}
+
+/* Empty state */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-detail, .runs-details, .runsui-detail, .detail)
+  :is(.empty, .empty-state){
+  padding: 18px;
+  border: 1px dashed rgba(255,255,255,.14);
+  border-radius: var(--ru-radius);
+  background: rgba(10,16,24,.40);
+  color: var(--ru-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive adjustments
+--------------------------------------------------------------------------- */
+@media (max-width: 920px){
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-body, .runs-content, .runsui-content){
     grid-template-columns: 1fr;
   }
-  .shog-runs-search{
-    width: 220px;
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar){
+    min-width: 0;
+  }
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+    select{
+    flex: 1 1 220px;
+    max-width: none;
+  }
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
+    :is(input[type="search"], input[placeholder*="Search"], input[placeholder*="search"]){
+    flex: 1 1 220px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px){
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay){
+    padding: 12px;
+  }
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-header, .runsui-header, header){
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar){
+    justify-content: flex-start;
   }
 }
