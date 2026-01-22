@@ -1,34 +1,32 @@
-/* assets/css/runs-ui.css — V1.0.7 (DETAILS_TO_RIGHT_FIX_P_TAGS)
+/* assets/css/runs-ui.css — V1.0.8 (RUNS_LAYOUT_CLEAN_FINAL)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE)
 
-   What this fixes (based on your latest screenshot):
-   - The details/empty-state text ("No run selected / Select a run on the left.")
-     is NOT in a proper right panel; it sits between columns / looks "floating".
-   - Root cause is usually DOM variants where the empty-state is a <p> (or similar)
-     sibling inside the BODY container, and our previous selector did not move <p>
-     into column 2.
+   Goal:
+   - Clean, stable layout across your real DOM variants:
+     Header: title left, controls right (select + search + buttons).
+     Body: 2 panels: runs list (left) + details/empty (right) with full-height divider,
+           consistent padding, no "floating" text.
 
-   Strategy:
-   - Keep resilient overlay open/close.
-   - Keep the modal panel sizing.
-   - Force the BODY container to be a 2-column grid.
-   - Ensure ANY non-run content (including direct <p>) is placed into column 2.
-   - Add a consistent right-panel background via BODY::after so even multiple <p>
-     lines look like one panel.
-
-   No JS changes required.
+   Notes:
+   - Pure CSS; no JS changes.
+   - Uses :has() (Chromium/Edge/Firefox modern supported).
 */
 
 :root{
   --ru-border: rgba(255,255,255,.10);
-  --ru-text: rgba(245, 248, 255, .92);
-  --ru-muted: rgba(245, 248, 255, .64);
-  --ru-muted-2: rgba(245, 248, 255, .45);
+  --ru-border-2: rgba(255,255,255,.14);
+  --ru-text: rgba(245,248,255,.92);
+  --ru-muted: rgba(245,248,255,.64);
+  --ru-muted-2: rgba(245,248,255,.45);
   --ru-shadow: 0 10px 40px rgba(0,0,0,.55);
   --ru-radius: 18px;
+
   --ru-accent-b: rgba(0, 180, 210, .55);
   --ru-accent-bg: rgba(0, 180, 210, .14);
+
+  --ru-panel-left: rgba(12, 19, 28, .28);
+  --ru-panel-right: rgba(12, 19, 28, .18);
 }
 
 /* ---------------------------------------------------------------------------
@@ -53,23 +51,20 @@
   pointer-events: none;
 }
 
-:is(
-  #runsOverlay, #runsUiOverlay, #shogRunsOverlay,
-  #saveOverlay, #saveRunOverlay, #shogSaveOverlay
-)[hidden]{
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, #saveOverlay, #saveRunOverlay, #shogSaveOverlay)[hidden]{
   display: none !important;
 }
 
 :is(
   #runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
   #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay
-):is(.open, .show, .active, .is-open, .visible, [data-open="1"], [data-open="true"], [aria-hidden="false"]){
+):is(.open,.show,.active,.is-open,.visible,[data-open="1"],[data-open="true"],[aria-hidden="false"]){
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
-/* Open by removing [hidden] */
+/* Open by removing [hidden] on id overlays */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, #saveOverlay, #saveRunOverlay, #shogSaveOverlay):not([hidden]){
   opacity: 1;
   visibility: visible;
@@ -77,12 +72,12 @@
 }
 
 /* ---------------------------------------------------------------------------
-   RUNS panel (modal) — overlay's first element child
+   RUNS modal panel — overlay's first element child
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child{
+  > :is(div,section,article,dialog):first-child{
   width: min(1240px, 96vw);
-  height: min(600px, 88vh);
+  height: min(640px, 88vh);
   border-radius: var(--ru-radius);
   background: linear-gradient(180deg, rgba(10,16,24,.92), rgba(6,11,18,.92));
   border: 1px solid var(--ru-border);
@@ -95,16 +90,67 @@
 }
 
 /* ---------------------------------------------------------------------------
-   HEADER — keep current look, but ensure it doesn't center content unexpectedly
+   HEADER: direct child containing "Search runs"
+   - Title/meta full-width (row 1)
+   - Controls docked right (row 2)
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(h1, h2, h3, .runs-title, .runsui-title, .title){
+  > :is(div,section,article,dialog):first-child
+  > :is(div,header,section,nav,form):has(input[placeholder*="Search runs"]){
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+
+  padding: 18px 18px 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+
+  text-align: left !important;
+  justify-content: flex-start;
+}
+
+/* Title/meta inside header: force to full width */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
+  :is(h1,h2,h3,.runs-title,.runsui-title,.title){
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--ru-text);
+  font-weight: 800;
+  letter-spacing: .2px;
   text-align: left !important;
 }
 
-/* Controls widgets */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
+  :is(.runs-subtitle,.runsui-subtitle,.subtitle,small){
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--ru-muted);
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left !important;
+}
+
+/* Controls group order */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
+  :is(select, input[placeholder*="Search runs"], button){
+  order: 10;
+}
+
+/* First control pushes the group to the right */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
+  select{
+  margin-left: auto;
+}
+
+/* Search input */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   input[placeholder*="Search runs"]{
+  flex: 0 0 240px;
+  max-width: 320px;
   height: 38px;
   padding: 0 12px;
   border-radius: 999px;
@@ -112,6 +158,7 @@
   background: rgba(10,16,24,.70);
   color: var(--ru-text);
   outline: none;
+
   position: static !important;
   top: auto !important;
   right: auto !important;
@@ -122,8 +169,12 @@
   color: var(--ru-muted-2);
 }
 
+/* Sort select */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   select{
+  flex: 0 1 460px;
+  width: min(460px, 100%);
+  max-width: 520px;
   height: 38px;
   padding: 0 12px;
   border-radius: 999px;
@@ -133,7 +184,9 @@
   outline: none;
 }
 
+/* Header buttons */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
   button{
   height: 38px;
   padding: 0 14px;
@@ -147,91 +200,84 @@
 }
 
 /* ---------------------------------------------------------------------------
-   BODY — direct child containing run items
+   BODY: direct child containing run items
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
-  /* 2 columns: list (360px) + details */
+  > :is(div,section,article,dialog):first-child
+  > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id]){
   display: grid;
   grid-template-columns: 360px 1fr;
-  grid-auto-rows: min-content;
-  align-content: start;
-
+  grid-template-rows: 1fr; /* lock to one row so panels fill height */
   min-height: 0;
   overflow: hidden;
-
   position: relative;
 }
 
-/* Right panel background (works even if details are multiple <p>) */
+/* Left panel wrapper (if exists) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])::after{
-  content: "";
-  grid-column: 2;
-  grid-row: 1 / -1;
-  background: rgba(12, 19, 28, .18);
-  border-left: 1px solid rgba(255,255,255,.08);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Ensure content sits above the background */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
-  > *{
-  position: relative;
-  z-index: 1;
-  min-width: 0;
+  > :is(div,section,article,dialog):first-child
+  > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])
+  > :is(div,section,article,ul,ol):has(.run-item,.runs-item,[data-run-id]){
+  grid-column: 1;
+  grid-row: 1;
+  overflow: auto;
+  padding: 14px 12px;
+  background: var(--ru-panel-left);
+  border-right: 1px solid rgba(255,255,255,.08);
   min-height: 0;
 }
 
-/* LIST wrapper (if it exists) */
+/* If run cards are direct children (no wrapper), keep them in col 1 */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
-  > :is(div, section, article, ul, ol):has(.run-item, .runs-item, [data-run-id]){
+  > :is(div,section,article,dialog):first-child
+  > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])
+  > :is(.run-item,.runs-item,li,[data-run-id]){
   grid-column: 1;
-  overflow: auto;
-  padding: 14px 12px;
-  background: rgba(12, 19, 28, .28);
-  border-right: 1px solid rgba(255,255,255,.08);
-}
-
-/* Run cards direct children (when there is no wrapper) */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
-  > :is(.run-item, .runs-item, li, [data-run-id]){
-  grid-column: 1;
+  grid-row: 1;
   padding: 10px 12px;
 }
 
-/* DETAILS / EMPTY:
-   Any direct child that is NOT list-like goes to column 2 (including <p>)
-*/
+/* Right panel background always fills, with divider */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
-  > :is(div, section, article, main, aside, p):not(:has(.run-item, .runs-item, [data-run-id])){
+  > :is(div,section,article,dialog):first-child
+  > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])::after{
+  content: "";
+  position: absolute;
+  inset: 0 0 0 360px; /* start after left panel width */
+  background: var(--ru-panel-right);
+  border-left: 1px solid rgba(255,255,255,.08);
+  pointer-events: none;
+}
+
+/* Details/empty: ANY non-run direct child (including <p>) goes to col 2 and is pinned top-left */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div,section,article,dialog):first-child
+  > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])
+  > :is(div,section,article,main,aside,p):not(:has(.run-item,.runs-item,[data-run-id])){
   grid-column: 2;
-  padding: 16px 16px;
+  grid-row: 1;
+  align-self: start;
+  justify-self: stretch;
+
+  padding: 18px 18px;
   overflow: auto;
+  min-height: 0;
+
   margin: 0;
+  text-align: left !important;
 }
 
-/* Known detail/empty classes */
+/* Neutralize flex centering on known detail containers */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-detail, .runs-details, .runsui-detail, .detail, .details, .empty, .empty-state){
-  margin: 0;
-  color: var(--ru-text);
+  :is(.runs-detail,.runs-details,.runsui-detail,.detail,.details,.empty,.empty-state){
+  text-align: left !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
 }
 
-/* Empty-state visual */
+/* Empty-state visual card (optional) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.empty, .empty-state){
+  :is(.empty,.empty-state){
   padding: 18px;
   border: 1px dashed rgba(255,255,255,.14);
   border-radius: var(--ru-radius);
@@ -241,7 +287,7 @@
 
 /* Prevent absolute pinning inside list/actions */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.run-item, .runs-item, li, .run-actions, .runs-item-actions){
+  :is(.run-item,.runs-item,li,.run-actions,.runs-item-actions){
   position: static !important;
 }
 
@@ -256,10 +302,10 @@
 }
 
 /* ---------------------------------------------------------------------------
-   SAVE overlay — minimal (first child panel)
+   SAVE overlay — minimal
 --------------------------------------------------------------------------- */
 :is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
-  > :is(div, section, article, dialog):first-child{
+  > :is(div,section,article,dialog):first-child{
   width: min(740px, 94vw);
   max-height: min(520px, 86vh);
   border-radius: var(--ru-radius);
@@ -275,23 +321,30 @@
 --------------------------------------------------------------------------- */
 @media (max-width: 980px){
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    > :is(div, section, article, dialog):first-child
-    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
+    > :is(div,section,article,dialog):first-child
+    > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id]){
     grid-template-columns: 1fr;
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    > :is(div, section, article, dialog):first-child
-    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])::after{
-    grid-column: 1;
+    > :is(div,section,article,dialog):first-child
+    > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])::after{
+    inset: auto 0 0 0;
+    height: 50%;
     border-left: none;
     border-top: 1px solid rgba(255,255,255,.08);
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    > :is(div, section, article, dialog):first-child
-    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
-    > :is(div, section, article, main, aside, p):not(:has(.run-item, .runs-item, [data-run-id])){
+    :is(div,header,section,nav,form):has(input[placeholder*="Search runs"])
+    select{
+    margin-left: 0;
+  }
+
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+    > :is(div,section,article,dialog):first-child
+    > :is(div,section,article,main):has(.run-item,.runs-item,.run-actions,.runs-item-actions,[data-run-id])
+    > :is(div,section,article,main,aside,p):not(:has(.run-item,.runs-item,[data-run-id])){
     grid-column: 1;
   }
 }
