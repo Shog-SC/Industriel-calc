@@ -1,42 +1,33 @@
-/* assets/css/runs-ui.css — V1.0.3 (RUNS_MODAL_FALLBACK_DETECT)
+/* assets/css/runs-ui.css — V1.0.4 (RUNS_GRID_LAYOUT_REAL_DOM)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE)
 
-   Status:
-   - V1.0.2 restored "Runs" / "Save" opening reliably (hidden/class/data-open variants).
-   - This V1.0.3 addresses the new symptom: the Runs manager opens but renders as a
-     small, top-left stack (i.e., modal container not being styled due to DOM variants).
+   Fixes (based on your screenshot):
+   - Modal opens & is centered, but inner layout is broken:
+     giant empty area, toolbar floating mid, run list pinned bottom-left.
 
-   Approach:
-   - Keep V1.0.2 overlay open/close resiliency.
-   - Add a robust *modal container fallback* that detects the Runs manager by content
-     (search input placeholder "Search runs" + a select + action buttons), then applies
-     the proper panel sizing/centering even if class names differ.
-
-   Technical note:
-   - Uses :has() for resilient detection. Firefox 121+ supports it.
+   Strategy:
+   - Keep V1.0.2 open/close resiliency (hidden/class/data-open variants).
+   - Target the *real panel*: first element child of the overlay.
+   - Force a predictable GRID on that panel:
+       Row 1: title (if present)
+       Row 2: toolbar (direct child containing "Search runs")
+       Row 3: 2 columns: list (left) + details (right)
+   - Neutralize absolute positioning that can pin list/items to bottom.
 */
 
 :root{
-  --ru-bg: rgba(7, 12, 18, .82);
-  --ru-surface: rgba(12, 19, 28, .72);
-  --ru-surface-2: rgba(18, 27, 38, .68);
   --ru-border: rgba(255,255,255,.10);
-  --ru-border-2: rgba(255,255,255,.14);
   --ru-text: rgba(245, 248, 255, .92);
   --ru-muted: rgba(245, 248, 255, .64);
   --ru-muted-2: rgba(245, 248, 255, .45);
   --ru-shadow: 0 10px 40px rgba(0,0,0,.55);
   --ru-radius: 18px;
-  --ru-radius-sm: 12px;
   --ru-gap: 14px;
-  --ru-gap-sm: 10px;
-  --ru-accent: rgba(0, 180, 210, .95);
-  --ru-accent-2: rgba(0, 180, 210, .25);
 }
 
 /* ---------------------------------------------------------------------------
-   Overlay roots (Runs + Save) — support multiple IDs/classes
+   Overlay roots (Runs + Save) — resilient open/close
 --------------------------------------------------------------------------- */
 :is(
   #runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
@@ -57,7 +48,7 @@
   pointer-events: none;
 }
 
-/* Hard-hide when closed via [hidden] */
+/* Closed via [hidden] */
 :is(
   #runsOverlay, #runsUiOverlay, #shogRunsOverlay,
   #saveOverlay, #saveRunOverlay, #shogSaveOverlay
@@ -65,7 +56,7 @@
   display: none !important;
 }
 
-/* Open states (class/data/aria) */
+/* Open states: class/data/aria */
 :is(
   #runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
   #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay
@@ -75,7 +66,7 @@
   pointer-events: auto;
 }
 
-/* If your JS opens by removing [hidden], treat that as open */
+/* Open by removing [hidden] */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, #saveOverlay, #saveRunOverlay, #shogSaveOverlay):not([hidden]){
   opacity: 1;
   visibility: visible;
@@ -83,15 +74,8 @@
 }
 
 /* ---------------------------------------------------------------------------
-   RUNS modal container — explicit class/ids + FIRST-CHILD fallback
+   RUNS panel (modal) — overlay's first element child
 --------------------------------------------------------------------------- */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(
-    .runs-modal, .runs-panel, .runs-window, .runsui-modal,
-    .runs-manager, .runsManager, .runs-ui, .runsUi, .runsui,
-    #runsModal, #runsManager, #runsManagerModal, #myRunsModal
-  ),
-/* Fallback: first element child inside overlay */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   > :is(div, section, article, dialog):first-child{
   width: min(1240px, 96vw);
@@ -101,107 +85,69 @@
   border: 1px solid var(--ru-border);
   box-shadow: var(--ru-shadow);
   overflow: hidden;
+
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
+  grid-template-columns: 360px 1fr;
+  padding-top: 12px;
+}
+
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > *{
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ---------------------------------------------------------------------------
-   MODAL FALLBACK (content-based detection)
---------------------------------------------------------------------------- */
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button){
-  width: min(1240px, 96vw);
-  min-height: 520px;
-  max-height: 88vh;
-  margin: 0 auto;
-  border-radius: var(--ru-radius);
-  background: linear-gradient(180deg, rgba(10,16,24,.92), rgba(6,11,18,.92));
-  border: 1px solid var(--ru-border);
-  box-shadow: var(--ru-shadow);
-  overflow: hidden;
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-/* ---------------------------------------------------------------------------
-   Header (primary + fallback)
+   Title block (best effort)
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-header, .runsui-header, header, .header, .top, .runs-top),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-header, .runsui-header, header, .header, .top, .runs-top){
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px 12px;
-  padding: 18px 18px 14px 18px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-
-/* Title */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-title, .runsui-title, h1, h2, h3),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-title, .runsui-title, h1, h2, h3){
+  > :is(div, section, article, dialog):first-child
+  > :is(h1, h2, h3, .runs-title, .runsui-title, .title):first-child{
+  grid-row: 1;
+  grid-column: 1 / -1;
+  padding: 18px 18px 10px 18px;
   margin: 0;
   color: var(--ru-text);
   font-weight: 800;
   letter-spacing: .2px;
-  flex: 1 1 260px;
-  min-width: 220px;
 }
 
+/* Subtitle (2nd node) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-subtitle, .runsui-subtitle, .subtitle, small),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-subtitle, .runsui-subtitle, .subtitle, small){
+  > :is(div, section, article, dialog):first-child
+  > :is(.runs-subtitle, .runsui-subtitle, .subtitle, small):nth-child(2){
+  grid-row: 1;
+  grid-column: 1 / -1;
+  padding: 0 18px 12px 18px;
   color: var(--ru-muted);
   font-size: 12px;
   line-height: 1.25;
 }
 
 /* ---------------------------------------------------------------------------
-   Controls (works even without wrapper)
+   Toolbar row — direct child that contains "Search runs"
 --------------------------------------------------------------------------- */
-:where(
-  .runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar, .header-actions, .actions
-){
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > :is(div, header, section, nav, form):has(input[placeholder*="Search runs"]){
+  grid-row: 2;
+  grid-column: 1 / -1;
+
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 12px;
+
+  padding: 10px 18px 14px 18px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
-/* Container holding search+select+buttons */
-:where(div, header, section):has(input[placeholder*="Search runs"]):has(select):has(button){
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-}
-
-/* Sort select */
+/* Search */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  select,
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  select{
-  flex: 0 1 340px;
-  min-width: 180px;
-  max-width: 520px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--ru-border);
-  background: rgba(10,16,24,.70);
-  color: var(--ru-text);
-  outline: none;
-}
-
-/* Search input */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(input[type="search"], input[placeholder*="Search runs"], input[placeholder*="search runs"]),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(input[type="search"], input[placeholder*="Search runs"], input[placeholder*="search runs"]){
+  input[placeholder*="Search runs"]{
   flex: 0 0 240px;
   max-width: 320px;
   height: 38px;
@@ -216,11 +162,31 @@
   right: auto !important;
 }
 
-/* Header buttons (text buttons only) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  button:not(.icon):not(.btn-icon):not(:has(svg)),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  button:not(.icon):not(.btn-icon):not(:has(svg)){
+  input[placeholder*="Search runs"]::placeholder{
+  color: var(--ru-muted-2);
+}
+
+/* Sort select */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  select{
+  flex: 0 1 340px;
+  min-width: 180px;
+  max-width: 520px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ru-border);
+  background: rgba(10,16,24,.70);
+  color: var(--ru-text);
+  outline: none;
+}
+
+/* Toolbar buttons */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > :is(div, header, section, nav, form):has(input[placeholder*="Search runs"])
+  button{
   height: 38px;
   padding: 0 14px;
   border-radius: 999px;
@@ -233,51 +199,63 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Body layout (only if wrappers exist)
+   Body columns (Row 3): list + details
 --------------------------------------------------------------------------- */
+
+/* LIST container candidate */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-body, .runs-content, .runsui-content),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-body, .runs-content, .runsui-content){
-  padding: 14px 18px 18px 18px;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: var(--ru-gap);
-  min-height: 0;
+  > :is(div, section, article, dialog):first-child
+  > :is(div, section, article, ul, ol):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
+  grid-row: 3;
+  grid-column: 1;
+
+  border-right: 1px solid rgba(255,255,255,.08);
+  background: rgba(12, 19, 28, .28);
+  overflow: auto;
+
+  padding: 12px;
+  position: static !important;
 }
 
-/* Left list column */
+/* If list is UL/OL */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-list, .runsui-list, .runs-list-col),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-list, .runsui-list, .runs-list-col){
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(12, 19, 28, .45);
-  border-radius: var(--ru-radius);
-  overflow: hidden;
-  display: grid;
-  grid-template-rows: 1fr;
-  min-height: 0;
+  ul,
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  ol{
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-/* Details column */
+/* Ensure run cards aren't pinned */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.runs-detail, .runs-details, .runsui-detail, .detail),
-:where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-  :is(.runs-detail, .runs-details, .runsui-detail, .detail){
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(12, 19, 28, .45);
-  border-radius: var(--ru-radius);
+  :is(.run-item, .runs-item){
+  position: static !important;
+}
+
+/* DETAILS panel (known classes) */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.runs-detail, .runs-details, .runsui-detail, .detail, .details, .empty, .empty-state){
+  grid-row: 3;
+  grid-column: 2;
+
   overflow: auto;
   padding: 14px;
-  min-height: 0;
+}
+
+/* Empty-state styling */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.empty, .empty-state){
+  padding: 18px;
+  border: 1px dashed rgba(255,255,255,.14);
+  border-radius: var(--ru-radius);
+  background: rgba(10,16,24,.40);
+  color: var(--ru-muted);
 }
 
 /* ---------------------------------------------------------------------------
-   SAVE overlay (minimal safe styling)
+   SAVE overlay — minimal (first child panel)
 --------------------------------------------------------------------------- */
-:is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
-  :is(.save-modal, .save-panel, .save-window, .saveui-modal),
 :is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
   > :is(div, section, article, dialog):first-child{
   width: min(740px, 94vw);
@@ -295,32 +273,23 @@
 --------------------------------------------------------------------------- */
 @media (max-width: 920px){
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    :is(.runs-body, .runs-content, .runsui-content),
-  :where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-    :is(.runs-body, .runs-content, .runsui-content){
+    > :is(div, section, article, dialog):first-child{
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr 1fr;
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    select,
-  :where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-    select{
-    flex: 1 1 220px;
-    max-width: none;
+    > :is(div, section, article, dialog):first-child
+    > :is(div, section, article, ul, ol):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
+    grid-column: 1;
+    grid-row: 3;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,.08);
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    :is(input[type="search"], input[placeholder*="Search runs"], input[placeholder*="search runs"]),
-  :where(div, section, article, dialog):has(input[placeholder*="Search runs"]):has(select):has(button)
-    :is(input[type="search"], input[placeholder*="Search runs"], input[placeholder*="search runs"]){
-    flex: 1 1 220px;
-    max-width: none;
-  }
-}
-
-@media (max-width: 520px){
-  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
-      #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay){
-    padding: 12px;
+    :is(.runs-detail, .runs-details, .runsui-detail, .detail, .details, .empty, .empty-state){
+    grid-column: 1;
+    grid-row: 4;
   }
 }
