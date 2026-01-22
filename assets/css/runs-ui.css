@@ -1,19 +1,22 @@
-/* assets/css/runs-ui.css — V1.0.4 (RUNS_GRID_LAYOUT_REAL_DOM)
+/* assets/css/runs-ui.css — V1.0.5 (RUNS_BODY_SPLIT_DETAILS_RIGHT)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE)
 
-   Fixes (based on your screenshot):
-   - Modal opens & is centered, but inner layout is broken:
-     giant empty area, toolbar floating mid, run list pinned bottom-left.
+   Fixes (based on latest screenshot):
+   - Left column list is OK, but the "No run selected / Select a run on the left"
+     empty-state is still rendered under the list (left column).
+   - Right column remains blank because the DOM groups list + detail in the same
+     body container.
 
    Strategy:
-   - Keep V1.0.2 open/close resiliency (hidden/class/data-open variants).
-   - Target the *real panel*: first element child of the overlay.
-   - Force a predictable GRID on that panel:
-       Row 1: title (if present)
-       Row 2: toolbar (direct child containing "Search runs")
-       Row 3: 2 columns: list (left) + details (right)
-   - Neutralize absolute positioning that can pin list/items to bottom.
+   - Keep resilient overlay open/close (V1.0.2).
+   - Keep panel grid (V1.0.4).
+   - Treat the *body container* (direct child containing run items) as a 2-column grid
+     spanning the full width, then push:
+       - list-like children to column 1
+       - non-list children (details / empty-state blocks) to column 2
+
+   No JS changes required.
 */
 
 :root{
@@ -88,7 +91,7 @@
 
   display: grid;
   grid-template-rows: auto auto 1fr;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 1fr;
   padding-top: 12px;
 }
 
@@ -106,7 +109,6 @@
   > :is(div, section, article, dialog):first-child
   > :is(h1, h2, h3, .runs-title, .runsui-title, .title):first-child{
   grid-row: 1;
-  grid-column: 1 / -1;
   padding: 18px 18px 10px 18px;
   margin: 0;
   color: var(--ru-text);
@@ -119,7 +121,6 @@
   > :is(div, section, article, dialog):first-child
   > :is(.runs-subtitle, .runsui-subtitle, .subtitle, small):nth-child(2){
   grid-row: 1;
-  grid-column: 1 / -1;
   padding: 0 18px 12px 18px;
   color: var(--ru-muted);
   font-size: 12px;
@@ -133,12 +134,15 @@
   > :is(div, section, article, dialog):first-child
   > :is(div, header, section, nav, form):has(input[placeholder*="Search runs"]){
   grid-row: 2;
-  grid-column: 1 / -1;
 
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px 12px;
+
+  width: 100% !important;
+  justify-self: stretch !important;
 
   padding: 10px 18px 14px 18px;
   border-top: 1px solid rgba(255,255,255,.06);
@@ -199,48 +203,64 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Body columns (Row 3): list + details
+   BODY: detect the direct child that contains run items and split it (2 columns)
 --------------------------------------------------------------------------- */
-
-/* LIST container candidate */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   > :is(div, section, article, dialog):first-child
-  > :is(div, section, article, ul, ol):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
+  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
   grid-row: 3;
-  grid-column: 1;
 
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+/* Left column: list-like children */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
+  > :is(div, section, article, ul, ol):has(.run-item, .runs-item, [data-run-id]){
+  grid-column: 1;
   border-right: 1px solid rgba(255,255,255,.08);
   background: rgba(12, 19, 28, .28);
   overflow: auto;
-
   padding: 12px;
+  min-height: 0;
   position: static !important;
 }
 
-/* If list is UL/OL */
+/* If the run items are direct children of the body container */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  ul,
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  ol{
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  > :is(div, section, article, dialog):first-child
+  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
+  > :is(.run-item, .runs-item, li){
+  grid-column: 1;
 }
 
-/* Ensure run cards aren't pinned */
+/* Known detail/empty classes inside body: force to right panel */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-  :is(.run-item, .runs-item){
-  position: static !important;
-}
-
-/* DETAILS panel (known classes) */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
   :is(.runs-detail, .runs-details, .runsui-detail, .detail, .details, .empty, .empty-state){
-  grid-row: 3;
   grid-column: 2;
-
   overflow: auto;
   padding: 14px;
+  min-height: 0;
+}
+
+/* Fallback: move any direct child block that is NOT list-like into the right column */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  > :is(div, section, article, dialog):first-child
+  > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
+  > :is(div, section, article, main, aside):not(:has(.run-item, .runs-item, [data-run-id])){
+  grid-column: 2;
+  overflow: auto;
+  padding: 14px;
+  min-height: 0;
 }
 
 /* Empty-state styling */
@@ -251,6 +271,12 @@
   border-radius: var(--ru-radius);
   background: rgba(10,16,24,.40);
   color: var(--ru-muted);
+}
+
+/* Ensure run cards aren't pinned */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
+  :is(.run-item, .runs-item, li){
+  position: static !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -273,23 +299,25 @@
 --------------------------------------------------------------------------- */
 @media (max-width: 920px){
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    > :is(div, section, article, dialog):first-child{
+    > :is(div, section, article, dialog):first-child
+    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
     > :is(div, section, article, dialog):first-child
-    > :is(div, section, article, ul, ol):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id]){
+    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
+    > :is(div, section, article, ul, ol):has(.run-item, .runs-item, [data-run-id]){
     grid-column: 1;
-    grid-row: 3;
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,.08);
   }
 
   :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
-    :is(.runs-detail, .runs-details, .runsui-detail, .detail, .details, .empty, .empty-state){
+    > :is(div, section, article, dialog):first-child
+    > :is(div, section, article, main):has(.run-item, .runs-item, .run-actions, .runs-item-actions, [data-run-id])
+    > :is(div, section, article, main, aside):not(:has(.run-item, .runs-item, [data-run-id])){
     grid-column: 1;
-    grid-row: 4;
   }
 }
