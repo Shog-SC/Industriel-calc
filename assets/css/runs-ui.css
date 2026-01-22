@@ -1,10 +1,17 @@
-/* assets/css/runs-ui.css — V1.0.1 (RUNS_LAYOUT_REWORK)
+/* assets/css/runs-ui.css — V1.0.2 (RUNS_SAVE_OPEN_STATES_FIX)
    ---------------------------------------------------------------------------
-   UI "Save / Runs" (FRET / MINING / SALVAGE) — Layout & hierarchy pass.
-   Goals:
-   - Header controls aligned (Sort + Search + Actions) without overlap.
-   - Two-column body (Runs list / Details) with proper scrolling.
-   - More readable cards + consistent button sizing.
+   UI "Save / Runs" (FRET / MINING / SALVAGE) — Layout & open/close resiliency.
+
+   Fixes reported issue: "Runs" and "Save" buttons appear to do nothing.
+   Root cause: previous layout CSS expected a specific "open" state (class/data),
+   but the JS can toggle overlays via other mechanisms (hidden attribute / show/active).
+
+   This version:
+   - Supports multiple open states: .open/.show/.active/.is-open/.visible, data-open,
+     aria-hidden=false, and for ID overlays: when [hidden] is removed.
+   - Adds a minimal, safe styling for the Save overlay (if your project uses it).
+   - Keeps the improved header/body layout introduced in V1.0.1.
+
    Notes:
    - CSS is intentionally resilient: it targets several possible overlay/modal IDs/classes.
 */
@@ -28,27 +35,56 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Overlay root (support multiple possible IDs/classes)
+   Overlay roots (Runs + Save) — support multiple IDs/classes
 --------------------------------------------------------------------------- */
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay){
+:is(
+  #runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
+  #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay
+){
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: none; /* shown by JS */
+  display: grid;                 /* do NOT depend on JS setting display */
   place-items: center;
   padding: 22px;
   background: rgba(0,0,0,.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+
+  /* Hidden state by default */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay).open,
-:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)[data-open="1"]{
-  display: grid;
+/* Hard-hide if HTML uses hidden attribute */
+:is(
+  #runsOverlay, #runsUiOverlay, #shogRunsOverlay,
+  #saveOverlay, #saveRunOverlay, #shogSaveOverlay
+)[hidden]{
+  display: none !important;
+}
+
+/* Open states: class-based */
+:is(
+  #runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
+  #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay
+):is(.open, .show, .active, .is-open, .visible, [data-open="1"], [data-open="true"], [aria-hidden="false"]){
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Open state: hidden-attribute based (common pattern: remove [hidden] to open)
+   Only for explicit IDs to avoid accidentally opening non-overlay elements. */
+:is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, #saveOverlay, #saveRunOverlay, #shogSaveOverlay):not([hidden]){
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* ---------------------------------------------------------------------------
-   Modal / Panel container (support multiple possible class names)
+   RUNS modal container
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-modal, .runs-panel, .runs-window, .runsui-modal){
@@ -64,7 +100,7 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Header
+   RUNS Header
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-header, .runsui-header, header){
@@ -92,7 +128,7 @@
   line-height: 1.25;
 }
 
-/* Header controls: make it a flexible, non-overlapping toolbar */
+/* Header controls: non-overlapping toolbar */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar){
   display: flex;
@@ -103,12 +139,12 @@
   min-width: min(720px, 100%);
 }
 
-/* Sort select (e.g. "Newest") */
+/* Sort select */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-controls, .runs-toolbar, .runsui-toolbar, .toolbar)
   select{
   order: 1;
-  flex: 0 1 340px;   /* prevents full-width stretching */
+  flex: 0 1 340px;
   min-width: 180px;
   max-width: 520px;
   height: 38px;
@@ -134,7 +170,7 @@
   background: rgba(10,16,24,.70);
   color: var(--ru-text);
   outline: none;
-  position: static !important; /* overrides any absolute positioning */
+  position: static !important;
   top: auto !important;
   right: auto !important;
 }
@@ -186,7 +222,7 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Body layout (Runs list / Details)
+   RUNS Body layout (Runs list / Details)
 --------------------------------------------------------------------------- */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-body, .runs-content, .runsui-content){
@@ -194,7 +230,7 @@
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: var(--ru-gap);
-  min-height: 0; /* allows proper child scrolling */
+  min-height: 0;
 }
 
 /* Left list column */
@@ -214,7 +250,7 @@
   min-height: 0;
 }
 
-/* If list uses an inner scroller */
+/* Inner list scroller */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-list-scroll, .runsui-list-scroll, ul, ol){
   overflow: auto;
@@ -245,7 +281,7 @@
   box-shadow: 0 0 0 1px rgba(0, 180, 210, .18) inset;
 }
 
-/* Run item title */
+/* Title + meta */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.run-title, .runs-item-title, strong){
   color: var(--ru-text);
@@ -253,7 +289,6 @@
   line-height: 1.15;
 }
 
-/* Run item meta lines */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.run-meta, .runs-item-meta, .meta, small, .muted){
   color: var(--ru-muted);
@@ -261,7 +296,7 @@
   line-height: 1.35;
 }
 
-/* Run item actions (edit/delete icons) */
+/* Actions (icons) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.run-actions, .runs-item-actions){
   display: flex;
@@ -289,9 +324,7 @@
   background: rgba(18, 27, 38, .72);
 }
 
-/* ---------------------------------------------------------------------------
-   Details panel (right)
---------------------------------------------------------------------------- */
+/* Details panel (right) */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-detail, .runs-details, .runsui-detail, .detail){
   border: 1px solid rgba(255,255,255,.08);
@@ -302,7 +335,6 @@
   min-height: 0;
 }
 
-/* Empty state */
 :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay)
   :is(.runs-detail, .runs-details, .runsui-detail, .detail)
   :is(.empty, .empty-state){
@@ -311,6 +343,56 @@
   border-radius: var(--ru-radius);
   background: rgba(10,16,24,.40);
   color: var(--ru-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   SAVE overlay (minimal safe styling; your JS decides the structure)
+--------------------------------------------------------------------------- */
+:is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
+  :is(.save-modal, .save-panel, .save-window, .saveui-modal){
+  width: min(740px, 94vw);
+  max-height: min(520px, 86vh);
+  border-radius: var(--ru-radius);
+  background: linear-gradient(180deg, rgba(10,16,24,.92), rgba(6,11,18,.92));
+  border: 1px solid var(--ru-border);
+  box-shadow: var(--ru-shadow);
+  overflow: auto;
+  padding: 16px;
+}
+
+/* Basic form controls inside save modal */
+:is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
+  :is(.save-modal, .save-panel, .save-window, .saveui-modal)
+  :is(input, textarea, select){
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(10,16,24,.70);
+  color: var(--ru-text);
+  outline: none;
+}
+
+:is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
+  :is(.save-modal, .save-panel, .save-window, .saveui-modal)
+  :is(textarea){
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* Save modal buttons */
+:is(#saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay)
+  :is(.save-modal, .save-panel, .save-window, .saveui-modal)
+  :is(button){
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 180, 210, .55);
+  background: rgba(0, 180, 210, .14);
+  color: var(--ru-text);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ---------------------------------------------------------------------------
@@ -343,7 +425,8 @@
 }
 
 @media (max-width: 520px){
-  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay){
+  :is(#runsOverlay, #runsUiOverlay, #shogRunsOverlay, .runs-overlay, .runs-ui-overlay, .runsui-overlay,
+      #saveOverlay, #saveRunOverlay, #shogSaveOverlay, .save-overlay, .save-ui-overlay, .saveui-overlay){
     padding: 12px;
   }
 
