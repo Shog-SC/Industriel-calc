@@ -1,14 +1,22 @@
-/* assets/js/runs-ui.js — V1.0.4 (RUNS_MANAGER_UI_DELETE_EDIT_EXPORT)
+/* assets/js/runs-ui.js — V1.0.5 (AUTH_VISIBILITY_SYNC + SUPPORT_LINK_FIX)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
-   - Adds: better layout, search, sort, export JSON, delete run, edit title/notes.
+   - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
+   - Adds: auto-fix Support link to Discord channel 1453446130858852422.
+   - Keeps: layout manager, search, sort, export JSON, delete run, edit title/notes.
    - Requires: auth.js provides Discord token in sessionStorage ("shog.discord.token")
    - Backend: SHOG Runs Vault Worker (GET/POST/PUT/DELETE /runs/:module/...).
 */
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.0.4 (RUNS_MANAGER_UI_DELETE_EDIT_EXPORT)";
+  const RUNS_UI_VERSION = "V1.0.5 (AUTH_VISIBILITY_SYNC + SUPPORT_LINK_FIX)";
+
+  // ---------------------------
+  // Constants
+  // ---------------------------
+  const DISCORD_GUILD_ID = "1428047802805653640";
+  const SUPPORT_CHANNEL_ID = "1453446130858852422";
 
   // ---------------------------
   // Utils
@@ -24,14 +32,20 @@
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+    return d.toLocaleString(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    });
   }
 
   function fmtIsoShort(iso) {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+    return d.toLocaleString(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    });
   }
 
   async function copyToClipboard(text) {
@@ -39,7 +53,6 @@
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // fallback
       try {
         const ta = document.createElement("textarea");
         ta.value = text;
@@ -68,6 +81,25 @@
     URL.revokeObjectURL(url);
   }
 
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function fmtNumber(x) {
+    const n = Number(x);
+    if (Number.isNaN(n)) return String(x);
+    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function cap(s) {
+    return (s || "").charAt(0).toUpperCase() + (s || "").slice(1);
+  }
+
   // ---------------------------
   // Module & endpoints
   // ---------------------------
@@ -85,12 +117,9 @@
   }
 
   function getRunsWorkerUrl() {
-    // Preferred: global constant
     if (window.SHOG_RUNS_VAULT_URL && typeof window.SHOG_RUNS_VAULT_URL === "string") return window.SHOG_RUNS_VAULT_URL;
-    // Meta: <meta name="shog-runs-vault" content="https://...">
     const meta = document.querySelector('meta[name="shog-runs-vault"]');
     if (meta && meta.content) return meta.content;
-    // Fallback (user deploy)
     return "https://saveruns.yoyoastico74.workers.dev";
   }
 
@@ -102,6 +131,26 @@
     const t = getDiscordToken();
     if (!t) return null;
     return { Authorization: `Bearer ${t}` };
+  }
+
+  // ---------------------------
+  // Support link fix
+  // ---------------------------
+  function fixSupportLink() {
+    try {
+      const target = `https://discord.com/channels/${DISCORD_GUILD_ID}/${SUPPORT_CHANNEL_ID}`;
+      $$("a").forEach((a) => {
+        const label = (a.textContent || "").trim().toLowerCase();
+        if (label !== "support") return;
+        const href = a.getAttribute("href") || "";
+        if (!href.includes("discord.com/channels/")) return;
+        if (!href.includes(DISCORD_GUILD_ID)) return;
+        if (href === target) return;
+        a.setAttribute("href", target);
+      });
+    } catch (_) {
+      // ignore
+    }
   }
 
   // ---------------------------
@@ -164,7 +213,6 @@
   // Payload builder (extensible)
   // ---------------------------
   function buildBasePayload(module) {
-    // Minimal base (safe in every module)
     const now = new Date();
     const title = `Run ${module} ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 
@@ -190,9 +238,7 @@
         const extra2 = window.SHOG_BUILD_RUN_PAYLOAD(module);
         if (extra2 && typeof extra2 === "object") Object.assign(payload, extra2);
       }
-    } catch (_) {
-      // ignore builder errors
-    }
+    } catch (_) {}
 
     // Optional: attach versions from techbar fields if present
     try {
@@ -203,10 +249,6 @@
     } catch (_) {}
 
     return payload;
-  }
-
-  function cap(s) {
-    return (s || "").charAt(0).toUpperCase() + (s || "").slice(1);
   }
 
   // ---------------------------
@@ -319,15 +361,6 @@
     $("#shogRunsConfirmCancel").addEventListener("click", () => setConfirm(false));
   }
 
-  function escapeHtml(str) {
-    return String(str ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
   function showToast(msg, kind = "info") {
     const el = $("#shogRunsToast");
     if (!el) return;
@@ -372,14 +405,13 @@
       if (sa === "created_asc") return (a.created_at || "").localeCompare(b.created_at || "");
       if (sa === "updated_desc") return (b.updated_at || "").localeCompare(a.updated_at || "");
       if (sa === "title_asc") return String(a.title || "").localeCompare(String(b.title || ""));
-      if (sa === "title_desc") return String(b.title || "").localeCompare(String(a.title || "")) * -1;
-      // created_desc default
+      if (sa === "title_desc") return String(b.title || "").localeCompare(String(a.title || ""));
       return (b.created_at || "").localeCompare(a.created_at || "");
     });
 
     state.filtered = filtered;
     renderList();
-    renderDetail(); // keep selection consistent
+    renderDetail();
   }
 
   function renderList() {
@@ -415,7 +447,6 @@
       `;
     }).join("");
 
-    // bind clicks
     $$(".shog-runs-item", list).forEach((el) => {
       el.addEventListener("click", (e) => {
         const btn = e.target && e.target.closest ? e.target.closest("button[data-action]") : null;
@@ -509,11 +540,9 @@
       </div>
     `;
 
-    // Bind detail events
     $("#shogRunsCopyBtn").addEventListener("click", () => onCopySelected());
     $("#shogRunsCopyBtn2").addEventListener("click", () => onCopySelected());
     $("#shogRunsDownloadBtn").addEventListener("click", () => downloadSelected());
-
     $("#shogRunsDeleteBtn").addEventListener("click", () => onDeleteRun(run.id));
 
     $("#shogRunsSaveEdit").addEventListener("click", onSaveEdit);
@@ -532,7 +561,6 @@
   }
 
   function renderSummaryCards(run) {
-    // Generic fields (module-specific can be added as the schema evolves)
     const ship = run.ship ? escapeHtml(String(run.ship)) : "—";
     const totals = run.totals || run.result?.totals || null;
     const net = totals?.net_total ?? totals?.net ?? run.result?.net_total ?? null;
@@ -567,16 +595,10 @@
     `).join("");
   }
 
-  function fmtNumber(x) {
-    const n = Number(x);
-    if (Number.isNaN(n)) return String(x);
-    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  }
-
   // ---------------------------
   // Actions
   // ---------------------------
-  async function refreshRuns(force = false) {
+  async function refreshRuns() {
     if (state.loading) return;
     ensureModal();
 
@@ -585,9 +607,8 @@
 
     try {
       const list = await apiListRuns(state.module);
-      // Worker returns { status:"ok", runs:[...] }
       state.runs = Array.isArray(list.runs) ? list.runs : [];
-      // keep selection if possible
+
       if (state.selectedId && !state.runs.some(r => r.id === state.selectedId)) {
         state.selectedId = null;
         state.selectedRun = null;
@@ -607,8 +628,6 @@
   async function selectRun(id) {
     if (!id) return;
     state.selectedId = id;
-
-    // optimistic: render list highlight immediately
     renderList();
 
     try {
@@ -662,7 +681,6 @@
     if (!box) return;
     if (!show) {
       box.classList.add("is-hidden");
-      setConfirm._onOk = null;
       return;
     }
     $("#shogRunsConfirmTitle").textContent = title || "Confirm";
@@ -680,6 +698,7 @@
   async function onDeleteRun(id) {
     if (!id) return;
     const target = state.runs.find(r => r.id === id) || state.selectedRun || { id };
+
     setConfirm(true, {
       title: "Delete run",
       message: `Delete "${target.title || id}"? This cannot be undone.`,
@@ -688,9 +707,8 @@
         try {
           await apiDeleteRun(state.module, id);
           showToast("Deleted", "ok");
-          // refresh list
-          await refreshRuns(true);
-          // select next
+          await refreshRuns();
+
           if (state.filtered.length) {
             const next = state.filtered[0].id;
             state.selectedId = next;
@@ -717,7 +735,6 @@
     const patch = {
       title: newTitle || state.selectedRun.title || "Run",
       notes: newNotes || null,
-      // Keep existing payload fields, update only what user changes
     };
 
     try {
@@ -725,14 +742,13 @@
       const updated = res.run || null;
       if (updated) {
         state.selectedRun = updated;
-        // update list cache (title/updated_at)
         const idx = state.runs.findIndex(r => r.id === updated.id);
         if (idx >= 0) state.runs[idx] = { ...state.runs[idx], ...updated };
         applyFilterSortRender();
         showToast("Saved", "ok");
       } else {
         showToast("Saved", "ok");
-        await refreshRuns(true);
+        await refreshRuns();
         await selectRun(state.selectedRun.id);
       }
     } catch (err) {
@@ -745,8 +761,7 @@
   // Save run entrypoints
   // ---------------------------
   async function saveCurrentRun() {
-    const t = getDiscordToken();
-    if (!t) {
+    if (!getDiscordToken()) {
       showToast("Login required", "error");
       return;
     }
@@ -754,19 +769,16 @@
     try {
       const payload = buildBasePayload(state.module);
       const res = await apiCreateRun(state.module, payload);
-
       const created = res.run || null;
-      showToast("Run saved", "ok");
 
-      // Refresh list and focus the new run
+      showToast("Run saved", "ok");
       showModal();
-      await refreshRuns(true);
+      await refreshRuns();
 
       if (created && created.id) {
         await selectRun(created.id);
-      } else {
-        // fallback: select most recent
-        if (state.filtered.length) await selectRun(state.filtered[0].id);
+      } else if (state.filtered.length) {
+        await selectRun(state.filtered[0].id);
       }
     } catch (err) {
       console.error("[runs-ui] save error", err);
@@ -774,11 +786,18 @@
     }
   }
 
-  function bindSaveRunsButtons() {
-    // Compatible selectors across modules/versions
+  // ---------------------------
+  // Auth-dependent UI visibility + bindings
+  // ---------------------------
+  function syncAuthDependentUi() {
+    const logged = !!getDiscordToken();
+
+    // Buttons can be implemented with different IDs/classes depending on module versions.
     const saveSelectors = [
       "#btnSaveRun",
       "#btnSaveRunTop",
+      "#shogSaveRunBtn",
+      "#shogSaveBtn",
       "[data-shog-run-save]",
       ".shog-run-save",
       "button[data-action='save-run']",
@@ -787,14 +806,69 @@
     const runsSelectors = [
       "#btnMyRuns",
       "#btnMyRunsTop",
+      "#shogRunsBtn",
+      "[data-shog-run-list]",
+      ".shog-run-list",
+      "button[data-action='open-runs']",
+    ];
+
+    const all = [];
+    saveSelectors.forEach((sel) => all.push(...$$(sel)));
+    runsSelectors.forEach((sel) => all.push(...$$(sel)));
+
+    // De-dupe
+    const uniq = Array.from(new Set(all));
+
+    uniq.forEach((el) => {
+      try {
+        // Preserve original display for restoration
+        if (el.dataset && !el.dataset.shogOrigDisplay) {
+          const cs = window.getComputedStyle(el);
+          el.dataset.shogOrigDisplay = (cs && cs.display && cs.display !== "none") ? cs.display : "";
+        }
+
+        if (!logged) {
+          el.style.display = "none";
+          if (typeof el.disabled === "boolean") el.disabled = true;
+          el.setAttribute("aria-disabled", "true");
+        } else {
+          // Restore
+          el.style.display = el.dataset.shogOrigDisplay || "";
+          if (typeof el.disabled === "boolean") el.disabled = false;
+          el.removeAttribute("aria-disabled");
+        }
+      } catch (_) {
+        // ignore per element
+      }
+    });
+
+    // When login status changes, rebind clicks (some DOM nodes are replaced by other scripts)
+    bindSaveRunsButtons();
+  }
+
+  function bindSaveRunsButtons() {
+    const saveSelectors = [
+      "#btnSaveRun",
+      "#btnSaveRunTop",
+      "#shogSaveRunBtn",
+      "#shogSaveBtn",
+      "[data-shog-run-save]",
+      ".shog-run-save",
+      "button[data-action='save-run']",
+    ];
+
+    const runsSelectors = [
+      "#btnMyRuns",
+      "#btnMyRunsTop",
+      "#shogRunsBtn",
       "[data-shog-run-list]",
       ".shog-run-list",
       "button[data-action='open-runs']",
     ];
 
     const bindOnce = (el, handler) => {
-      if (!el || el.dataset.shogRunsBound === "1") return;
-      el.dataset.shogRunsBound = "1";
+      if (!el || (el.dataset && el.dataset.shogRunsBound === "1")) return;
+      if (el.dataset) el.dataset.shogRunsBound = "1";
       el.addEventListener("click", (e) => {
         e.preventDefault();
         handler();
@@ -805,9 +879,11 @@
     runsSelectors.forEach((sel) => $$(sel).forEach((el) => bindOnce(el, showModal)));
   }
 
-  // Watch for dynamic DOM (some pages render header after load)
   function startObserver() {
-    const mo = new MutationObserver(() => bindSaveRunsButtons());
+    const mo = new MutationObserver(() => {
+      fixSupportLink();
+      syncAuthDependentUi();
+    });
     mo.observe(document.documentElement, { childList: true, subtree: true });
   }
 
@@ -817,14 +893,35 @@
   function boot() {
     try {
       state.module = detectModule();
+      fixSupportLink();
       bindSaveRunsButtons();
+      syncAuthDependentUi();
       startObserver();
+
+      // Token watcher: covers logout/login round-trips and bridge flows
+      let lastToken = getDiscordToken();
+      window.setInterval(() => {
+        const t = getDiscordToken();
+        if (t !== lastToken) {
+          lastToken = t;
+          syncAuthDependentUi();
+          // If user logs out while modal open, close it
+          if (!t) hideModal();
+        }
+      }, 750);
+
+      window.addEventListener("focus", syncAuthDependentUi);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) syncAuthDependentUi();
+      });
+
       // Expose minimal debug
       window.SHOG_RUNS_UI = {
         version: RUNS_UI_VERSION,
         open: showModal,
-        refresh: () => refreshRuns(true),
+        refresh: () => refreshRuns(),
         save: saveCurrentRun,
+        sync: syncAuthDependentUi,
       };
     } catch (err) {
       console.error("[runs-ui] boot error", err);
