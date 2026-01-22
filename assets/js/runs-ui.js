@@ -1,375 +1,326 @@
-/* assets/js/runs-ui.js — V1.0.2 (RUNS_UI_POLISH_BIND_FIX)
-   - Restores Save / Runs buttons binding (shogSaveRunBtn / shogRunsBtn)
-   - Keeps polished modal UI (V1.0.1)
-   - Shows buttons only when Discord token is present (sessionStorage 'shog.discord.token')
+/* assets/js/runs-ui.js — V1.0.4 (RUNS_MANAGER_UI_DELETE_EDIT_EXPORT)
+   ---------------------------------------------------------------------------
+   UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
+   - Adds: better layout, search, sort, export JSON, delete run, edit title/notes.
+   - Requires: auth.js provides Discord token in sessionStorage ("shog.discord.token")
+   - Backend: SHOG Runs Vault Worker (GET/POST/PUT/DELETE /runs/:module/...).
 */
 (() => {
   "use strict";
 
-  // Storage keys (shared across the HUB / modules)
-  const TOKEN_KEY = "shog.discord.token";
-  const USER_KEY  = "shog.discord.user";
+  const RUNS_UI_VERSION = "V1.0.4 (RUNS_MANAGER_UI_DELETE_EDIT_EXPORT)";
 
-  // DOM ids (expected in pages/* html)
-  const SAVE_BTN_ID = "shogSaveRunBtn";
-  const RUNS_BTN_ID = "shogRunsBtn";
+  // ---------------------------
+  // Utils
+  // ---------------------------
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  // Default Runs Vault Worker base (can be overridden)
-  const DEFAULT_RUNS_API_BASE = "https://saveruns.yoyoastico74.workers.dev";
-
-  // Internal state
-  const state = {
-    module: null,
-    runs: [],
-    activeId: null,
-    activeJson: null,
-    dom: null,
-    isOpen: false,
-  };
-
-  // --------- helpers ---------
-  function nowIso() {
-    return new Date().toISOString();
+  function safeJsonParse(str) {
+    try { return JSON.parse(str); } catch { return null; }
   }
 
-  function getToken() {
-    try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
   }
 
-  function isLogged() {
-    return !!getToken();
+  function fmtIsoShort(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
   }
 
-  function normalizeBase(url) {
-    if (!url) return DEFAULT_RUNS_API_BASE;
-    return String(url).replace(/\/+$/, "");
-  }
-
-  function getRunsApiBase() {
-    // 1) explicit global override
-    if (window.SHOG_RUNS_API_BASE) return normalizeBase(window.SHOG_RUNS_API_BASE);
-
-    // 2) data attribute override
-    const html = document.documentElement;
-    const dataUrl = html ? html.getAttribute("data-runs-api") : null;
-    if (dataUrl) return normalizeBase(dataUrl);
-
-    // 3) default
-    return DEFAULT_RUNS_API_BASE;
-  }
-
-  function inferModule() {
-    const b = document.body;
-
-    // Prefer explicit page classes (consistent in your project)
-    if (b && b.classList) {
-      if (b.classList.contains("page-mining"))  return "mining";
-      if (b.classList.contains("page-salvage")) return "salvage";
-      if (b.classList.contains("page-hauling")) return "fret";
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fallback
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        return true;
+      } catch {
+        return false;
+      }
     }
+  }
 
-    // Fallback: infer from URL
-    const p = (location.pathname || "").toLowerCase();
-    if (p.includes("mining"))  return "mining";
-    if (p.includes("salvage") || p.includes("recycl")) return "salvage";
-    if (p.includes("hauling") || p.includes("fret"))   return "fret";
+  function downloadJson(filename, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
-    // Default (safe)
+  // ---------------------------
+  // Module & endpoints
+  // ---------------------------
+  function detectModule() {
+    const b = document.body;
+    const de = document.documentElement;
+    const explicit = (b && b.dataset && b.dataset.shogModule) || (de && de.dataset && de.dataset.shogModule);
+    if (explicit) return explicit;
+
+    const cls = (b && b.className) ? b.className : "";
+    if (/\bpage-mining\b/i.test(cls) || /\bmining\b/i.test(document.title)) return "mining";
+    if (/\bpage-salvage\b/i.test(cls) || /\brecyclage\b/i.test(document.title) || /\bsalvage\b/i.test(document.title)) return "salvage";
+    if (/\bpage-hauling\b/i.test(cls) || /\bfret\b/i.test(document.title) || /\bhauling\b/i.test(document.title)) return "fret";
     return "mining";
   }
 
-  async function authFetch(url, opts = {}) {
-    const token = getToken();
-    const headers = new Headers(opts.headers || {});
-    if (token) headers.set("Authorization", "Bearer " + token);
-    return fetch(url, { ...opts, headers });
+  function getRunsWorkerUrl() {
+    // Preferred: global constant
+    if (window.SHOG_RUNS_VAULT_URL && typeof window.SHOG_RUNS_VAULT_URL === "string") return window.SHOG_RUNS_VAULT_URL;
+    // Meta: <meta name="shog-runs-vault" content="https://...">
+    const meta = document.querySelector('meta[name="shog-runs-vault"]');
+    if (meta && meta.content) return meta.content;
+    // Fallback (user deploy)
+    return "https://saveruns.yoyoastico74.workers.dev";
   }
 
-  function safeJsonParse(text) {
-    try { return JSON.parse(text); } catch (_) { return null; }
+  function getDiscordToken() {
+    return sessionStorage.getItem("shog.discord.token") || null;
   }
 
-  function toPrettyJson(obj) {
-    try { return JSON.stringify(obj, null, 2); } catch (_) { return String(obj); }
+  function authHeader() {
+    const t = getDiscordToken();
+    if (!t) return null;
+    return { Authorization: `Bearer ${t}` };
   }
 
-  function setBtnBusy(btn, busy, label = null) {
-    if (!btn) return;
-    if (busy) {
-      btn.dataset.prevText = btn.textContent;
-      btn.textContent = label || "…";
-      btn.disabled = true;
-      btn.classList.add("is-busy");
-    } else {
-      btn.textContent = btn.dataset.prevText || btn.textContent;
-      btn.disabled = false;
-      btn.classList.remove("is-busy");
-      delete btn.dataset.prevText;
-    }
-  }
+  // ---------------------------
+  // API
+  // ---------------------------
+  async function apiFetch(path, init = {}) {
+    const base = getRunsWorkerUrl().replace(/\/+$/, "");
+    const url = base + path;
 
-  function copyToClipboard(text) {
-    if (!text) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-      return;
-    }
-    fallbackCopy(text);
-  }
-
-  function fallbackCopy(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand("copy"); } catch (_) {}
-    document.body.removeChild(ta);
-  }
-
-  // --------- payload builder (generic/minimal) ---------
-  function buildRunPayload(module) {
-    const createdAt = nowIso();
-    const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (
-      "run_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10)
+    const headers = Object.assign(
+      { "content-type": "application/json; charset=utf-8" },
+      init.headers || {}
     );
 
-    // Minimal payload; module-specific enrichment can be added later.
-    return {
-      id,
-      module,
-      title: `Run ${module} ${createdAt.slice(0,16).replace("T"," ")}`,
-      notes: null,
-      created_at: createdAt,
-      updated_at: createdAt,
-      app_version: window.SHOG_APP_VERSION || null,
-      worker_version: window.SHOG_WORKER_VERSION || null,
-      path: location.pathname || null,
-      ship: null,
-      totals: null,
-      items: null,
-      items_count: null
-    };
+    const res = await fetch(url, { ...init, headers });
+    const text = await res.text();
+    const data = safeJsonParse(text) || { raw: text };
+
+    if (!res.ok) {
+      const msg = (data && (data.message || data.error)) ? (data.message || data.error) : `HTTP ${res.status}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
   }
 
-  // --------- modal UI ---------
+  async function apiListRuns(module) {
+    const h = authHeader();
+    if (!h) throw new Error("Login requis (token Discord manquant).");
+    return apiFetch(`/runs/${encodeURIComponent(module)}`, { method: "GET", headers: h });
+  }
+
+  async function apiGetRun(module, id) {
+    const h = authHeader();
+    if (!h) throw new Error("Login requis (token Discord manquant).");
+    return apiFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`, { method: "GET", headers: h });
+  }
+
+  async function apiCreateRun(module, payload) {
+    const h = authHeader();
+    if (!h) throw new Error("Login requis (token Discord manquant).");
+    return apiFetch(`/runs/${encodeURIComponent(module)}`, { method: "POST", headers: h, body: JSON.stringify(payload || {}) });
+  }
+
+  async function apiUpdateRun(module, id, patch) {
+    const h = authHeader();
+    if (!h) throw new Error("Login requis (token Discord manquant).");
+    return apiFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`, { method: "PUT", headers: h, body: JSON.stringify(patch || {}) });
+  }
+
+  async function apiDeleteRun(module, id) {
+    const h = authHeader();
+    if (!h) throw new Error("Login requis (token Discord manquant).");
+    return apiFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`, { method: "DELETE", headers: h });
+  }
+
+  // ---------------------------
+  // Payload builder (extensible)
+  // ---------------------------
+  function buildBasePayload(module) {
+    // Minimal base (safe in every module)
+    const now = new Date();
+    const title = `Run ${module} ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+    const payload = {
+      title,
+      notes: null,
+      app_version: null,
+      worker_version: null,
+      patch: null,
+      ship: null,
+      inputs: null,
+      result: null,
+      schema: `shog.run.v1.${module}`,
+    };
+
+    // Optional: app exposes a builder
+    try {
+      if (window.SHOG_RUN_BUILDERS && typeof window.SHOG_RUN_BUILDERS[module] === "function") {
+        const extra = window.SHOG_RUN_BUILDERS[module]();
+        if (extra && typeof extra === "object") Object.assign(payload, extra);
+      }
+      if (typeof window.SHOG_BUILD_RUN_PAYLOAD === "function") {
+        const extra2 = window.SHOG_BUILD_RUN_PAYLOAD(module);
+        if (extra2 && typeof extra2 === "object") Object.assign(payload, extra2);
+      }
+    } catch (_) {
+      // ignore builder errors
+    }
+
+    // Optional: attach versions from techbar fields if present
+    try {
+      const tvHtml = $(`#tvHtml${cap(module)}`) ? $(`#tvHtml${cap(module)}`).textContent.trim() : null;
+      const tvJs = $(`#tvJs${cap(module)}`) ? $(`#tvJs${cap(module)}`).textContent.trim() : null;
+      const tvCss = $(`#tvCss${cap(module)}`) ? $(`#tvCss${cap(module)}`).textContent.trim() : null;
+      payload.app_version = [tvHtml, tvCss, tvJs].filter(Boolean).join(" / ") || payload.app_version;
+    } catch (_) {}
+
+    return payload;
+  }
+
+  function cap(s) {
+    return (s || "").charAt(0).toUpperCase() + (s || "").slice(1);
+  }
+
+  // ---------------------------
+  // UI (modal)
+  // ---------------------------
+  const state = {
+    module: detectModule(),
+    runs: [],
+    filtered: [],
+    selectedId: null,
+    selectedRun: null,
+    search: "",
+    sort: "created_desc",
+    tab: "summary",
+    loading: false,
+  };
+
   function ensureModal() {
-    if (state.dom) return state.dom;
+    if ($("#shogRunsOverlay")) return;
 
-    const root = document.createElement("div");
-    root.id = "shogRunsRoot";
-    root.className = "shog-modal-overlay is-hidden";
-    root.setAttribute("aria-hidden", "true");
+    const overlay = document.createElement("div");
+    overlay.id = "shogRunsOverlay";
+    overlay.className = "shog-runs-overlay is-hidden";
+    overlay.innerHTML = `
+      <div class="shog-runs-modal" role="dialog" aria-modal="true" aria-label="My Runs">
+        <div class="shog-runs-header">
+          <div class="shog-runs-titlewrap">
+            <div class="shog-runs-title">My Runs</div>
+            <div class="shog-runs-sub">
+              <span class="shog-runs-badge">${escapeHtml(state.module)}</span>
+              <span class="shog-runs-count" id="shogRunsCount">0</span>
+              <span class="shog-runs-version" title="runs-ui">${escapeHtml(RUNS_UI_VERSION)}</span>
+            </div>
+          </div>
 
-    root.innerHTML = `
-      <div class="shog-modal-backdrop" data-action="close"></div>
-      <div class="shog-modal" role="dialog" aria-modal="true" aria-label="My Runs">
-        <div class="shog-modal-head">
-          <div class="shog-modal-title">My Runs</div>
-          <div class="shog-modal-actions">
-            <button class="btn-ghost" type="button" id="shogRunsRefreshBtn">Refresh</button>
-            <button class="btn-ghost" type="button" id="shogRunsCloseBtn">Close</button>
+          <div class="shog-runs-actions">
+            <div class="shog-runs-search">
+              <input id="shogRunsSearch" type="text" placeholder="Search runs..." autocomplete="off" />
+            </div>
+
+            <select id="shogRunsSort" class="shog-runs-sort" title="Sort">
+              <option value="created_desc">Newest</option>
+              <option value="created_asc">Oldest</option>
+              <option value="updated_desc">Updated</option>
+              <option value="title_asc">Title A→Z</option>
+              <option value="title_desc">Title Z→A</option>
+            </select>
+
+            <button id="shogRunsRefresh" class="btn-ghost shog-runs-btn" type="button">Refresh</button>
+            <button id="shogRunsExport" class="btn-ghost shog-runs-btn" type="button">Export</button>
+            <button id="shogRunsClose" class="btn-ghost shog-runs-btn" type="button">Close</button>
           </div>
         </div>
 
-        <div class="shog-modal-body">
-          <div class="shog-runs-list" id="shogRunsList"></div>
+        <div class="shog-runs-body">
+          <aside class="shog-runs-pane shog-runs-pane-left">
+            <div class="shog-runs-list" id="shogRunsList" aria-label="Runs list"></div>
+            <div class="shog-runs-listfoot">
+              <div class="shog-runs-muted" id="shogRunsListHint">Select a run to view details.</div>
+            </div>
+          </aside>
 
-          <div class="shog-runs-detail">
-            <div class="shog-runs-detail-pane">
-              <div class="shog-runs-detail-head">
-                <div>
-                  <div class="shog-runs-detail-title" id="shogRunsDetailTitle">—</div>
-                  <div class="shog-runs-detail-sub" id="shogRunsDetailSub">—</div>
-                </div>
-                <div class="shog-runs-detail-actions">
-                  <button class="btn-ghost" type="button" id="shogRunsCopyBtn">Copy JSON</button>
-                </div>
+          <main class="shog-runs-pane shog-runs-pane-right">
+            <div class="shog-runs-detail" id="shogRunsDetail">
+              <div class="shog-runs-empty">
+                <div class="shog-runs-empty-title">No run selected</div>
+                <div class="shog-runs-empty-sub">Use <b>Save</b> to create a new run, then open <b>Runs</b>.</div>
               </div>
+            </div>
+          </main>
+        </div>
 
-              <pre class="shog-json" id="shogRunsJson">{}</pre>
+        <div class="shog-runs-toast" id="shogRunsToast" aria-live="polite"></div>
+
+        <div class="shog-runs-confirm is-hidden" id="shogRunsConfirm">
+          <div class="shog-runs-confirm-card">
+            <div class="shog-runs-confirm-title" id="shogRunsConfirmTitle">Confirm</div>
+            <div class="shog-runs-confirm-msg" id="shogRunsConfirmMsg">—</div>
+            <div class="shog-runs-confirm-actions">
+              <button class="btn-ghost" id="shogRunsConfirmCancel" type="button">Cancel</button>
+              <button class="btn-primary" id="shogRunsConfirmOk" type="button">Delete</button>
             </div>
           </div>
         </div>
       </div>
     `;
 
-    document.body.appendChild(root);
+    document.body.appendChild(overlay);
 
-    const dom = {
-      root,
-      backdrop: root.querySelector(".shog-modal-backdrop"),
-      closeBtn: root.querySelector("#shogRunsCloseBtn"),
-      refreshBtn: root.querySelector("#shogRunsRefreshBtn"),
-      list: root.querySelector("#shogRunsList"),
-      title: root.querySelector("#shogRunsDetailTitle"),
-      sub: root.querySelector("#shogRunsDetailSub"),
-      json: root.querySelector("#shogRunsJson"),
-      copyBtn: root.querySelector("#shogRunsCopyBtn"),
-    };
-
-    // close handlers
-    dom.backdrop.addEventListener("click", () => close());
-    dom.closeBtn.addEventListener("click", () => close());
-    root.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") close();
+    // Bind header buttons
+    $("#shogRunsClose").addEventListener("click", hideModal);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) hideModal();
     });
 
-    // refresh
-    dom.refreshBtn.addEventListener("click", () => refresh());
+    $("#shogRunsRefresh").addEventListener("click", () => refreshRuns(true));
+    $("#shogRunsExport").addEventListener("click", exportRuns);
 
-    // copy
-    dom.copyBtn.addEventListener("click", () => {
-      if (!state.activeJson) return;
-      copyToClipboard(toPrettyJson(state.activeJson));
+    $("#shogRunsSearch").addEventListener("input", (e) => {
+      state.search = String(e.target.value || "").trim();
+      applyFilterSortRender();
     });
 
-    state.dom = dom;
-    return dom;
-  }
-
-  function open(module = null, opts = {}) {
-    state.module = module || inferModule();
-    ensureModal();
-
-    state.dom.root.classList.remove("is-hidden");
-    state.dom.root.setAttribute("aria-hidden", "false");
-    state.isOpen = true;
-
-    // focus for ESC key
-    state.dom.root.tabIndex = -1;
-    state.dom.root.focus();
-
-    return refresh({ selectId: opts.selectId || null });
-  }
-
-  function close() {
-    if (!state.dom) return;
-    state.dom.root.classList.add("is-hidden");
-    state.dom.root.setAttribute("aria-hidden", "true");
-    state.isOpen = false;
-  }
-
-  // --------- API ---------
-  async function fetchRunsList(module) {
-    const base = getRunsApiBase();
-    const url = `${base}/runs/${encodeURIComponent(module)}`;
-
-    const res = await authFetch(url, { method: "GET" });
-    const txt = await res.text();
-    const data = safeJsonParse(txt) || { status: "error", message: txt };
-
-    if (!res.ok || data.status === "error") {
-      throw new Error(data.message || `HTTP ${res.status}`);
-    }
-
-    // support shapes: {runs:[...]} or {items:[...]} or direct array
-    const runs = Array.isArray(data) ? data : (data.runs || data.items || []);
-    return runs;
-  }
-
-  async function fetchRunDetail(module, runId) {
-    const base = getRunsApiBase();
-    const url = `${base}/runs/${encodeURIComponent(module)}/${encodeURIComponent(runId)}`;
-
-    const res = await authFetch(url, { method: "GET" });
-    const txt = await res.text();
-    const data = safeJsonParse(txt) || { status: "error", message: txt };
-
-    if (!res.ok || data.status === "error") {
-      throw new Error(data.message || `HTTP ${res.status}`);
-    }
-
-    // support shapes: {run:{...}} or direct object
-    return data.run || data;
-  }
-
-  async function createRun(module, payload) {
-    const base = getRunsApiBase();
-    const url = `${base}/runs/${encodeURIComponent(module)}`;
-
-    const res = await authFetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    $("#shogRunsSort").addEventListener("change", (e) => {
+      state.sort = String(e.target.value || "created_desc");
+      applyFilterSortRender();
     });
 
-    const txt = await res.text();
-    const data = safeJsonParse(txt) || { status: "error", message: txt };
-
-    if (!res.ok || data.status === "error") {
-      throw new Error(data.message || `HTTP ${res.status}`);
-    }
-
-    // support shapes: {run:{...}} or {id:"..."}
-    return data.run || data;
+    // Confirm dialog
+    $("#shogRunsConfirmCancel").addEventListener("click", () => setConfirm(false));
   }
 
-  // --------- render ---------
-  function renderList() {
-    const dom = state.dom;
-    if (!dom) return;
-
-    dom.list.innerHTML = "";
-
-    if (!state.runs || state.runs.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "shog-empty";
-      empty.textContent = "Aucun run sauvegardé.";
-      dom.list.appendChild(empty);
-      return;
-    }
-
-    // Sort newest first if timestamps exist
-    const sorted = [...state.runs].sort((a, b) => {
-      const ta = Date.parse(a.updated_at || a.created_at || "") || 0;
-      const tb = Date.parse(b.updated_at || b.created_at || "") || 0;
-      return tb - ta;
-    });
-
-    sorted.forEach((run) => {
-      const id = run.id || run.run_id || run.uuid;
-      const title = run.title || `Run ${state.module}`;
-      const created = run.created_at || run.updated_at || "";
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "shog-run-card" + (id === state.activeId ? " is-active" : "");
-      btn.dataset.runId = id;
-
-      btn.innerHTML = `
-        <div class="shog-run-title">${escapeHtml(title)}</div>
-        <div class="shog-run-meta">${escapeHtml(created)}</div>
-        <div class="shog-run-id">${escapeHtml(String(id || ""))}</div>
-      `;
-
-      btn.addEventListener("click", () => {
-        if (!id) return;
-        selectRun(id);
-      });
-
-      dom.list.appendChild(btn);
-    });
-  }
-
-  function renderDetail(run) {
-    const dom = state.dom;
-    if (!dom) return;
-
-    const title = run && (run.title || run.name) ? (run.title || run.name) : "—";
-    const created = run && (run.created_at || run.updated_at) ? (run.created_at || run.updated_at) : "—";
-    const id = run && run.id ? run.id : "—";
-
-    dom.title.textContent = title;
-    dom.sub.textContent = `${created}  •  ${id}`;
-
-    dom.json.textContent = toPrettyJson(run || {});
-  }
-
-  function escapeHtml(s) {
-    return String(s || "")
+  function escapeHtml(str) {
+    return String(str ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -377,135 +328,512 @@
       .replace(/'/g, "&#039;");
   }
 
-  async function selectRun(runId) {
-    state.activeId = runId;
-    renderList(); // update active highlight
-
-    try {
-      const run = await fetchRunDetail(state.module, runId);
-      state.activeJson = run;
-      renderDetail(run);
-    } catch (e) {
-      console.error("[runs-ui] fetchRunDetail error:", e);
-      state.activeJson = { status: "error", message: String(e.message || e) };
-      renderDetail(state.activeJson);
-    }
+  function showToast(msg, kind = "info") {
+    const el = $("#shogRunsToast");
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `shog-runs-toast is-show ${kind}`;
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => {
+      el.className = "shog-runs-toast";
+      el.textContent = "";
+    }, 2400);
   }
 
-  // --------- public operations ---------
-  async function refresh(opts = {}) {
-    if (!state.dom) ensureModal();
-    const dom = state.dom;
-
-    setBtnBusy(dom.refreshBtn, true, "…");
-    try {
-      state.runs = await fetchRunsList(state.module);
-
-      // select latest or requested id
-      const wanted = opts.selectId || state.activeId;
-      renderList();
-
-      const first = state.runs && state.runs[0] ? (state.runs[0].id || state.runs[0].run_id) : null;
-      const selectId = wanted || first;
-
-      if (selectId) await selectRun(selectId);
-      else {
-        state.activeId = null;
-        state.activeJson = null;
-        renderDetail(null);
-      }
-    } catch (e) {
-      console.error("[runs-ui] refresh error:", e);
-      dom.list.innerHTML = `<div class="shog-empty">Erreur: ${escapeHtml(e.message || e)}</div>`;
-      renderDetail({ status: "error", message: String(e.message || e) });
-    } finally {
-      setBtnBusy(dom.refreshBtn, false);
-    }
+  function showModal() {
+    ensureModal();
+    const overlay = $("#shogRunsOverlay");
+    overlay.classList.remove("is-hidden");
+    document.body.classList.add("shog-runs-open");
+    refreshRuns(false);
   }
 
-  async function saveCurrentRun(module = null) {
-    const saveBtn = document.getElementById(SAVE_BTN_ID);
+  function hideModal() {
+    const overlay = $("#shogRunsOverlay");
+    if (!overlay) return;
+    overlay.classList.add("is-hidden");
+    document.body.classList.remove("shog-runs-open");
+    setConfirm(false);
+  }
 
-    if (!isLogged()) {
-      // Keep it silent in production UI; user already sees Login
-      console.warn("[runs-ui] save aborted: not logged");
+  // ---------------------------
+  // Render list / detail
+  // ---------------------------
+  function applyFilterSortRender() {
+    const term = state.search.toLowerCase();
+    const filtered = (state.runs || []).filter((r) => {
+      if (!term) return true;
+      const t = `${r.title || ""} ${r.id || ""} ${r.created_at || ""} ${r.updated_at || ""}`.toLowerCase();
+      return t.includes(term);
+    });
+
+    filtered.sort((a, b) => {
+      const sa = state.sort;
+      if (sa === "created_asc") return (a.created_at || "").localeCompare(b.created_at || "");
+      if (sa === "updated_desc") return (b.updated_at || "").localeCompare(a.updated_at || "");
+      if (sa === "title_asc") return String(a.title || "").localeCompare(String(b.title || ""));
+      if (sa === "title_desc") return String(b.title || "").localeCompare(String(a.title || "")) * -1;
+      // created_desc default
+      return (b.created_at || "").localeCompare(a.created_at || "");
+    });
+
+    state.filtered = filtered;
+    renderList();
+    renderDetail(); // keep selection consistent
+  }
+
+  function renderList() {
+    const list = $("#shogRunsList");
+    if (!list) return;
+
+    const items = state.filtered || [];
+    $("#shogRunsCount").textContent = `${items.length} run${items.length === 1 ? "" : "s"}`;
+
+    if (!items.length) {
+      list.innerHTML = `<div class="shog-runs-list-empty">No runs found.</div>`;
       return;
     }
 
-    const mod = module || state.module || inferModule();
-    const payload = buildRunPayload(mod);
+    list.innerHTML = items.map((r) => {
+      const active = (r.id === state.selectedId) ? " is-active" : "";
+      const title = escapeHtml(r.title || "(untitled)");
+      const created = escapeHtml(fmtIsoShort(r.created_at));
+      const idShort = escapeHtml(String(r.id || "").slice(0, 8));
+      const updated = r.updated_at && r.updated_at !== r.created_at ? ` • upd. ${escapeHtml(fmtIsoShort(r.updated_at))}` : "";
+      return `
+        <div class="shog-runs-item${active}" data-run-id="${escapeHtml(r.id)}">
+          <div class="shog-runs-item-main">
+            <div class="shog-runs-item-title" title="${title}">${title}</div>
+            <div class="shog-runs-item-meta">${created}${updated}</div>
+            <div class="shog-runs-item-id">#${idShort}</div>
+          </div>
+          <div class="shog-runs-item-actions">
+            <button class="shog-runs-iconbtn" data-action="copy" title="Copy JSON" aria-label="Copy JSON">⎘</button>
+            <button class="shog-runs-iconbtn danger" data-action="delete" title="Delete" aria-label="Delete">✕</button>
+          </div>
+        </div>
+      `;
+    }).join("");
 
-    setBtnBusy(saveBtn, true, "Saving…");
+    // bind clicks
+    $$(".shog-runs-item", list).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest("button[data-action]") : null;
+        const id = el.getAttribute("data-run-id");
+        if (!id) return;
+
+        if (btn) {
+          const action = btn.getAttribute("data-action");
+          if (action === "copy") return void onCopyRun(id);
+          if (action === "delete") return void onDeleteRun(id);
+        }
+        selectRun(id);
+      });
+    });
+  }
+
+  function renderDetail() {
+    const detail = $("#shogRunsDetail");
+    if (!detail) return;
+
+    const run = state.selectedRun;
+    if (!run) {
+      detail.innerHTML = `
+        <div class="shog-runs-empty">
+          <div class="shog-runs-empty-title">No run selected</div>
+          <div class="shog-runs-empty-sub">Select a run on the left.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const title = escapeHtml(run.title || "");
+    const notes = escapeHtml(run.notes || "");
+    const created = escapeHtml(fmtDate(run.created_at));
+    const updated = escapeHtml(fmtDate(run.updated_at));
+    const appv = escapeHtml(run.app_version || "—");
+    const workv = escapeHtml(run.worker_version || "—");
+    const schema = escapeHtml(run.schema || "—");
+
+    detail.innerHTML = `
+      <div class="shog-runs-detail-head">
+        <div class="shog-runs-detail-title">
+          <input id="shogRunsEditTitle" type="text" value="${title}" placeholder="Title" />
+          <div class="shog-runs-detail-meta">
+            <span>Created: <b>${created}</b></span>
+            <span class="sep">•</span>
+            <span>Updated: <b>${updated}</b></span>
+          </div>
+        </div>
+
+        <div class="shog-runs-detail-actions">
+          <button class="btn-ghost" id="shogRunsCopyBtn" type="button">Copy JSON</button>
+          <button class="btn-ghost danger" id="shogRunsDeleteBtn" type="button">Delete</button>
+        </div>
+      </div>
+
+      <div class="shog-runs-tabs">
+        <button class="shog-runs-tab ${state.tab === "summary" ? "is-active" : ""}" data-tab="summary" type="button">Summary</button>
+        <button class="shog-runs-tab ${state.tab === "json" ? "is-active" : ""}" data-tab="json" type="button">Raw JSON</button>
+      </div>
+
+      <div class="shog-runs-tabpanel ${state.tab === "summary" ? "" : "is-hidden"}" data-panel="summary">
+        <div class="shog-runs-summarygrid">
+          ${renderSummaryCards(run)}
+        </div>
+
+        <div class="shog-runs-editblock">
+          <label class="shog-runs-label" for="shogRunsEditNotes">Notes</label>
+          <textarea id="shogRunsEditNotes" rows="4" placeholder="Notes...">${notes}</textarea>
+
+          <div class="shog-runs-editactions">
+            <button class="btn-primary" id="shogRunsSaveEdit" type="button">Save changes</button>
+            <button class="btn-ghost" id="shogRunsRevertEdit" type="button">Revert</button>
+          </div>
+        </div>
+
+        <div class="shog-runs-footmeta">
+          <div><span class="k">Schema</span> <span class="v">${schema}</span></div>
+          <div><span class="k">App</span> <span class="v">${appv}</span></div>
+          <div><span class="k">Worker</span> <span class="v">${workv}</span></div>
+          <div><span class="k">ID</span> <span class="v">${escapeHtml(run.id)}</span></div>
+        </div>
+      </div>
+
+      <div class="shog-runs-tabpanel ${state.tab === "json" ? "" : "is-hidden"}" data-panel="json">
+        <div class="shog-runs-jsonactions">
+          <button class="btn-ghost" id="shogRunsCopyBtn2" type="button">Copy JSON</button>
+          <button class="btn-ghost" id="shogRunsDownloadBtn" type="button">Download</button>
+        </div>
+        <pre class="shog-runs-json"><code id="shogRunsJsonCode">${escapeHtml(JSON.stringify(run, null, 2))}</code></pre>
+      </div>
+    `;
+
+    // Bind detail events
+    $("#shogRunsCopyBtn").addEventListener("click", () => onCopySelected());
+    $("#shogRunsCopyBtn2").addEventListener("click", () => onCopySelected());
+    $("#shogRunsDownloadBtn").addEventListener("click", () => downloadSelected());
+
+    $("#shogRunsDeleteBtn").addEventListener("click", () => onDeleteRun(run.id));
+
+    $("#shogRunsSaveEdit").addEventListener("click", onSaveEdit);
+    $("#shogRunsRevertEdit").addEventListener("click", () => {
+      $("#shogRunsEditTitle").value = run.title || "";
+      $("#shogRunsEditNotes").value = run.notes || "";
+      showToast("Reverted", "info");
+    });
+
+    $$(".shog-runs-tab", detail).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.tab = btn.getAttribute("data-tab") || "summary";
+        renderDetail();
+      });
+    });
+  }
+
+  function renderSummaryCards(run) {
+    // Generic fields (module-specific can be added as the schema evolves)
+    const ship = run.ship ? escapeHtml(String(run.ship)) : "—";
+    const totals = run.totals || run.result?.totals || null;
+    const net = totals?.net_total ?? totals?.net ?? run.result?.net_total ?? null;
+    const perHour = totals?.net_per_hour ?? totals?.per_hour ?? run.result?.net_per_hour ?? null;
+
+    const itemsCount = (() => {
+      const n = run.items_count ?? (Array.isArray(run.items) ? run.items.length : null);
+      return (typeof n === "number") ? n : null;
+    })();
+
+    const inputsCount = (() => {
+      if (run.inputs && typeof run.inputs === "object") {
+        try { return Object.keys(run.inputs).length; } catch { return null; }
+      }
+      return null;
+    })();
+
+    const fields = [
+      { k: "Ship", v: ship },
+      { k: "Net total", v: (net == null) ? "—" : `${fmtNumber(net)} aUEC` },
+      { k: "Net / hour", v: (perHour == null) ? "—" : `${fmtNumber(perHour)} aUEC/h` },
+      { k: "Items", v: (itemsCount == null) ? "—" : String(itemsCount) },
+      { k: "Inputs", v: (inputsCount == null) ? "—" : String(inputsCount) },
+      { k: "Title", v: escapeHtml(run.title || "—") },
+    ];
+
+    return fields.map((f) => `
+      <div class="shog-runs-card">
+        <div class="shog-runs-card-k">${escapeHtml(f.k)}</div>
+        <div class="shog-runs-card-v">${f.v}</div>
+      </div>
+    `).join("");
+  }
+
+  function fmtNumber(x) {
+    const n = Number(x);
+    if (Number.isNaN(n)) return String(x);
+    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  // ---------------------------
+  // Actions
+  // ---------------------------
+  async function refreshRuns(force = false) {
+    if (state.loading) return;
+    ensureModal();
+
+    state.loading = true;
+    $("#shogRunsListHint").textContent = "Loading…";
+
     try {
-      const created = await createRun(mod, payload);
-      const id = created && (created.id || created.run_id) ? (created.id || created.run_id) : payload.id;
-
-      // Open modal and focus the newly created run
-      await open(mod, { selectId: id });
-    } catch (e) {
-      console.error("[runs-ui] save error:", e);
-      // optional: could show a toast; for now just console
-      alert(`Save run: ${e.message || e}`);
+      const list = await apiListRuns(state.module);
+      // Worker returns { status:"ok", runs:[...] }
+      state.runs = Array.isArray(list.runs) ? list.runs : [];
+      // keep selection if possible
+      if (state.selectedId && !state.runs.some(r => r.id === state.selectedId)) {
+        state.selectedId = null;
+        state.selectedRun = null;
+      }
+      applyFilterSortRender();
+      $("#shogRunsListHint").textContent = "";
+    } catch (err) {
+      console.error("[runs-ui] list error", err);
+      $("#shogRunsList").innerHTML = `<div class="shog-runs-list-empty">Cannot load runs: ${escapeHtml(err.message || String(err))}</div>`;
+      $("#shogRunsListHint").textContent = "";
+      showToast(err.message || "Error", "error");
     } finally {
-      setBtnBusy(saveBtn, false);
-      if (saveBtn && saveBtn.dataset.prevText) saveBtn.textContent = saveBtn.dataset.prevText;
+      state.loading = false;
     }
   }
 
-  // --------- buttons bootstrap ---------
-  function updateButtonsVisibility() {
-    const saveBtn = document.getElementById(SAVE_BTN_ID);
-    const runsBtn = document.getElementById(RUNS_BTN_ID);
-    const logged = isLogged();
+  async function selectRun(id) {
+    if (!id) return;
+    state.selectedId = id;
 
-    if (saveBtn) saveBtn.style.display = logged ? "" : "none";
-    if (runsBtn) runsBtn.style.display = logged ? "" : "none";
+    // optimistic: render list highlight immediately
+    renderList();
+
+    try {
+      const data = await apiGetRun(state.module, id);
+      state.selectedRun = data.run || null;
+      renderDetail();
+    } catch (err) {
+      console.error("[runs-ui] get error", err);
+      showToast(err.message || "Error", "error");
+      state.selectedRun = state.runs.find(r => r.id === id) || null;
+      renderDetail();
+    }
   }
 
-  function bindTopButtons() {
-    const saveBtn = document.getElementById(SAVE_BTN_ID);
-    const runsBtn = document.getElementById(RUNS_BTN_ID);
+  async function onCopyRun(id) {
+    try {
+      const data = await apiGetRun(state.module, id);
+      const ok = await copyToClipboard(JSON.stringify(data.run || data, null, 2));
+      showToast(ok ? "Copied" : "Copy failed", ok ? "ok" : "error");
+    } catch (err) {
+      showToast(err.message || "Error", "error");
+    }
+  }
 
-    // If a page doesn't include the widget buttons, do nothing.
-    if (!saveBtn && !runsBtn) return;
+  async function onCopySelected() {
+    if (!state.selectedRun) return;
+    const ok = await copyToClipboard(JSON.stringify(state.selectedRun, null, 2));
+    showToast(ok ? "Copied" : "Copy failed", ok ? "ok" : "error");
+  }
 
-    updateButtonsVisibility();
+  function downloadSelected() {
+    if (!state.selectedRun) return;
+    const id = String(state.selectedRun.id || "run");
+    const fn = `shog_${state.module}_run_${id}.json`;
+    downloadJson(fn, state.selectedRun);
+    showToast("Downloaded", "ok");
+  }
 
-    if (runsBtn && !runsBtn.dataset.bound) {
-      runsBtn.dataset.bound = "1";
-      runsBtn.addEventListener("click", () => open(inferModule()));
+  function exportRuns() {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      module: state.module,
+      runs: state.filtered || state.runs || [],
+    };
+    downloadJson(`shog_${state.module}_runs_export.json`, payload);
+    showToast("Exported", "ok");
+  }
+
+  function setConfirm(show, { title, message, okText, onOk } = {}) {
+    const box = $("#shogRunsConfirm");
+    if (!box) return;
+    if (!show) {
+      box.classList.add("is-hidden");
+      setConfirm._onOk = null;
+      return;
+    }
+    $("#shogRunsConfirmTitle").textContent = title || "Confirm";
+    $("#shogRunsConfirmMsg").textContent = message || "—";
+    $("#shogRunsConfirmOk").textContent = okText || "OK";
+    box.classList.remove("is-hidden");
+
+    const okBtn = $("#shogRunsConfirmOk");
+    okBtn.onclick = async () => {
+      try { if (typeof onOk === "function") await onOk(); }
+      finally { setConfirm(false); }
+    };
+  }
+
+  async function onDeleteRun(id) {
+    if (!id) return;
+    const target = state.runs.find(r => r.id === id) || state.selectedRun || { id };
+    setConfirm(true, {
+      title: "Delete run",
+      message: `Delete "${target.title || id}"? This cannot be undone.`,
+      okText: "Delete",
+      onOk: async () => {
+        try {
+          await apiDeleteRun(state.module, id);
+          showToast("Deleted", "ok");
+          // refresh list
+          await refreshRuns(true);
+          // select next
+          if (state.filtered.length) {
+            const next = state.filtered[0].id;
+            state.selectedId = next;
+            await selectRun(next);
+          } else {
+            state.selectedId = null;
+            state.selectedRun = null;
+            renderDetail();
+          }
+        } catch (err) {
+          console.error("[runs-ui] delete error", err);
+          showToast(err.message || "Delete failed", "error");
+        }
+      }
+    });
+  }
+
+  async function onSaveEdit() {
+    if (!state.selectedRun) return;
+
+    const newTitle = String($("#shogRunsEditTitle").value || "").trim();
+    const newNotes = String($("#shogRunsEditNotes").value || "").trim();
+
+    const patch = {
+      title: newTitle || state.selectedRun.title || "Run",
+      notes: newNotes || null,
+      // Keep existing payload fields, update only what user changes
+    };
+
+    try {
+      const res = await apiUpdateRun(state.module, state.selectedRun.id, patch);
+      const updated = res.run || null;
+      if (updated) {
+        state.selectedRun = updated;
+        // update list cache (title/updated_at)
+        const idx = state.runs.findIndex(r => r.id === updated.id);
+        if (idx >= 0) state.runs[idx] = { ...state.runs[idx], ...updated };
+        applyFilterSortRender();
+        showToast("Saved", "ok");
+      } else {
+        showToast("Saved", "ok");
+        await refreshRuns(true);
+        await selectRun(state.selectedRun.id);
+      }
+    } catch (err) {
+      console.error("[runs-ui] update error", err);
+      showToast(err.message || "Save failed", "error");
+    }
+  }
+
+  // ---------------------------
+  // Save run entrypoints
+  // ---------------------------
+  async function saveCurrentRun() {
+    const t = getDiscordToken();
+    if (!t) {
+      showToast("Login required", "error");
+      return;
     }
 
-    if (saveBtn && !saveBtn.dataset.bound) {
-      saveBtn.dataset.bound = "1";
-      saveBtn.addEventListener("click", () => saveCurrentRun(inferModule()));
+    try {
+      const payload = buildBasePayload(state.module);
+      const res = await apiCreateRun(state.module, payload);
+
+      const created = res.run || null;
+      showToast("Run saved", "ok");
+
+      // Refresh list and focus the new run
+      showModal();
+      await refreshRuns(true);
+
+      if (created && created.id) {
+        await selectRun(created.id);
+      } else {
+        // fallback: select most recent
+        if (state.filtered.length) await selectRun(state.filtered[0].id);
+      }
+    } catch (err) {
+      console.error("[runs-ui] save error", err);
+      showToast(err.message || "Save failed", "error");
     }
-
-    // Refresh on auth events (auth.js dispatches "shog:auth")
-    window.addEventListener("shog:auth", () => updateButtonsVisibility());
-
-    // Safety: on focus, re-check token (sessionStorage updated after auth redirect)
-    window.addEventListener("focus", () => updateButtonsVisibility());
   }
 
-  function bootstrap() {
-    bindTopButtons();
+  function bindSaveRunsButtons() {
+    // Compatible selectors across modules/versions
+    const saveSelectors = [
+      "#btnSaveRun",
+      "#btnSaveRunTop",
+      "[data-shog-run-save]",
+      ".shog-run-save",
+      "button[data-action='save-run']",
+    ];
+
+    const runsSelectors = [
+      "#btnMyRuns",
+      "#btnMyRunsTop",
+      "[data-shog-run-list]",
+      ".shog-run-list",
+      "button[data-action='open-runs']",
+    ];
+
+    const bindOnce = (el, handler) => {
+      if (!el || el.dataset.shogRunsBound === "1") return;
+      el.dataset.shogRunsBound = "1";
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        handler();
+      });
+    };
+
+    saveSelectors.forEach((sel) => $$(sel).forEach((el) => bindOnce(el, saveCurrentRun)));
+    runsSelectors.forEach((sel) => $$(sel).forEach((el) => bindOnce(el, showModal)));
   }
 
-  // auto-bootstrap
+  // Watch for dynamic DOM (some pages render header after load)
+  function startObserver() {
+    const mo = new MutationObserver(() => bindSaveRunsButtons());
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  // ---------------------------
+  // Boot
+  // ---------------------------
+  function boot() {
+    try {
+      state.module = detectModule();
+      bindSaveRunsButtons();
+      startObserver();
+      // Expose minimal debug
+      window.SHOG_RUNS_UI = {
+        version: RUNS_UI_VERSION,
+        open: showModal,
+        refresh: () => refreshRuns(true),
+        save: saveCurrentRun,
+      };
+    } catch (err) {
+      console.error("[runs-ui] boot error", err);
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bootstrap);
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
   } else {
-    bootstrap();
+    boot();
   }
-
-  // Public API
-  window.ShogRunsUI = {
-    open,
-    close,
-    refresh,
-    saveCurrentRun,
-    inferModule,
-    getRunsApiBase
-  };
 })();
