@@ -14,6 +14,8 @@
    - SHOG dark + teal accent.
 --------------------------------------------------------------------------- */
 
+/* runs-ui.css — V1.1.1 (WORK_ORDERS_LAYOUT_FIX) */
+
 :root{
   --ru-border: rgba(255,255,255,.10);
   --ru-border-2: rgba(255,255,255,.14);
@@ -591,3 +593,90 @@
 @media (max-width: 640px){
   .shog-runs-summarygrid{ grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------------------------
+   Work Orders (MINING) — Layout fix (V1.1.1)
+   - Fix header/toggle clipping and table columns cut off.
+   - Adds horizontal scroll only inside table wrapper when needed.
+--------------------------------------------------------------------------- */
+.shog-runs-modal .wo-panel{
+  width:100%;
+  max-width:100%;
+}
+
+.shog-runs-modal .wo-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  padding:12px 14px;
+}
+
+.shog-runs-modal .wo-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex:1 1 auto;
+  min-width:260px;
+}
+
+.shog-runs-modal .wo-toggle{
+  margin-left:auto;
+}
+
+.shog-runs-modal .wo-tableWrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+
+.shog-runs-modal .wo-table{
+  width:100%;
+  min-width:1040px; /* ensures right-side columns stay visible; wrapper scrolls if needed */
+  border-collapse:separate;
+  border-spacing:0;
+}
+
+/* Keep headers compact */
+.shog-runs-modal .wo-table thead th{
+  white-space:nowrap;
+}
+
+/* ID can wrap without forcing massive width */
+.shog-runs-modal .wo-table .wo-mono{
+  white-space:normal;
+  word-break:break-all;
+}
+
+/* Ores column can wrap badges */
+.shog-runs-modal .wo-table .wo-ores{
+  white-space:normal;
+  min-width:260px;
+}
+
+/* Numeric columns stay aligned */
+.shog-runs-modal .wo-table .wo-num{
+  white-space:nowrap;
+  text-align:right;
+}
+
+/* Tighten row padding slightly for density */
+.shog-runs-modal .wo-table td,
+.shog-runs-modal .wo-table th{
+  padding:10px 12px;
+}
+
+/* Totals row stays readable */
+.shog-runs-modal .wo-totals td{
+  padding-top:12px;
+  padding-bottom:12px;
+}
+
+/* Avoid panel looking "floating too narrow" */
+.shog-runs-modal [data-panel="work_orders"]{
+  padding-right:2px;
+}
+
