@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.1.1 (PUBLIC_API_SAVE + SUMMARY_COUNTS_FIX + OPTIMISTIC_CREATE_LIST_FIX)
+/* assets/js/runs-ui.js — V1.1.2 (SAVE_MODULE_OVERRIDE + PUBLIC_API_SAVE + OPTIMISTIC_CREATE_LIST_FIX)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.1 (PUBLIC_API_SAVE + SUMMARY_COUNTS_FIX + OPTIMISTIC_CREATE_LIST_FIX)";
+  const RUNS_UI_VERSION = "V1.1.2 (SAVE_MODULE_OVERRIDE + PUBLIC_API_SAVE + OPTIMISTIC_CREATE_LIST_FIX)";
 
   // ---------------------------
   // Constants
@@ -1026,49 +1026,51 @@
   // ---------------------------
   // Save run entrypoints
   // ---------------------------
-  async function saveCurrentRun() {
+  async function saveCurrentRun(moduleOverride = null) {
     if (!getDiscordToken()) {
       showToast("Login required", "error");
       return;
     }
 
+    const module = (moduleOverride || state.module || "mining").toLowerCase();
+
+    // Keep state coherent even if save is called from outside the modal.
+    state.module = module;
+
     try {
       // Base payload (module + schema + metadata)
-      let payload = buildBasePayload(state.module);
+      let payload = buildBasePayload(module);
 
       // Module snapshot builder (optional).
       // This allows MINING (advanced) / FRET / SALVAGE to inject ship/inputs/config/result.
       try {
         const builders = window.SHOG_RUN_BUILDERS || null;
-        const fn = (builders && typeof builders === "object") ? builders[state.module] : null;
+        const fn = (builders && typeof builders === "object") ? builders[module] : null;
 
         let extra = null;
         if (typeof fn === "function") {
           extra = fn();
         } else if (typeof window.SHOG_BUILD_RUN_PAYLOAD === "function") {
-          extra = window.SHOG_BUILD_RUN_PAYLOAD(state.module);
+          extra = window.SHOG_BUILD_RUN_PAYLOAD(module);
         }
 
         if (extra && typeof extra === "object") {
           payload = { ...payload, ...extra };
-        } else if (state.module === "mining") {
-          // Advanced-only requirement: if no snapshot, keep base payload (still saves metadata).
+        } else if (module === "mining") {
           showToast("Aucune donnée MINAGE (mode avancé) détectée pour ce run.", "info");
         }
       } catch (e) {
         console.warn("[runs-ui] builder merge failed", e);
-        if (state.module === "mining") showToast("Snapshot MINAGE indisponible (mode avancé).", "info");
+        if (module === "mining") showToast("Snapshot MINAGE indisponible (mode avancé).", "info");
       }
 
-      const res = await apiCreateRun(state.module, payload);
+      const res = await apiCreateRun(module, payload);
       const created = (res && res.run) ? res.run : null;
 
       showToast("Run saved", "ok");
       showModal();
 
-      // OPTIMISTIC: Cloudflare KV/list endpoints can be eventually consistent.
-      // Insert the created run locally so the user sees it immediately,
-      // even if GET /runs/:module doesn't return it right away.
+      // OPTIMISTIC: insert locally (listing can lag)
       if (created && created.id) {
         const idx = state.runs.findIndex(r => r.id === created.id);
         if (idx === -1) state.runs.unshift(created);
@@ -1077,7 +1079,6 @@
         state.selectedRun = created;
         applyFilterSortRender();
 
-        // Best effort refresh (do not remove the optimistic run if list doesn't contain it yet)
         try {
           await refreshRuns();
           if (!state.runs.some(r => r.id === created.id)) {
@@ -1088,12 +1089,10 @@
           console.warn("[runs-ui] refresh after create failed", e);
         }
 
-        // Ensure the detail panel loads the full object from backend when possible
         try { await selectRun(created.id); } catch (e) { console.warn("[runs-ui] select created failed", e); }
         return;
       }
 
-      // Fallback: refresh and select first
       await refreshRuns();
       if (state.filtered.length) {
         await selectRun(state.filtered[0].id);

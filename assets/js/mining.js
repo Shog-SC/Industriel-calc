@@ -7,7 +7,7 @@
     if(Math.abs(n) < 10) return `${n.toFixed(1)}%`;
     return `${Math.round(n)}%`;
   }
-/* assets/js/mining.js - Version V1.5.35 (ADV_SAVE_BTN_HOOK + ADV_RUN_BUILDER_ENRICH)
+/* assets/js/mining.js - Version V1.5.36 (ADV_SAVE_ONLY + RUN_BUILDER_DOM_PARSE)
    Module: MINAGE (Mode Débutant) - Mega Package (suite)
    Changements V1.2.1 :
    - Suppression des phrases/hints demandés (texte UI)
@@ -4046,48 +4046,136 @@ try { miningInitVersionFooter(); } catch(_) {}
     });
   }
 
-
 // ---------------------------------------------------------------------------
-// MINAGE (Mode Avancé) — Save Run button (next to Calculer)
+// MINAGE (Mode Avancé) — Bouton "Sauvegarder" (à côté de Calculer)
 // ---------------------------------------------------------------------------
 (function(){
-  function onAdvSaveRunClick(){
-    try{
-      const advView = document.getElementById("moduleAdvancedView");
-      if(!advView || advView.classList.contains("is-hidden")){
-        if(typeof showToast === "function") showToast("Passe en mode Avancé pour sauvegarder un run.", "info");
-        return;
-      }
-
-      // If no computed result yet, warn (still allow save selection only)
-      const rj = document.getElementById("advResultJson");
-      const hasResult = !!(rj && rj.textContent && rj.textContent.trim().length > 2);
-      if(!hasResult && typeof showToast === "function"){
-        showToast("Info: clique sur Calculer avant Sauvegarder si tu veux les résultats + ordres.", "info");
-      }
-
-      if(window.SHOG_RUNS_UI && typeof window.SHOG_RUNS_UI.save === "function"){
-        window.SHOG_RUNS_UI.save();
-      } else {
-        console.warn("[mining] SHOG_RUNS_UI.save not available");
-      }
-    }catch(e){
-      console.error("[mining] adv save click failed", e);
-    }
-  }
-
-  function bind(){
+  function bindAdvSaveBtn(){
     const btn = document.getElementById("advSaveRunBtn");
     if(!btn) return;
     if(btn.dataset && btn.dataset.bound === "1") return;
-    btn.addEventListener("click", onAdvSaveRunClick);
+
+    btn.addEventListener("click", () => {
+      try{
+        const advView = document.getElementById("moduleAdvancedView");
+        if(!advView || advView.classList.contains("is-hidden")){
+          if(typeof showToast === "function") showToast("Passe en mode Avancé pour sauvegarder un run.", "info");
+          return;
+        }
+        const rj = document.getElementById("advResultJson");
+        const hasResult = !!(rj && rj.textContent && rj.textContent.trim().length > 2);
+        if(!hasResult && typeof showToast === "function"){
+          showToast("Info : clique sur Calculer avant Sauvegarder si tu veux les résultats + ordres.", "info");
+        }
+
+        if(window.SHOG_RUNS_UI && typeof window.SHOG_RUNS_UI.save === "function"){
+          window.SHOG_RUNS_UI.save("mining");
+        } else {
+          console.warn("[mining] SHOG_RUNS_UI.save not available");
+        }
+      }catch(e){
+        console.error("[mining] adv save failed", e);
+      }
+    });
+
     if(btn.dataset) btn.dataset.bound = "1";
   }
 
   if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", bind);
+    document.addEventListener("DOMContentLoaded", bindAdvSaveBtn);
   } else {
-    bind();
+    bindAdvSaveBtn();
   }
 })();
 
+// ---------------------------------------------------------------------------
+// RUN BUILDER (MINING) — DOM parsing (Mode Avancé uniquement)
+// Expose: window.SHOG_RUN_BUILDERS.mining() -> {ship, inputs, config, result}
+// ---------------------------------------------------------------------------
+(function(){
+  function safeJsonParse(str){
+    try{ return JSON.parse(str); }catch(_){ return null; }
+  }
+  function num(x){
+    const n = Number(String(x).replace(/[^0-9.+-]/g,""));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function buildSelectedItemsFromDOM(){
+    const list = document.getElementById("advSelectedList");
+    if(!list) return [];
+    const rows = Array.from(list.querySelectorAll(".adv-row, .sel-row, .selected-row, li, .row"))
+      .filter(r => r.querySelector && (r.querySelector(".ore-name, .name, .label") || r.textContent));
+
+    const items = [];
+    for(const r of rows){
+      const key = (r.getAttribute("data-key") || r.dataset?.key || "").trim();
+      const nameEl = r.querySelector(".ore-name, .name, .label, strong");
+      const name = (nameEl ? nameEl.textContent : r.textContent).trim();
+      const scuEl = r.querySelector("input[type='number'], input[data-scu], .scu input, .qty input");
+      let scu = null;
+      if(scuEl && "value" in scuEl) scu = num(scuEl.value);
+      if(scu == null){
+        // fallback: detect "... 1 SCU"
+        const m = r.textContent.match(/([0-9]+(?:[.,][0-9]+)?)\s*SCU/i);
+        if(m) scu = num(m[1].replace(",",".")); 
+      }
+      if((key || name) && (scu != null) && scu > 0){
+        items.push({ key: key || name.toLowerCase().replace(/\s+/g,"_"), name, scu });
+      }
+    }
+    // de-dup by key+name
+    const seen = new Set();
+    return items.filter(it => {
+      const k = it.key + "|" + it.name;
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  function buildMiningRun(){
+    const advView = document.getElementById("moduleAdvancedView");
+    if(!advView || advView.classList.contains("is-hidden")) return null;
+
+    // Selected ores
+    const items = buildSelectedItemsFromDOM();
+    const totalInput = num(document.getElementById("advTotalInputScu")?.textContent || "");
+    const inputs = {
+      count: items.length,
+      items,
+      total_input_scu: totalInput
+    };
+
+    // Ship
+    let ship = null;
+    const shipInput = document.getElementById("miningShip");
+    const shipLbl = document.getElementById("miningShipPickerLabel")?.textContent || "";
+    ship = (shipInput?.value || shipLbl || "").trim() || null;
+    if(ship && /sélectionner\s+un\s+vaisseau/i.test(ship)) ship = null;
+
+    // Config
+    const cfg = {
+      refinery: String(document.getElementById("advRefinery")?.value || "auto"),
+      method: String(document.getElementById("advMethod")?.value || "auto"),
+      objective: String(document.getElementById("advObjective")?.value || "net_total"),
+      yield_window: String(document.getElementById("advYieldWindow")?.value || "30d"),
+      include_time: String((document.getElementById("advIncludeTime")?.checked ? "1" : "0"))
+    };
+
+    // Result payload (after Calculer)
+    const rawStr = document.getElementById("advResultJson")?.textContent || "";
+    const raw = safeJsonParse(rawStr.trim());
+    const result = raw ? { payload: raw } : null;
+
+    return {
+      ship,
+      inputs,
+      config: cfg,
+      result
+    };
+  }
+
+  window.SHOG_RUN_BUILDERS = window.SHOG_RUN_BUILDERS || {};
+  window.SHOG_RUN_BUILDERS.mining = buildMiningRun;
+})();
