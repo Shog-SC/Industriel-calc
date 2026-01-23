@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.0.8 (SAVE_MERGE_FULL_RUN_FIX_SYNTAX + WORK_ORDRES_TAB_FR)
+/* assets/js/runs-ui.js — V1.0.9 (SAVE_RUN_BUILDER_MERGE_ADV_MINING + WORK_ORDRES_TAB_FR)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.0.8 (SAVE_MERGE_FULL_RUN_FIX_SYNTAX + WORK_ORDRES_TAB_FR)";
+  const RUNS_UI_VERSION = "V1.0.9 (SAVE_RUN_BUILDER_MERGE_ADV_MINING + WORK_ORDRES_TAB_FR)";
 
   // ---------------------------
   // Constants
@@ -1027,7 +1027,33 @@
     }
 
     try {
-      const payload = buildBasePayload(state.module);
+      // Base payload (module + schema + metadata)
+      let payload = buildBasePayload(state.module);
+
+      // Module snapshot builder (optional).
+      // This allows MINING (advanced) / FRET / SALVAGE to inject ship/inputs/config/result.
+      try {
+        const builders = window.SHOG_RUN_BUILDERS || null;
+        const fn = (builders && typeof builders === "object") ? builders[state.module] : null;
+
+        let extra = null;
+        if (typeof fn === "function") {
+          extra = fn();
+        } else if (typeof window.SHOG_BUILD_RUN_PAYLOAD === "function") {
+          extra = window.SHOG_BUILD_RUN_PAYLOAD(state.module);
+        }
+
+        if (extra && typeof extra === "object") {
+          payload = { ...payload, ...extra };
+        } else if (state.module === "mining") {
+          // Advanced-only requirement: if no snapshot, keep base payload (still saves metadata).
+          showToast("Aucune donnée MINAGE (mode avancé) détectée pour ce run.", "info");
+        }
+      } catch (e) {
+        console.warn("[runs-ui] builder merge failed", e);
+        if (state.module === "mining") showToast("Snapshot MINAGE indisponible (mode avancé).", "info");
+      }
+
       const res = await apiCreateRun(state.module, payload);
       const created = res.run || null;
 
@@ -1046,7 +1072,7 @@
     }
   }
 
-  // ---------------------------
+// ---------------------------
   // Auth-dependent UI visibility + bindings
   // ---------------------------
   function syncAuthDependentUi() {
