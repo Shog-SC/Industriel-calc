@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.1.2 (SAVE_MODULE_OVERRIDE + PUBLIC_API_SAVE + OPTIMISTIC_CREATE_LIST_FIX)
+/* assets/js/runs-ui.js — V1.1.3 (SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.2 (SAVE_MODULE_OVERRIDE + PUBLIC_API_SAVE + OPTIMISTIC_CREATE_LIST_FIX)";
+  const RUNS_UI_VERSION = "V1.1.3 (SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)";
 
   // ---------------------------
   // Constants
@@ -813,9 +813,31 @@
 
   function renderSummaryCards(run) {
     const ship = (run.ship && !/sélectionner\s+un\s+vaisseau/i.test(String(run.ship))) ? escapeHtml(String(run.ship)) : "—";
-    const totals = run.totals || run.result?.totals || null;
-    const net = totals?.net_total ?? totals?.net ?? run.result?.net_total ?? null;
-    const perHour = totals?.net_per_hour ?? totals?.per_hour ?? run.result?.net_per_hour ?? null;
+    const totals = (
+      run.totals ||
+      run.result?.payload?.totals ||
+      run.result?.totals ||
+      run.result?.payload?.payload?.totals ||
+      null
+    );
+
+    const net = (
+      totals?.net_total ??
+      totals?.net_auec ??
+      totals?.net ??
+      run.net_total ??
+      run.result?.net_total ??
+      null
+    );
+
+    const perHour = (
+      totals?.net_per_hour ??
+      totals?.net_per_hour_auec ??
+      totals?.per_hour ??
+      run.net_per_hour ??
+      run.result?.net_per_hour ??
+      null
+    );
 
     const itemsCount = (() => {
       const n = run.items_count ?? (Array.isArray(run.items) ? run.items.length : null);
@@ -889,7 +911,11 @@
 
     try {
       const data = await apiGetRun(state.module, id);
-      state.selectedRun = data.run || null;
+      state.selectedRun = normalizeRun(data.run || null);
+      if (state.selectedRun && state.selectedRun.id) {
+        const i = state.runs.findIndex(r => r.id === state.selectedRun.id);
+        if (i >= 0) state.runs[i] = { ...state.runs[i], ...state.selectedRun };
+      }
       renderDetail();
     } catch (err) {
       console.error("[runs-ui] get error", err);
@@ -924,16 +950,46 @@
   }
 
   function exportRuns() {
-    const payload = {
-      exported_at: new Date().toISOString(),
-      module: state.module,
-      runs: state.filtered || state.runs || [],
-    };
-    downloadJson(`shog_${state.module}_runs_export.json`, payload);
-    showToast("Exported", "ok");
+    if (!getDiscordToken()) {
+      showToast("Login requis", "error");
+      return;
+    }
+
+    const module = (state.module || "mining").toLowerCase();
+    const runs = (state.filtered && state.filtered.length ? state.filtered : state.runs).slice(0);
+
+    (async () => {
+      try {
+        showToast("Export en cours…", "info");
+
+        const full = [];
+        for (const r of runs) {
+          if (!r || !r.id) continue;
+          try {
+            const data = await apiGetRun(module, r.id);
+            const rr = normalizeRun(data.run || null);
+            if (rr) full.push(rr);
+          } catch (e) {
+            full.push(normalizeRun({ ...r }));
+          }
+        }
+
+        const payload = {
+          exported_at: new Date().toISOString(),
+          module,
+          runs: full
+        };
+
+        downloadJson(`shog_${module}_runs_export.json`, payload);
+        showToast("Export OK", "ok");
+      } catch (e) {
+        console.error("[runs-ui] export error", e);
+        showToast("Export échoué", "error");
+      }
+    })();
   }
 
-  function setConfirm(show, { title, message, okText, onOk } = {}) {
+function setConfirm(show, { title, message, okText, onOk } = {}) {
     const box = $("#shogRunsConfirm");
     if (!box) return;
     if (!show) {
@@ -1065,7 +1121,7 @@
       }
 
       const res = await apiCreateRun(module, payload);
-      const created = (res && res.run) ? res.run : null;
+      const created = (res && res.run) ? normalizeRun(res.run) : null;
 
       showToast("Run saved", "ok");
       showModal();
@@ -1252,3 +1308,35 @@
     boot();
   }
 })();
+  // ---------------------------
+  // Normalize run objects (support multiple schemas / nested payloads)
+  // ---------------------------
+  function normalizeRun(run) {
+    if (!run || typeof run !== "object") return run;
+
+    const payload = run.result?.payload || run.result?.data || run.result?.payload?.payload || null;
+    const totals = run.totals || payload?.totals || run.result?.totals || null;
+
+    if (!run.totals && totals) run.totals = totals;
+
+    if (totals) {
+      if (run.net_total == null && typeof totals.net_auec === "number") run.net_total = totals.net_auec;
+      if (run.net_total == null && typeof totals.net_total === "number") run.net_total = totals.net_total;
+
+      if (run.net_per_hour == null && typeof totals.net_per_hour === "number") run.net_per_hour = totals.net_per_hour;
+      if (run.net_per_hour == null && typeof totals.net_per_hour_auec === "number") run.net_per_hour = totals.net_per_hour_auec;
+
+      if (run.gross_total == null && typeof totals.gross_auec === "number") run.gross_total = totals.gross_auec;
+      if (run.gross_total == null && typeof totals.gross_total === "number") run.gross_total = totals.gross_total;
+    }
+
+    if (run.items_count == null) {
+      const itemsLen = Array.isArray(payload?.items) ? payload.items.length : null;
+      const inputsLen = Array.isArray(run.inputs?.items) ? run.inputs.items.length : null;
+      run.items_count = (typeof itemsLen === "number") ? itemsLen : (typeof inputsLen === "number" ? inputsLen : null);
+    }
+
+    return run;
+  }
+
+
