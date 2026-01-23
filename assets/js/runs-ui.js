@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.0.5 (AUTH_VISIBILITY_SYNC + SUPPORT_LINK_FIX)
+/* assets/js/runs-ui.js — V1.0.8 (SAVE_MERGE_FULL_RUN_FIX_SYNTAX + WORK_ORDRES_TAB_FR)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.0.5 (AUTH_VISIBILITY_SYNC + SUPPORT_LINK_FIX)";
+  const RUNS_UI_VERSION = "V1.0.8 (SAVE_MERGE_FULL_RUN_FIX_SYNTAX + WORK_ORDRES_TAB_FR)";
 
   // ---------------------------
   // Constants
@@ -197,10 +197,10 @@
     return apiFetch(`/runs/${encodeURIComponent(module)}`, { method: "POST", headers: h, body: JSON.stringify(payload || {}) });
   }
 
-  async function apiUpdateRun(module, id, patch) {
+  async function apiUpdateRun(module, id, payload) {
     const h = authHeader();
     if (!h) throw new Error("Login requis (token Discord manquant).");
-    return apiFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`, { method: "PUT", headers: h, body: JSON.stringify(patch || {}) });
+    return apiFetch(`/runs/${encodeURIComponent(module)}/${encodeURIComponent(id)}`, { method: "PUT", headers: h, body: JSON.stringify(payload || {}) });
   }
 
   async function apiDeleteRun(module, id) {
@@ -479,6 +479,9 @@
     }
 
     const title = escapeHtml(run.title || "");
+
+    const woEnabled = (state.module === "mining");
+    if (!woEnabled && state.tab === "work_orders") state.tab = "summary";
     const notes = escapeHtml(run.notes || "");
     const created = escapeHtml(fmtDate(run.created_at));
     const updated = escapeHtml(fmtDate(run.updated_at));
@@ -506,6 +509,7 @@
       <div class="shog-runs-tabs">
         <button class="shog-runs-tab ${state.tab === "summary" ? "is-active" : ""}" data-tab="summary" type="button">Summary</button>
         <button class="shog-runs-tab ${state.tab === "json" ? "is-active" : ""}" data-tab="json" type="button">Raw JSON</button>
+        ${state.module === "mining" ? `<button class="shog-runs-tab ${state.tab === "work_orders" ? "is-active" : ""}" data-tab="work_orders" type="button">Ordres</button>` : ""}
       </div>
 
       <div class="shog-runs-tabpanel ${state.tab === "summary" ? "" : "is-hidden"}" data-panel="summary">
@@ -530,6 +534,12 @@
           <div><span class="k">ID</span> <span class="v">${escapeHtml(run.id)}</span></div>
         </div>
       </div>
+
+      ${state.module === "mining" ? `
+      <div class="shog-runs-tabpanel ${state.tab === "work_orders" ? "" : "is-hidden"}" data-panel="work_orders">
+        ${renderWorkOrdersPanel(run)}
+      </div>
+      ` : ""}
 
       <div class="shog-runs-tabpanel ${state.tab === "json" ? "" : "is-hidden"}" data-panel="json">
         <div class="shog-runs-jsonactions">
@@ -558,7 +568,248 @@
         renderDetail();
       });
     });
+
+    if (state.tab === "work_orders" && (state.module === "mining")) bindWorkOrdersPanel(detail);
   }
+
+  
+  // ---------------------------
+  // Work Orders (MINING) — onglet "Ordres" (FR)
+  // ---------------------------
+  function pick(obj, keys) {
+    if (!obj || typeof obj !== "object") return null;
+    for (const k of keys) {
+      if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+    }
+    return null;
+  }
+
+  function toBool(v) {
+    if (v === true || v === false) return v;
+    if (typeof v === "number") return v !== 0;
+    if (typeof v === "string") {
+      const s = v.trim().toLowerCase();
+      if (["1","true","yes","y","ok","paid","sold"].includes(s)) return true;
+      if (["0","false","no","n",""].includes(s)) return false;
+    }
+    return null;
+  }
+
+  function normalizeOres(v) {
+    if (!v) return [];
+    if (Array.isArray(v)) {
+      return v.map((x) => {
+        if (typeof x === "string") return { name: x, qty: null, unit: null };
+        if (x && typeof x === "object") {
+          const name = pick(x, ["name","ore","material","label","type"]) ?? "—";
+          const qty  = pick(x, ["qty","quantity","amount","scu","value"]);
+          const unit = pick(x, ["unit","uom"]) ?? null;
+          return { name: String(name), qty: (qty==null?null:Number(qty)), unit: unit ? String(unit) : null };
+        }
+        return { name: String(x), qty: null, unit: null };
+      });
+    }
+    if (typeof v === "object") {
+      try {
+        return Object.keys(v).map((k) => ({ name: String(k), qty: (v[k]==null?null:Number(v[k])), unit: null }));
+      } catch { return []; }
+    }
+    return [{ name: String(v), qty: null, unit: null }];
+  }
+
+  function fmtHHMM(val) {
+    if (val == null) return "—";
+    if (typeof val === "string") return escapeHtml(val);
+    const n = Number(val);
+    if (!Number.isFinite(n)) return "—";
+
+    // Heuristic: if small (< 1000) assume minutes, else seconds.
+    const sec = (n < 1000) ? Math.round(n * 60) : Math.round(n);
+    const s = Math.max(0, sec);
+
+    const hh = Math.floor(s / 3600);
+    const mm = Math.floor((s % 3600) / 60);
+    return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  }
+
+  function extractWorkOrders(run) {
+    const candidates = [
+      run?.work_orders,
+      run?.workOrders,
+      run?.result?.work_orders,
+      run?.result?.workOrders,
+      run?.result?.refinery?.work_orders,
+      run?.result?.refinery?.workOrders,
+      run?.result?.refinery?.orders,
+      run?.inputs?.work_orders,
+      run?.inputs?.workOrders,
+    ];
+    const list = candidates.find((x) => Array.isArray(x) && x.length) || null;
+    if (list) return list.map((wo) => normalizeWorkOrder(wo, run)).filter(Boolean);
+
+    // Fallback: attempt single object-like order
+    const wo = normalizeWorkOrder(run?.result?.refinery || run?.result || run?.inputs || null, run);
+    return wo ? [wo] : [];
+  }
+
+  function normalizeWorkOrder(src, run) {
+    if (!src || typeof src !== "object") return null;
+
+    const type = pick(src, ["type","method","refinery_method","process","mode","name"]) ?? "—";
+    const orderId = pick(src, ["order_id","orderId","id","job_id","jobId"]) ?? run?.id ?? "—";
+
+    const ores = normalizeOres(
+      pick(src, ["ores","materials","inputs","items","ore_list","oreList"]) ??
+      run?.inputs?.ores ??
+      run?.result?.ores ??
+      run?.items
+    );
+
+    const yieldScu  = pick(src, ["yield_scu","yieldScu","yield","output_scu","outputScu","result_scu","resultScu"]);
+    const grossAuec = pick(src, ["gross","gross_total","grossTotal","gross_auec","grossAuec"]);
+    const netAuec   = pick(src, ["net","net_total","netTotal","net_auec","netAuec"]);
+    const duration  = pick(src, ["duration","duration_s","durationS","time","time_s","timeS","eta"]);
+
+    const sold  = toBool(pick(src, ["sold","is_sold","isSold"])) ?? null;
+    const paid  = toBool(pick(src, ["paid","is_paid","isPaid"])) ?? null;
+    const parts = pick(src, ["shares","share_count","shareCount","parts","parts_count"]);
+
+    return {
+      type: String(type),
+      orderId: String(orderId),
+      ores,
+      yieldScu: (yieldScu==null?null:Number(yieldScu)),
+      grossAuec: (grossAuec==null?null:Number(grossAuec)),
+      netAuec: (netAuec==null?null:Number(netAuec)),
+      duration,
+      sold,
+      paid,
+      parts: (parts==null?null:Number(parts)),
+    };
+  }
+
+  function renderWorkOrdersPanel(run) {
+    const orders = extractWorkOrders(run);
+    const total = orders.length;
+
+    const tYield = orders.reduce((a,o)=>a+(Number.isFinite(o.yieldScu)?o.yieldScu:0),0);
+    const tGross = orders.reduce((a,o)=>a+(Number.isFinite(o.grossAuec)?o.grossAuec:0),0);
+    const tNet   = orders.reduce((a,o)=>a+(Number.isFinite(o.netAuec)?o.netAuec:0),0);
+
+    const rows = total ? orders.map((o) => {
+      const ores = (o.ores && o.ores.length)
+        ? o.ores.map((x) => `<span class="wo-badge${x.qty!=null ? "" : " wo-badge-muted"}">${escapeHtml(x.name)}</span>`).join("")
+        : `<span class="wo-badge wo-badge-muted">—</span>`;
+
+      const sold = (o.sold == null) ? `<span class="wo-pill wo-pill-muted">—</span>`
+                 : (o.sold ? `<span class="wo-pill wo-pill-ok">Oui</span>` : `<span class="wo-pill wo-pill-muted">Non</span>`);
+
+      const paid = (o.paid == null) ? `<span class="wo-pill wo-pill-muted">—</span>`
+                 : (o.paid ? `<span class="wo-pill wo-pill-ok">Oui</span>` : `<span class="wo-pill wo-pill-muted">Non</span>`);
+
+      const parts = (o.parts == null) ? "" : ` <span style="opacity:.8">/ ${fmtNumber(o.parts)} part${o.parts===1?"":"s"}</span>`;
+      const dur = (o.duration == null) ? "—" : fmtHHMM(o.duration);
+
+      return `
+        <tr class="wo-row${o.paid ? " is-paid" : ""}">
+          <td>${escapeHtml(o.type)}</td>
+          <td class="wo-mono">${escapeHtml(o.orderId)}</td>
+          <td class="wo-ores">${ores}</td>
+          <td class="wo-num">${(Number.isFinite(o.yieldScu)) ? `${fmtNumber(o.yieldScu)} <span class="wo-unit">SCU</span>` : "—"}</td>
+          <td class="wo-num">${(Number.isFinite(o.grossAuec)) ? `${fmtNumber(o.grossAuec)} <span class="wo-unit">aUEC</span>` : "—"}</td>
+          <td class="wo-num">${(Number.isFinite(o.netAuec)) ? `${fmtNumber(o.netAuec)} <span class="wo-unit">aUEC</span>` : "—"}</td>
+          <td class="wo-num">${escapeHtml(dur)}</td>
+          <td>${sold}</td>
+          <td>${paid}${parts}</td>
+        </tr>
+      `;
+    }).join("") : `
+      <tr class="wo-empty">
+        <td colspan="9"><div class="wo-emptyBox">Aucun ordre.</div></td>
+      </tr>
+    `;
+
+    return `
+      <section class="wo-panel" id="shogWoPanel" data-hide-paid="0" data-collapsed="0" data-total="${total}">
+        <header class="wo-bar">
+          <button class="wo-collapse" id="shogWoCollapse" type="button" aria-expanded="true" title="Replier / Déplier">▾</button>
+          <div class="wo-title">Ordres de raffinage <span class="wo-count" id="shogWoCount">(${total}/${total})</span></div>
+
+          <label class="wo-toggle" title="Masquer les commandes payées">
+            <span class="wo-toggle-label">Masquer payées</span>
+            <input id="shogWoHidePaid" type="checkbox" />
+            <span class="wo-switch" aria-hidden="true"></span>
+          </label>
+        </header>
+
+        <div class="wo-tableWrap">
+          <table class="wo-table" aria-label="Ordres de raffinage">
+            <thead>
+              <tr>
+                <th class="wo-th">Type</th>
+                <th class="wo-th">ID commande</th>
+                <th class="wo-th">Minerais</th>
+                <th class="wo-th wo-num">Rendement</th>
+                <th class="wo-th wo-num">Brut</th>
+                <th class="wo-th wo-num">Net</th>
+                <th class="wo-th wo-num"><span class="wo-ico" aria-hidden="true">⏱</span>Durée</th>
+                <th class="wo-th">Vendu</th>
+                <th class="wo-th">Payé / Parts</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+            <tfoot>
+              <tr class="wo-totals">
+                <td colspan="3">Totaux</td>
+                <td class="wo-num">${total ? `${fmtNumber(tYield)} <span class="wo-unit">SCU</span>` : "—"}</td>
+                <td class="wo-num">${total ? `${fmtNumber(tGross)} <span class="wo-unit">aUEC</span>` : "—"}</td>
+                <td class="wo-num">${total ? `${fmtNumber(tNet)} <span class="wo-unit">aUEC</span>` : "—"}</td>
+                <td class="wo-num">—</td><td>—</td><td>—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
+  function bindWorkOrdersPanel(detailRoot) {
+    const panel = $("#shogWoPanel", detailRoot);
+    if (!panel) return;
+
+    const cb = $("#shogWoHidePaid", panel);
+    const collapseBtn = $("#shogWoCollapse", panel);
+    const countEl = $("#shogWoCount", panel);
+
+    function updateCount() {
+      const total = Number(panel.dataset.total || "0");
+      const hidePaid = panel.dataset.hidePaid === "1";
+      if (!countEl) return;
+
+      if (!hidePaid) { countEl.textContent = `(${total}/${total})`; return; }
+
+      const visible = $$(".wo-row", panel).filter((tr) => !tr.classList.contains("is-paid")).length;
+      countEl.textContent = `(${visible}/${total})`;
+    }
+
+    if (cb) {
+      cb.addEventListener("change", () => {
+        panel.dataset.hidePaid = cb.checked ? "1" : "0";
+        updateCount();
+      });
+    }
+
+    if (collapseBtn) {
+      collapseBtn.addEventListener("click", () => {
+        const isCollapsed = panel.dataset.collapsed === "1";
+        panel.dataset.collapsed = isCollapsed ? "0" : "1";
+        collapseBtn.setAttribute("aria-expanded", isCollapsed ? "true" : "false");
+      });
+    }
+
+    updateCount();
+  }
+
 
   function renderSummaryCards(run) {
     const ship = run.ship ? escapeHtml(String(run.ship)) : "—";
@@ -729,33 +980,42 @@
   async function onSaveEdit() {
     if (!state.selectedRun) return;
 
+    const runId = state.selectedRun.id;
+    const base = state.selectedRun;
+
     const newTitle = String($("#shogRunsEditTitle").value || "").trim();
     const newNotes = String($("#shogRunsEditNotes").value || "").trim();
 
+    // IMPORTANT: some backends interpret PUT as a full replacement.
+    // If we send only {title, notes}, we may wipe all existing run fields.
+    // So we PUT the full run merged with the edited fields.
     const patch = {
-      title: newTitle || state.selectedRun.title || "Run",
+      title: newTitle || base.title || "Run",
       notes: newNotes || null,
     };
 
+    const payload = { ...base, ...patch };
+
     try {
-      const res = await apiUpdateRun(state.module, state.selectedRun.id, patch);
-      const updated = res.run || null;
-      if (updated) {
-        state.selectedRun = updated;
-        const idx = state.runs.findIndex(r => r.id === updated.id);
-        if (idx >= 0) state.runs[idx] = { ...state.runs[idx], ...updated };
-        applyFilterSortRender();
-        showToast("Saved", "ok");
-      } else {
-        showToast("Saved", "ok");
-        await refreshRuns();
-        await selectRun(state.selectedRun.id);
-      }
+      const res = await apiUpdateRun(state.module, runId, payload);
+      const updated = (res && res.run) ? res.run : null;
+
+      // Prefer backend-returned run, but keep payload fields to avoid losing local data
+      const finalRun = updated ? ({ ...payload, ...updated }) : payload;
+
+      state.selectedRun = finalRun;
+
+      const idx = state.runs.findIndex(r => r.id === runId);
+      if (idx >= 0) state.runs[idx] = { ...state.runs[idx], ...finalRun };
+
+      applyFilterSortRender();
+      showToast("Saved", "ok");
     } catch (err) {
       console.error("[runs-ui] update error", err);
       showToast(err.message || "Save failed", "error");
     }
   }
+
 
   // ---------------------------
   // Save run entrypoints
