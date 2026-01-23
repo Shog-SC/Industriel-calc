@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.1.0 (OPTIMISTIC_CREATE_LIST_FIX + ADV_MINING_BUILDER_MERGE)
+/* assets/js/runs-ui.js — V1.1.1 (PUBLIC_API_SAVE + SUMMARY_COUNTS_FIX + OPTIMISTIC_CREATE_LIST_FIX)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.0 (OPTIMISTIC_CREATE_LIST_FIX + ADV_MINING_BUILDER_MERGE)";
+  const RUNS_UI_VERSION = "V1.1.1 (PUBLIC_API_SAVE + SUMMARY_COUNTS_FIX + OPTIMISTIC_CREATE_LIST_FIX)";
 
   // ---------------------------
   // Constants
@@ -812,19 +812,25 @@
 
 
   function renderSummaryCards(run) {
-    const ship = run.ship ? escapeHtml(String(run.ship)) : "—";
+    const ship = (run.ship && !/sélectionner\s+un\s+vaisseau/i.test(String(run.ship))) ? escapeHtml(String(run.ship)) : "—";
     const totals = run.totals || run.result?.totals || null;
     const net = totals?.net_total ?? totals?.net ?? run.result?.net_total ?? null;
     const perHour = totals?.net_per_hour ?? totals?.per_hour ?? run.result?.net_per_hour ?? null;
 
     const itemsCount = (() => {
       const n = run.items_count ?? (Array.isArray(run.items) ? run.items.length : null);
-      return (typeof n === "number") ? n : null;
+      if (typeof n === "number") return n;
+      if (run.inputs && Array.isArray(run.inputs.items)) return run.inputs.items.length;
+      return null;
     })();
 
     const inputsCount = (() => {
-      if (run.inputs && typeof run.inputs === "object") {
-        try { return Object.keys(run.inputs).length; } catch { return null; }
+      const i = run.inputs;
+      if (i && typeof i === "object") {
+        if (typeof i.count === "number") return i.count;
+        if (Array.isArray(i.items)) return i.items.length;
+        if (typeof i.total_input_scu === "number") return null; // not a count
+        try { return Object.keys(i).length; } catch { return null; }
       }
       return null;
     })();

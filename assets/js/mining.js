@@ -7,7 +7,7 @@
     if(Math.abs(n) < 10) return `${n.toFixed(1)}%`;
     return `${Math.round(n)}%`;
   }
-/* assets/js/mining.js - Version V1.5.34 (ADV_RUN_BUILDER + DATASET_URL_PRIORITY_FIX)
+/* assets/js/mining.js - Version V1.5.35 (ADV_SAVE_BTN_HOOK + ADV_RUN_BUILDER_ENRICH)
    Module: MINAGE (Mode Débutant) - Mega Package (suite)
    Changements V1.2.1 :
    - Suppression des phrases/hints demandés (texte UI)
@@ -18,7 +18,7 @@
 
    Dépendances :
    - miningShips.js expose window.getMiningShips() et window.getShipCapacity()
-   // - mining_ores_ship.json + mining_ores_roc.json (datasets locaux)
+   - mining_ores_ship.json + mining_ores_roc.json (datasets locaux)
 */
 
 (function(){
@@ -4047,92 +4047,47 @@ try { miningInitVersionFooter(); } catch(_) {}
   }
 
 
-/* ---------------------------------------------------------------------------
-   SHOG Runs — MINAGE (Mode Avancé) snapshot builder
-   - Used by runs-ui.js "Save Run" to persist selected ores + advanced results.
-   - Requirement: ONLY Mode Avancé is saved (Beginner ignored).
---------------------------------------------------------------------------- */
+// ---------------------------------------------------------------------------
+// MINAGE (Mode Avancé) — Save Run button (next to Calculer)
+// ---------------------------------------------------------------------------
 (function(){
-  try{
-    window.SHOG_RUN_BUILDERS = window.SHOG_RUN_BUILDERS || {};
-    if(typeof window.SHOG_RUN_BUILDERS.mining === "function") return;
-
-    window.SHOG_RUN_BUILDERS.mining = function(){
+  function onAdvSaveRunClick(){
+    try{
       const advView = document.getElementById("moduleAdvancedView");
-      if(!advView || advView.classList.contains("is-hidden")) return null; // Advanced only
-
-      const shipVal = (document.getElementById("miningShip") && document.getElementById("miningShip").value) || "";
-      const shipLbl = (document.getElementById("miningShipPickerLabel") && document.getElementById("miningShipPickerLabel").textContent) || "";
-      const ship = (shipVal || shipLbl || "").trim() || null;
-
-      const list = document.getElementById("advSelectedList");
-      if(!list) return null;
-
-      const rows = Array.from(list.querySelectorAll('li[data-key]'));
-      const items = rows.map(li => {
-        const key = (li.dataset && li.dataset.key) ? String(li.dataset.key) : null;
-        const name = (li.querySelector(".truncate") && li.querySelector(".truncate").textContent) ? li.querySelector(".truncate").textContent.trim() : null;
-        const qtyEl = li.querySelector(".adv-sel-qty");
-        const scu = qtyEl ? Number(qtyEl.value) : null;
-        return { key, name, scu: (Number.isFinite(scu) ? scu : 0) };
-      }).filter(it => it.key);
-
-      const total_input_scu = items.reduce((a,it) => a + (Number.isFinite(it.scu) ? it.scu : 0), 0);
-
-      const cfg = {
-        mode: "advanced",
-        refinery: (document.getElementById("advRefinery") && document.getElementById("advRefinery").value) || "auto",
-        method: (document.getElementById("advMethod") && document.getElementById("advMethod").value) || "auto",
-        objective: (document.getElementById("advObjective") && document.getElementById("advObjective").value) || "net_total",
-        yield_window: (document.getElementById("advYieldWindow") && document.getElementById("advYieldWindow").value) || "30d",
-        include_time: (document.getElementById("advIncludeTime") && document.getElementById("advIncludeTime").value) || "1"
-      };
-
-      // Advanced API payload (if already computed)
-      let raw = null;
-      try{
-        const txt = (document.getElementById("advResultJson") && document.getElementById("advResultJson").textContent) ? document.getElementById("advResultJson").textContent.trim() : "";
-        if(txt && (txt.startsWith("{") || txt.startsWith("["))) raw = JSON.parse(txt);
-      }catch(_){ raw = null; }
-
-      let result = null;
-      if(raw && typeof raw === "object"){
-        const t = raw.totals || {};
-        result = {
-          selected: raw.selected || null,
-          totals: {
-            input_scu: t.input_scu ?? total_input_scu,
-            gross_total: t.gross_auec ?? null,
-            cost_total: t.cost_auec ?? null,
-            net_total: t.net_auec ?? (t.gross_auec ?? null),
-            net_per_hour: t.net_per_hour ?? null,
-            total_time_h: t.total_time_h ?? null,
-            bonus_yield_avg: t.bonus_yield_avg ?? null
-          },
-          items: raw.items || null,
-          best_sellers: raw.best_sellers || null,
-          payload: raw
-        };
-      } else {
-        result = {
-          totals: { input_scu: total_input_scu, net_total: null, net_per_hour: null }
-        };
+      if(!advView || advView.classList.contains("is-hidden")){
+        if(typeof showToast === "function") showToast("Passe en mode Avancé pour sauvegarder un run.", "info");
+        return;
       }
 
-      return {
-        ship: ship,
-        inputs: {
-          items,
-          total_input_scu,
-          count: items.length
-        },
-        config: cfg,
-        result: result,
-        schema: "shog.run.v1.mining"
-      };
-    };
-  }catch(e){
-    console.warn("[mining] SHOG_RUN_BUILDERS.mining init failed", e);
+      // If no computed result yet, warn (still allow save selection only)
+      const rj = document.getElementById("advResultJson");
+      const hasResult = !!(rj && rj.textContent && rj.textContent.trim().length > 2);
+      if(!hasResult && typeof showToast === "function"){
+        showToast("Info: clique sur Calculer avant Sauvegarder si tu veux les résultats + ordres.", "info");
+      }
+
+      if(window.SHOG_RUNS_UI && typeof window.SHOG_RUNS_UI.save === "function"){
+        window.SHOG_RUNS_UI.save();
+      } else {
+        console.warn("[mining] SHOG_RUNS_UI.save not available");
+      }
+    }catch(e){
+      console.error("[mining] adv save click failed", e);
+    }
+  }
+
+  function bind(){
+    const btn = document.getElementById("advSaveRunBtn");
+    if(!btn) return;
+    if(btn.dataset && btn.dataset.bound === "1") return;
+    btn.addEventListener("click", onAdvSaveRunClick);
+    if(btn.dataset) btn.dataset.bound = "1";
+  }
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
   }
 })();
 
