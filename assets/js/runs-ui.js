@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.4 (MINING_WORK_ORDERS_FROM_PAYLOAD + SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)";
+  const RUNS_UI_VERSION = "V1.1.5 (MERGE_LIST_LAG_FIX + HIDE_SHIP_MINING + EXTERNAL_SAVE_NO_MODAL)";
 
   // ---------------------------
   // Constants
@@ -908,8 +908,10 @@
       return null;
     })();
 
+    const showShip = (state.module !== "mining");
+
     const fields = [
-      { k: "Ship", v: ship },
+      ...(showShip ? [{ k: "Ship", v: ship }] : []),
       { k: "Net total", v: (net == null) ? "—" : `${fmtNumber(net)} aUEC` },
       { k: "Net / hour", v: (perHour == null) ? "—" : `${fmtNumber(perHour)} aUEC/h` },
       { k: "Items", v: (itemsCount == null) ? "—" : String(itemsCount) },
@@ -937,7 +939,25 @@
 
     try {
       const list = await apiListRuns(state.module);
-      state.runs = Array.isArray(list.runs) ? list.runs : [];
+      const serverRuns = Array.isArray(list.runs) ? list.runs : [];
+const localRuns = Array.isArray(state.runs) ? state.runs : [];
+
+// Merge local + server to mitigate eventual-consistency lag in KV.list.
+// Server data wins field-by-field, but we keep locally-created runs that
+// may not appear in list() for a short time.
+const map = new Map();
+for (const r of localRuns) {
+  if (r && r.id) map.set(String(r.id), r);
+}
+for (const r of serverRuns) {
+  if (!r || !r.id) continue;
+  const id = String(r.id);
+  const prev = map.get(id) || {};
+  map.set(id, { ...prev, ...r });
+}
+state.runs = Array.from(map.values()).sort((a, b) =>
+  String(b.created_at || "").localeCompare(String(a.created_at || ""))
+);
 
       if (state.selectedId && !state.runs.some(r => r.id === state.selectedId)) {
         state.selectedId = null;
@@ -1141,6 +1161,8 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
 
     const module = (moduleOverride || state.module || "mining").toLowerCase();
 
+    const externalSave = !!moduleOverride;
+
     // Keep state coherent even if save is called from outside the modal.
     state.module = module;
 
@@ -1175,7 +1197,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       const created = (res && res.run) ? normalizeRun(res.run) : null;
 
       showToast("Run saved", "ok");
-      showModal();
+      if (!externalSave) if (!externalSave) showModal();
 
       // OPTIMISTIC: insert locally (listing can lag)
       if (created && created.id) {

@@ -7,7 +7,7 @@
     if(Math.abs(n) < 10) return `${n.toFixed(1)}%`;
     return `${Math.round(n)}%`;
   }
-/* assets/js/mining.js - Version V1.5.38 (RUN_BUILDER_CLEAN_ORE_NAMES)
+/* assets/js/mining.js - Version V1.5.36 (ADV_SAVE_ONLY + RUN_BUILDER_DOM_PARSE)
    Module: MINAGE (Mode Débutant) - Mega Package (suite)
    Changements V1.2.1 :
    - Suppression des phrases/hints demandés (texte UI)
@@ -4110,13 +4110,8 @@ try { miningInitVersionFooter(); } catch(_) {}
     const items = [];
     for(const r of rows){
       const key = (r.getAttribute("data-key") || r.dataset?.key || "").trim();
-      const nameEl = r.querySelector(".ore-name, .name, .label, strong, .oreLabel, .ore-label, .oreTitle, .ore-title, .item-name, .mineral-name");
-      let rawName = (nameEl ? nameEl.textContent : r.textContent) || "";
-      rawName = String(rawName).replace(/\s+/g, " ").trim();
-
-      // Extract a clean ore label like "Agricium (Ore)" / "Borase (Raw)" from noisy row text.
-      const mName = rawName.match(/([A-Za-zÀ-ÿ0-9'\- ]+\s*\((?:Ore|Raw)\))/i);
-      const name = (mName ? mName[1].trim() : rawName.replace(/\bBRUT\b/ig, "").replace(/\bSCU\b/ig, "").replace(/\bx\b/ig, "").trim());
+      const nameEl = r.querySelector(".ore-name, .name, .label, strong");
+      const name = (nameEl ? nameEl.textContent : r.textContent).trim();
       const scuEl = r.querySelector("input[type='number'], input[data-scu], .scu input, .qty input");
       let scu = null;
       if(scuEl && "value" in scuEl) scu = num(scuEl.value);
