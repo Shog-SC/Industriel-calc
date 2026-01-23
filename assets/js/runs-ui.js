@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.1.3 (SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)
+/* assets/js/runs-ui.js — V1.1.4 (MINING_WORK_ORDERS_FROM_PAYLOAD + SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.3 (SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)";
+  const RUNS_UI_VERSION = "V1.1.4 (MINING_WORK_ORDERS_FROM_PAYLOAD + SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)";
 
   // ---------------------------
   // Constants
@@ -601,8 +601,14 @@
       return v.map((x) => {
         if (typeof x === "string") return { name: x, qty: null, unit: null };
         if (x && typeof x === "object") {
-          const name = pick(x, ["name","ore","material","label","type"]) ?? "—";
-          const qty  = pick(x, ["qty","quantity","amount","scu","value"]);
+          const name = (
+            pick(x, ["name","ore","material","label","type"]) ??
+            x?.raw?.name ??
+            x?.refined?.name ??
+            x?.key ??
+            "—"
+          );
+          const qty  = pick(x, ["qty","quantity","amount","scu","value","input_scu","inputScu","input","in_scu","output_scu","outputScu"]); 
           const unit = pick(x, ["unit","uom"]) ?? null;
           return { name: String(name), qty: (qty==null?null:Number(qty)), unit: unit ? String(unit) : null };
         }
@@ -648,7 +654,7 @@
     if (list) return list.map((wo) => normalizeWorkOrder(wo, run)).filter(Boolean);
 
     // Fallback: attempt single object-like order
-    const wo = normalizeWorkOrder(run?.result?.refinery || run?.result || run?.inputs || null, run);
+    const wo = normalizeWorkOrder(run?.result?.payload || run?.result?.refinery || run?.result || run?.inputs || null, run);
     return wo ? [wo] : [];
   }
 
@@ -674,14 +680,59 @@
     const paid  = toBool(pick(src, ["paid","is_paid","isPaid"])) ?? null;
     const parts = pick(src, ["shares","share_count","shareCount","parts","parts_count"]);
 
+    // Derive missing fields from nested mining payloads (result.payload)
+    const totalsObj = (
+      src?.totals ||
+      src?.payload?.totals ||
+      src?.result?.totals ||
+      src?.result?.payload?.totals ||
+      null
+    );
+
+    // Prefer method label when type is unknown.
+    const derivedType = (
+      src?.selected?.method?.label ||
+      src?.selected?.method?.code ||
+      src?.method?.label ||
+      src?.method ||
+      null
+    );
+
+    // For mining: items are in payload.items; each item carries raw.name and input_scu/output_scu.
+    const derivedItems = (
+      src?.items ||
+      src?.payload?.items ||
+      src?.result?.payload?.items ||
+      null
+    );
+
+    // Compute yield (output SCU) if missing.
+    let computedYieldScu = null;
+    if (yieldScu == null && Array.isArray(derivedItems) && derivedItems.length) {
+      const s = derivedItems.reduce((a,it)=>a+(Number.isFinite(Number(it?.output_scu))?Number(it.output_scu):0),0);
+      if (Number.isFinite(s) && s > 0) computedYieldScu = s;
+    }
+    if (yieldScu == null && computedYieldScu == null && totalsObj && Number.isFinite(Number(totalsObj.input_scu))) {
+      computedYieldScu = Number(totalsObj.input_scu);
+    }
+
+    // Derive gross/net from totals if absent.
+    const derivedGross = (grossAuec==null && totalsObj && totalsObj.gross_auec!=null) ? Number(totalsObj.gross_auec) : null;
+    const derivedNet   = (netAuec==null   && totalsObj && totalsObj.net_auec!=null)   ? Number(totalsObj.net_auec)   : null;
+
+    // Derive duration (seconds) from totals.total_time_h if present.
+    const derivedDur = (duration==null && totalsObj && Number.isFinite(Number(totalsObj.total_time_h)))
+      ? Math.round(Number(totalsObj.total_time_h) * 3600)
+      : null;
+
     return {
-      type: String(type),
+      type: String((type !== "—" ? type : (derivedType ?? type))),
       orderId: String(orderId),
-      ores,
-      yieldScu: (yieldScu==null?null:Number(yieldScu)),
-      grossAuec: (grossAuec==null?null:Number(grossAuec)),
-      netAuec: (netAuec==null?null:Number(netAuec)),
-      duration,
+      ores: (ores && ores.length) ? ores : normalizeOres(derivedItems),
+      yieldScu: (yieldScu==null ? (computedYieldScu==null?null:Number(computedYieldScu)) : Number(yieldScu)),
+      grossAuec: (grossAuec==null ? (derivedGross==null?null:derivedGross) : Number(grossAuec)),
+      netAuec: (netAuec==null ? (derivedNet==null?null:derivedNet) : Number(netAuec)),
+      duration: (duration==null ? derivedDur : duration),
       sold,
       paid,
       parts: (parts==null?null:Number(parts)),
