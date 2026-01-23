@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.0.9 (SAVE_RUN_BUILDER_MERGE_ADV_MINING + WORK_ORDRES_TAB_FR)
+/* assets/js/runs-ui.js — V1.1.0 (OPTIMISTIC_CREATE_LIST_FIX + ADV_MINING_BUILDER_MERGE)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.0.9 (SAVE_RUN_BUILDER_MERGE_ADV_MINING + WORK_ORDRES_TAB_FR)";
+  const RUNS_UI_VERSION = "V1.1.0 (OPTIMISTIC_CREATE_LIST_FIX + ADV_MINING_BUILDER_MERGE)";
 
   // ---------------------------
   // Constants
@@ -1055,15 +1055,41 @@
       }
 
       const res = await apiCreateRun(state.module, payload);
-      const created = res.run || null;
+      const created = (res && res.run) ? res.run : null;
 
       showToast("Run saved", "ok");
       showModal();
-      await refreshRuns();
 
+      // OPTIMISTIC: Cloudflare KV/list endpoints can be eventually consistent.
+      // Insert the created run locally so the user sees it immediately,
+      // even if GET /runs/:module doesn't return it right away.
       if (created && created.id) {
-        await selectRun(created.id);
-      } else if (state.filtered.length) {
+        const idx = state.runs.findIndex(r => r.id === created.id);
+        if (idx === -1) state.runs.unshift(created);
+        else state.runs[idx] = { ...state.runs[idx], ...created };
+
+        state.selectedRun = created;
+        applyFilterSortRender();
+
+        // Best effort refresh (do not remove the optimistic run if list doesn't contain it yet)
+        try {
+          await refreshRuns();
+          if (!state.runs.some(r => r.id === created.id)) {
+            state.runs.unshift(created);
+            applyFilterSortRender();
+          }
+        } catch (e) {
+          console.warn("[runs-ui] refresh after create failed", e);
+        }
+
+        // Ensure the detail panel loads the full object from backend when possible
+        try { await selectRun(created.id); } catch (e) { console.warn("[runs-ui] select created failed", e); }
+        return;
+      }
+
+      // Fallback: refresh and select first
+      await refreshRuns();
+      if (state.filtered.length) {
         await selectRun(state.filtered[0].id);
       }
     } catch (err) {
@@ -1072,7 +1098,8 @@
     }
   }
 
-// ---------------------------
+
+  // ---------------------------
   // Auth-dependent UI visibility + bindings
   // ---------------------------
   function syncAuthDependentUi() {
