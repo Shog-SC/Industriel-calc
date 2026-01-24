@@ -1,4 +1,4 @@
-/* assets/js/runs-ui.js — V1.1.4 (MINING_WORK_ORDERS_FROM_PAYLOAD + SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)
+/* assets/js/runs-ui.js — V1.2.3 (MINING_WORK_ORDERS_FROM_PAYLOAD + SUMMARY_TOTALS_FROM_PAYLOAD + EXPORT_FULL_RUNS + SAVE_MODULE_OVERRIDE)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
    - Adds: robust show/hide of Save/Runs buttons based on Discord login token.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.2.2 (STATE_DELETED_INIT_FIX + OPTIMISTIC_GUARDS)";
+  const RUNS_UI_VERSION = "V1.2.3 (PENDING_LOCAL_MERGE_FIX + NO_STORE_CACHE_BUST)";
 
   // ---------------------------
   // Constants
@@ -240,7 +240,7 @@ function renderOrderIdHtml(orderId) {
       init.headers || {}
     );
 
-    const res = await fetch(url, { ...init, headers });
+    const res = await fetch(url, { cache: "no-store", ...init, headers });
     const text = await res.text();
     const data = safeJsonParse(text) || { raw: text };
 
@@ -257,7 +257,7 @@ function renderOrderIdHtml(orderId) {
   async function apiListRuns(module) {
     const h = authHeader();
     if (!h) throw new Error("Login requis (token Discord manquant).");
-    return apiFetch(`/runs/${encodeURIComponent(module)}`, { method: "GET", headers: h });
+    return apiFetch(`/runs/${encodeURIComponent(module)}?t=${Date.now()}`, { method: "GET", headers: h });
   }
 
   async function apiGetRun(module, id) {
@@ -345,6 +345,131 @@ function renderOrderIdHtml(orderId) {
     loading: false,
   };
 
+  // ---------------------------
+  // Pending runs (KV list can lag)
+  // Persist newly created runs locally so they appear immediately in "My Runs"
+  // even if Cloudflare KV.list() hasn't propagated yet.
+  // ---------------------------
+  const PENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
+  const PENDING_MAX = 25;
+
+  function pendingStorageKey(module) {
+    const mod = String(module || state.module || "").trim().toLowerCase();
+    return `shog.runs.pending.${mod || "unknown"}`;
+  }
+
+  function loadPendingRuns(module) {
+    const key = pendingStorageKey(module);
+    let arr = [];
+    try {
+      arr = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!Array.isArray(arr)) arr = [];
+    } catch (e) {
+      arr = [];
+    }
+
+    const now = Date.now();
+    const cleaned = arr
+      .filter((r) => r && typeof r === "object" && typeof r.id === "string")
+      .filter((r) => {
+        const ts = Number(r.__pending_ts || 0);
+        return Number.isFinite(ts) && (now - ts) < PENDING_TTL_MS;
+      });
+
+    if (cleaned.length !== arr.length) {
+      try { localStorage.setItem(key, JSON.stringify(cleaned.slice(0, PENDING_MAX))); } catch (e) {}
+    }
+
+    return cleaned.slice(0, PENDING_MAX);
+  }
+
+  function rememberPendingRun(module, run) {
+    if (!run || typeof run !== "object" || !run.id) return;
+    const key = pendingStorageKey(module);
+    const now = Date.now();
+
+    const existing = loadPendingRuns(module);
+    const withoutDup = existing.filter((r) => String(r.id) !== String(run.id));
+    const entry = { ...run, __pending_ts: now };
+
+    const next = [entry, ...withoutDup].slice(0, PENDING_MAX);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch (e) {}
+  }
+
+  function forgetPendingRun(module, id) {
+    if (!id) return;
+    const key = pendingStorageKey(module);
+    const existing = loadPendingRuns(module);
+    const next = existing.filter((r) => String(r.id) !== String(id));
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch (e) {}
+  }
+
+  function chooseBetterRun(a, b) {
+    // Prefer "full" run payloads (result/inputs/config), otherwise keep the latest updated_at.
+    const score = (r) => {
+      if (!r || typeof r !== "object") return 0;
+      let s = 0;
+      if (r.result) s += 6;
+      if (r.inputs) s += 4;
+      if (r.config) s += 2;
+      if (r.schema) s += 1;
+      if (r.totals) s += 1;
+      return s;
+    };
+    const sa = score(a);
+    const sb = score(b);
+    if (sb > sa) return b;
+    if (sa > sb) return a;
+
+    const ua = String(a?.updated_at || "");
+    const ub = String(b?.updated_at || "");
+    if (ub && ua && ub !== ua) return (ub > ua) ? b : a;
+
+    return a || b;
+  }
+
+  function mergeRunsById(serverRuns) {
+    const mod = state.module;
+
+    const pending = loadPendingRuns(mod);
+    const existing = Array.isArray(state.runs) ? state.runs : [];
+    const server = Array.isArray(serverRuns) ? serverRuns : [];
+
+    const deleted = state.deleted || {};
+    const combined = [...pending, ...existing, ...server];
+
+    const map = new Map();
+    for (const r of combined) {
+      if (!r || typeof r !== "object" || !r.id) continue;
+      const id = String(r.id);
+
+      // Filter deleted ids (optimistic delete / stale KV.list)
+      if (deleted[id]) continue;
+
+      if (!map.has(id)) map.set(id, r);
+      else map.set(id, chooseBetterRun(map.get(id), r));
+    }
+
+    // If the run is now visible in server list, drop it from pending storage
+    const serverIds = new Set(server.map((r) => String(r?.id || "")).filter(Boolean));
+    for (const id of serverIds) forgetPendingRun(mod, id);
+
+    const merged = Array.from(map.values());
+
+    merged.sort((a, b) => {
+      const ca = String(a?.created_at || "");
+      const cb = String(b?.created_at || "");
+      if (ca && cb) return cb.localeCompare(ca);
+      if (ca) return -1;
+      if (cb) return 1;
+      // Fallback: run id is inverted timestamp; lexicographic asc approximates newest-first
+      return String(a?.id || "").localeCompare(String(b?.id || ""));
+    });
+
+    return merged;
+  }
+
+
   function ensureModal() {
     if ($("#shogRunsOverlay")) return;
 
@@ -407,7 +532,7 @@ function renderOrderIdHtml(orderId) {
             <div class="shog-runs-confirm-title" id="shogRunsConfirmTitle">Confirm</div>
             <div class="shog-runs-confirm-msg" id="shogRunsConfirmMsg">—</div>
             <div class="shog-runs-confirm-actions">
-              <button class="btn-ghost" id="shogRunsConfirmCancel" type="button">Annuler</button>
+              <button class="btn-ghost" id="shogRunsConfirmAnnuler" type="button">Annuler</button>
               <button class="btn-primary" id="shogRunsConfirmOk" type="button">Supprimer</button>
             </div>
           </div>
@@ -437,7 +562,7 @@ function renderOrderIdHtml(orderId) {
     });
 
     // Confirm dialog
-    $("#shogRunsConfirmCancel").addEventListener("click", () => setConfirm(false));
+    $("#shogRunsConfirmAnnuler").addEventListener("click", () => setConfirm(false));
   }
 
   // ---------------------------
@@ -1073,64 +1198,30 @@ function renderOrderIdHtml(orderId) {
   // Actions
   // ---------------------------
   async function refreshRuns() {
-    if (state.loading) return;
-    ensureModal();
-
     state.loading = true;
-    $("#shogRunsListHint").textContent = "Loading…";
-
+    setLoading(true);
     try {
-      const list = await apiListRuns(state.module);
-      let serverRuns = Array.isArray(list.runs) ? list.runs : [];
-const localRuns = Array.isArray(state.runs) ? state.runs.slice() : [];
+      const res = await apiListRuns(state.module);
+      const serverRuns = Array.isArray(res?.runs) ? res.runs : (Array.isArray(res) ? res : []);
+      state.runs = mergeRunsById(serverRuns);
 
-            // Merge local + server (KV.list can lag). Keep only optimistic creations and hide recent deletes.
-      const nowTs = Date.now();
-
-      // Prune and apply "deleted" mask (avoid re-adding ghost runs after deletion)
-      for (const [did, ts] of Object.entries(state.deleted || {})) {
-        if (!ts || (nowTs - ts) > 180000) if (state.deleted) delete state.deleted[did];
-      }
-      serverRuns = serverRuns.filter((r) => r && r.id && !state.deleted[String(r.id)]);
-
-      // Keep only optimistic runs while KV.list may not show them yet
-      const optimisticRuns = localRuns.filter((r) => r && r.id && state.optimistic[String(r.id)]);
-
-      // Prune optimistic ids that are now present in server (or too old)
-      const serverIdSet = new Set(serverRuns.map((r) => String(r.id)));
-      for (const [oid, ts] of Object.entries(state.optimistic || {})) {
-        if (serverIdSet.has(String(oid)) || !ts || (nowTs - ts) > 180000) delete state.optimistic[oid];
-      }
-
-      // Merge: server wins; optimistic fills gaps
-      const map = new Map();
-      for (const r of optimisticRuns) {
-        if (r && r.id) map.set(String(r.id), r);
-      }
-      for (const r of serverRuns) {
-        if (!r || !r.id) continue;
-        const id = String(r.id);
-        const prev = map.get(id) || {};
-        map.set(id, { ...prev, ...r });
-      }
-
-      state.runs = Array.from(map.values()).sort((a, b) =>
-        String(b.created_at || "").localeCompare(String(a.created_at || ""))
-      );
-
-      if (state.selectedId && !state.runs.some(r => r.id === state.selectedId)) {
-        state.selectedId = null;
-        state.selectedRun = null;
-      }
+      // Re-apply filters + render
       applyFilterSortRender();
-      $("#shogRunsListHint").textContent = "";
-    } catch (err) {
-      console.error("[runs-ui] list error", err);
-      $("#shogRunsList").innerHTML = `<div class="shog-runs-list-empty">Cannot load runs: ${escapeHtml(err.message || String(err))}</div>`;
-      $("#shogRunsListHint").textContent = "";
-      showToast(err.message || "Error", "error");
+
+      // Auto-select first visible run if selection is missing
+      if ((!state.selectedId || !state.filtered.some((r) => String(r.id) === String(state.selectedId))) && state.filtered.length) {
+        selectRun(String(state.filtered[0].id));
+      }
+
+      setLoading(false);
+    } catch (e) {
+      setLoading(false);
+      showToast(`Impossible de charger les runs: ${String(e && e.message ? e.message : e)}`, "error");
+      // Keep whatever we have in memory/pending; don't wipe UI.
+      applyFilterSortRender();
     } finally {
       state.loading = false;
+      setLoading(false);
     }
   }
 
