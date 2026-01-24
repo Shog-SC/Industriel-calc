@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.5 (MERGE_LIST_LAG_FIX + HIDE_SHIP_MINING + EXTERNAL_SAVE_NO_MODAL)";
+  const RUNS_UI_VERSION = "V1.1.8 (SAVE_LABEL_ORDERID_COPY_MINING_SUMMARY_FIX)";
 
   // ---------------------------
   // Constants
@@ -89,6 +89,81 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+// ---------------------------
+// Extra helpers (Runs UI)
+// ---------------------------
+function shortId(id, head = 8, tail = 4) {
+  const s = String(id || "");
+  if (!s) return "";
+  if (s.length <= head + tail + 3) return s;
+  return s.slice(0, head) + "…" + s.slice(-tail);
+}
+
+function escapeAttr(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function copyTextToClipboard(text) {
+  const t = String(text || "");
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(t);
+      return true;
+    }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) {}
+  return false;
+}
+
+function miningPayload(run) {
+  const p = run?.result?.payload || run?.result?.result?.payload || null;
+  if (p && p.totals) return p;
+  const p2 = run?.result?.payload || null;
+  return p2 && p2.totals ? p2 : null;
+}
+
+function fmtPct(n, digits = 1) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return x.toFixed(digits).replace(".", ",") + "%";
+}
+
+function fmtHours(n, digits = 1) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return x.toFixed(digits).replace(".", ",") + " h";
+}
+
+function fmtScu(n, digits = 2) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  const d = (Math.abs(x - Math.round(x)) < 1e-9) ? 0 : digits;
+  return x.toFixed(d).replace(".", ",") + " SCU";
+}
+
+function renderOrderIdHtml(orderId) {
+  const full = String(orderId || "");
+  if (!full) return "—";
+  const short = shortId(full);
+  return `<button type="button" class="wo-pill wo-pill-mono wo-pill-copy" data-woid="${escapeAttr(full)}" title="Cliquer pour copier l'ID">${escapeHtml(short)}</button>`;
+}
+
 
   function fmtNumber(x) {
     const n = Number(x);
@@ -522,8 +597,8 @@
           <textarea id="shogRunsEditNotes" rows="4" placeholder="Notes...">${notes}</textarea>
 
           <div class="shog-runs-editactions">
-            <button class="btn-primary" id="shogRunsSaveEdit" type="button">Save changes</button>
-            <button class="btn-ghost" id="shogRunsRevertEdit" type="button">Revert</button>
+            <button class="btn-primary" id="shogRunsSaveEdit" type="button">Mettre à jour</button>
+            <button class="btn-ghost" id="shogRunsRevertEdit" type="button">Réinitialiser</button>
           </div>
         </div>
 
@@ -764,7 +839,7 @@
       return `
         <tr class="wo-row${o.paid ? " is-paid" : ""}">
           <td>${escapeHtml(o.type)}</td>
-          <td class="wo-mono">${escapeHtml(o.orderId)}</td>
+          <td class="wo-mono">${renderOrderIdHtml(o.orderId)}</td>
           <td class="wo-ores">${ores}</td>
           <td class="wo-num">${(Number.isFinite(o.yieldScu)) ? `${fmtNumber(o.yieldScu)} <span class="wo-unit">SCU</span>` : "—"}</td>
           <td class="wo-num">${(Number.isFinite(o.grossAuec)) ? `${fmtNumber(o.grossAuec)} <span class="wo-unit">aUEC</span>` : "—"}</td>
@@ -910,8 +985,27 @@
 
     const showShip = (state.module !== "mining");
 
+    const mp = miningPayload(run);
+    const miningFields = ((state.module === "mining") || (run?.module === "mining")) ? (function () {
+      const refinery = mp?.selected?.refinery?.label || mp?.selected?.refinery?.terminal_name || mp?.selected?.refinery?.name || "—";
+      const method = mp?.selected?.method?.label || mp?.selected?.method?.code || "—";
+      const bonus = mp?.totals?.avg_yield_bonus_pct;
+      const inputScu = mp?.totals?.input_scu;
+      const durationH = mp?.totals?.total_time_h;
+
+      return [
+        { k: "Raffinerie", v: escapeHtml(refinery) },
+        { k: "Méthode", v: escapeHtml(method) },
+        { k: "Bonus (moy.)", v: fmtPct(bonus, 1) },
+        { k: "SCU brut", v: fmtScu(inputScu, 2) },
+        { k: "Durée", v: fmtHours(durationH, 1) },
+      ];
+    })() : [];
+
+
     const fields = [
       ...(showShip ? [{ k: "Ship", v: ship }] : []),
+      ...(miningFields || []),
       { k: "Net total", v: (net == null) ? "—" : `${fmtNumber(net)} aUEC` },
       { k: "Net / hour", v: (perHour == null) ? "—" : `${fmtNumber(perHour)} aUEC/h` },
       { k: "Items", v: (itemsCount == null) ? "—" : String(itemsCount) },

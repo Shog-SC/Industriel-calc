@@ -1,4 +1,4 @@
-/* assets/css/runs-ui.css — V1.0.9 (SHOG_DOM_LAYOUT + WORK_ORDERS_TABLE_FR)
+/* assets/css/runs-ui.css — V1.1.4 (SHOG_DOM_LAYOUT + WORK_ORDERS_TABLE_FR)
    ---------------------------------------------------------------------------
    UI "Save / Runs" (FRET / MINING / SALVAGE) — Runs Vault Worker compatible.
 
@@ -680,3 +680,27 @@
   padding-right:2px;
 }
 
+
+
+/* ---------------------------------------------------------------------------
+   Work Orders — compact order id (copy) — V1.1.4
+--------------------------------------------------------------------------- */
+.wo-pill-copy{
+  cursor: pointer;
+}
+.wo-pill-copy:hover{
+  border-color: rgba(0,180,210,.55);
+  background: rgba(0,180,210,.10);
+}
+.wo-pill-copy:focus{
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0,180,210,.25);
+}
+.wo-pill-mono{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: .2px;
+}
+button.wo-pill{
+  appearance: none;
+  -webkit-appearance: none;
+}
