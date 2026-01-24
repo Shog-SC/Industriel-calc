@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.8 (SAVE_LABEL_ORDERID_COPY_MINING_SUMMARY_FIX)";
+  const RUNS_UI_VERSION = "V1.1.9 (HIDE_FOOTMETA + SAVE_TOAST_FR)";
 
   // ---------------------------
   // Constants
@@ -601,14 +601,7 @@ function renderOrderIdHtml(orderId) {
             <button class="btn-ghost" id="shogRunsRevertEdit" type="button">Réinitialiser</button>
           </div>
         </div>
-
-        <div class="shog-runs-footmeta">
-          <div><span class="k">Schema</span> <span class="v">${schema}</span></div>
-          <div><span class="k">App</span> <span class="v">${appv}</span></div>
-          <div><span class="k">Worker</span> <span class="v">${workv}</span></div>
-          <div><span class="k">ID</span> <span class="v">${escapeHtml(run.id)}</span></div>
-        </div>
-      </div>
+</div>
 
       ${state.module === "mining" ? `
       <div class="shog-runs-tabpanel ${state.tab === "work_orders" ? "" : "is-hidden"}" data-panel="work_orders">
@@ -634,7 +627,7 @@ function renderOrderIdHtml(orderId) {
     $("#shogRunsRevertEdit").addEventListener("click", () => {
       $("#shogRunsEditTitle").value = run.title || "";
       $("#shogRunsEditNotes").value = run.notes || "";
-      showToast("Reverted", "info");
+      showToast("Réinitialisé", "info");
     });
 
     $$(".shog-runs-tab", detail).forEach((btn) => {
@@ -1111,12 +1104,12 @@ state.runs = Array.from(map.values()).sort((a, b) =>
     const id = String(state.selectedRun.id || "run");
     const fn = `shog_${state.module}_run_${id}.json`;
     downloadJson(fn, state.selectedRun);
-    showToast("Downloaded", "ok");
+    showToast("Export téléchargé", "ok");
   }
 
   function exportRuns() {
     if (!getDiscordToken()) {
-      showToast("Login requis", "error");
+      showToast("Connexion requise", "error");
       return;
     }
 
@@ -1184,7 +1177,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       onOk: async () => {
         try {
           await apiDeleteRun(state.module, id);
-          showToast("Deleted", "ok");
+          showToast("Supprimé", "ok");
           await refreshRuns();
 
           if (state.filtered.length) {
@@ -1236,7 +1229,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       if (idx >= 0) state.runs[idx] = { ...state.runs[idx], ...finalRun };
 
       applyFilterSortRender();
-      showToast("Saved", "ok");
+      showToast("Run enregistré", "ok");
     } catch (err) {
       console.error("[runs-ui] update error", err);
       showToast(err.message || "Save failed", "error");
@@ -1249,7 +1242,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
   // ---------------------------
   async function saveCurrentRun(moduleOverride = null) {
     if (!getDiscordToken()) {
-      showToast("Login required", "error");
+      showToast("Connexion requise", "error");
       return;
     }
 
@@ -1290,7 +1283,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       const res = await apiCreateRun(module, payload);
       const created = (res && res.run) ? normalizeRun(res.run) : null;
 
-      showToast("Run saved", "ok");
+      showToast("Run enregistré", "ok");
       if (!externalSave) if (!externalSave) showModal();
 
       // OPTIMISTIC: insert locally (listing can lag)
