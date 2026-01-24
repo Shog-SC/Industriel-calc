@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.2.0 (GLOBAL_TOAST + LIST_DELETE_FIX)";
+  const RUNS_UI_VERSION = "V1.2.1 (DELETE_MERGE_FIX + CONFIRM_FR)";
 
   // ---------------------------
   // Constants
@@ -404,8 +404,8 @@ function renderOrderIdHtml(orderId) {
             <div class="shog-runs-confirm-title" id="shogRunsConfirmTitle">Confirm</div>
             <div class="shog-runs-confirm-msg" id="shogRunsConfirmMsg">—</div>
             <div class="shog-runs-confirm-actions">
-              <button class="btn-ghost" id="shogRunsConfirmCancel" type="button">Cancel</button>
-              <button class="btn-primary" id="shogRunsConfirmOk" type="button">Delete</button>
+              <button class="btn-ghost" id="shogRunsConfirmCancel" type="button">Annuler</button>
+              <button class="btn-primary" id="shogRunsConfirmOk" type="button">Supprimer</button>
             </div>
           </div>
         </div>
@@ -629,7 +629,7 @@ function renderOrderIdHtml(orderId) {
 
         <div class="shog-runs-detail-actions">
           <button class="btn-ghost" id="shogRunsCopyBtn" type="button">Copy JSON</button>
-          <button class="btn-ghost danger" id="shogRunsDeleteBtn" type="button">Delete</button>
+          <button class="btn-ghost danger" id="shogRunsDeleteBtn" type="button">Supprimer</button>
         </div>
       </div>
 
@@ -1078,25 +1078,42 @@ function renderOrderIdHtml(orderId) {
 
     try {
       const list = await apiListRuns(state.module);
-      const serverRuns = Array.isArray(list.runs) ? list.runs : [];
-const localRuns = Array.isArray(state.runs) ? state.runs : [];
+      let serverRuns = Array.isArray(list.runs) ? list.runs : [];
+const localRuns = Array.isArray(state.runs) ? state.runs.slice() : [];
 
-// Merge local + server to mitigate eventual-consistency lag in KV.list.
-// Server data wins field-by-field, but we keep locally-created runs that
-// may not appear in list() for a short time.
-const map = new Map();
-for (const r of localRuns) {
-  if (r && r.id) map.set(String(r.id), r);
-}
-for (const r of serverRuns) {
-  if (!r || !r.id) continue;
-  const id = String(r.id);
-  const prev = map.get(id) || {};
-  map.set(id, { ...prev, ...r });
-}
-state.runs = Array.from(map.values()).sort((a, b) =>
-  String(b.created_at || "").localeCompare(String(a.created_at || ""))
-);
+            // Merge local + server (KV.list can lag). Keep only optimistic creations and hide recent deletes.
+      const nowTs = Date.now();
+
+      // Prune and apply "deleted" mask (avoid re-adding ghost runs after deletion)
+      for (const [did, ts] of Object.entries(state.deleted || {})) {
+        if (!ts || (nowTs - ts) > 180000) delete state.deleted[did];
+      }
+      serverRuns = serverRuns.filter((r) => r && r.id && !state.deleted[String(r.id)]);
+
+      // Keep only optimistic runs while KV.list may not show them yet
+      const optimisticRuns = localRuns.filter((r) => r && r.id && state.optimistic[String(r.id)]);
+
+      // Prune optimistic ids that are now present in server (or too old)
+      const serverIdSet = new Set(serverRuns.map((r) => String(r.id)));
+      for (const [oid, ts] of Object.entries(state.optimistic || {})) {
+        if (serverIdSet.has(String(oid)) || !ts || (nowTs - ts) > 180000) delete state.optimistic[oid];
+      }
+
+      // Merge: server wins; optimistic fills gaps
+      const map = new Map();
+      for (const r of optimisticRuns) {
+        if (r && r.id) map.set(String(r.id), r);
+      }
+      for (const r of serverRuns) {
+        if (!r || !r.id) continue;
+        const id = String(r.id);
+        const prev = map.get(id) || {};
+        map.set(id, { ...prev, ...r });
+      }
+
+      state.runs = Array.from(map.values()).sort((a, b) =>
+        String(b.created_at || "").localeCompare(String(a.created_at || ""))
+      );
 
       if (state.selectedId && !state.runs.some(r => r.id === state.selectedId)) {
         state.selectedId = null;
@@ -1199,7 +1216,7 @@ state.runs = Array.from(map.values()).sort((a, b) =>
     })();
   }
 
-function setConfirm(show, { title, message, okText, onOk } = {}) {
+function setConfirm(show, { title, message, okText, cancelText, onOk } = {}) {
     const box = $("#shogRunsConfirm");
     if (!box) return;
     if (!show) {
@@ -1226,6 +1243,10 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
     try {
       await apiDeleteRun(state.module, runId);
 
+
+      // Mask as deleted locally to avoid KV.list eventual consistency ghosts
+      state.deleted[String(runId)] = Date.now();
+      if (state.optimistic) delete state.optimistic[String(runId)];
       // Remove locally for snappy UI
       state.runs = (state.runs || []).filter((r) => String(r.id) !== runId);
 
@@ -1237,6 +1258,7 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       renderDetail();
       showToast("Run supprimé", "success");
 
+      await refreshRuns({ silent: true });
       // Also refresh from API to stay consistent with server-side ordering
       refreshRuns().catch(() => {});
     } catch (err) {
@@ -1245,33 +1267,24 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
   }
 
   async function onDeleteRun(id) {
-    if (!id) return;
-    const target = state.runs.find(r => r.id === id) || state.selectedRun || { id };
+    const rid = String(id || "").trim();
+    if (!rid) return;
+
+    const label = (state.selectedRun && String(state.selectedRun.id) === rid && state.selectedRun.title) ? state.selectedRun.title : rid;
 
     setConfirm(true, {
-      title: "Delete run",
-      message: `Delete "${target.title || id}"? This cannot be undone.`,
-      okText: "Delete",
+      title: "Supprimer le run",
+      message: `Supprimer "${label}" ? Cette action est irréversible.`,
+      okText: "Supprimer",
+      cancelText: "Annuler",
       onOk: async () => {
         try {
-          await apiDeleteRun(state.module, id);
-          showToast("Supprimé", "ok");
-          await refreshRuns();
-
-          if (state.filtered.length) {
-            const next = state.filtered[0].id;
-            state.selectedId = next;
-            await selectRun(next);
-          } else {
-            state.selectedId = null;
-            state.selectedRun = null;
-            renderDetail();
-          }
+          await deleteRunNow(rid);
         } catch (err) {
           console.error("[runs-ui] delete error", err);
-          showToast(err.message || "Delete failed", "error");
+          showToast((err && err.message) ? err.message : "Suppression impossible", "error");
         }
-      }
+      },
     });
   }
 
