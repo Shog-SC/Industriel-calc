@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.2.3 (PENDING_LOCAL_MERGE_FIX + NO_STORE_CACHE_BUST)";
+  const RUNS_UI_VERSION = "V1.2.4 (SETLOADING_FIX + DELETE_REFRESH_STABILITY)";
 
   // ---------------------------
   // Constants
@@ -627,7 +627,43 @@ function renderOrderIdHtml(orderId) {
   }
 
 
-  function showModal() {
+ 
+
+  // ---------------------------
+  // Global loading helper
+  // ---------------------------
+  function setLoading(isLoading, label) {
+    state.loading = !!isLoading;
+
+    // Root class (optional styling hook)
+    const root = $("#shogRunsModal");
+    if (root) root.classList.toggle("is-loading", state.loading);
+
+    // Disable interactive controls while loading (best effort)
+    const btns = [
+      $("#shogRunsRefreshBtn"),
+      $("#shogRunsExportBtn"),
+      $("#shogRunsCloseBtn"),
+      $("#shogRunsCopyBtn"),
+      $("#shogRunsDeleteBtn"),
+      $("#shogRunsSaveBtn"),
+      $("#shogRunsRevertBtn"),
+      $("#shogRunsDownloadBtn"),
+    ].filter(Boolean);
+
+    btns.forEach((b) => {
+      try { b.disabled = state.loading; } catch (e) {}
+    });
+
+    // Status line (if present)
+    const st = $("#shogRunsStatus");
+    if (st) {
+      if (state.loading) st.textContent = label || "Chargement...";
+      else if (label) st.textContent = label;
+      else st.textContent = "";
+    }
+  }
+ function showModal() {
     ensureModal();
     const overlay = $("#shogRunsOverlay");
     overlay.classList.remove("is-hidden");
