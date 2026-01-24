@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.2.1 (DELETE_MERGE_FIX + CONFIRM_FR)";
+  const RUNS_UI_VERSION = "V1.2.2 (STATE_DELETED_INIT_FIX + OPTIMISTIC_GUARDS)";
 
   // ---------------------------
   // Constants
@@ -336,6 +336,9 @@ function renderOrderIdHtml(orderId) {
     filtered: [],
     selectedId: null,
     selectedRun: null,
+    // Local client-side bookkeeping (avoid server-side mixing)
+    deleted: Object.create(null),
+    optimistic: Object.create(null),
     search: "",
     sort: "created_desc",
     tab: "summary",
@@ -1086,7 +1089,7 @@ const localRuns = Array.isArray(state.runs) ? state.runs.slice() : [];
 
       // Prune and apply "deleted" mask (avoid re-adding ghost runs after deletion)
       for (const [did, ts] of Object.entries(state.deleted || {})) {
-        if (!ts || (nowTs - ts) > 180000) delete state.deleted[did];
+        if (!ts || (nowTs - ts) > 180000) if (state.deleted) delete state.deleted[did];
       }
       serverRuns = serverRuns.filter((r) => r && r.id && !state.deleted[String(r.id)]);
 
