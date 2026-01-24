@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.2.4 (SETLOADING_FIX + DELETE_REFRESH_STABILITY)";
+  const RUNS_UI_VERSION = "V1.2.5 (UI_POLISH_NO_RAW_COPY_JSON + EMPTY_STATE_SELECT_FIX)";
 
   // ---------------------------
   // Constants
@@ -347,7 +347,7 @@ function renderOrderIdHtml(orderId) {
 
   // ---------------------------
   // Pending runs (KV list can lag)
-  // Persist newly created runs locally so they appear immediately in "My Runs"
+  // Persist newly created runs locally so they appear immediately in "Mes runs"
   // even if Cloudflare KV.list() hasn't propagated yet.
   // ---------------------------
   const PENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -477,10 +477,10 @@ function renderOrderIdHtml(orderId) {
     overlay.id = "shogRunsOverlay";
     overlay.className = "shog-runs-overlay is-hidden";
     overlay.innerHTML = `
-      <div class="shog-runs-modal" role="dialog" aria-modal="true" aria-label="My Runs">
+      <div class="shog-runs-modal" role="dialog" aria-modal="true" aria-label="Mes runs">
         <div class="shog-runs-header">
           <div class="shog-runs-titlewrap">
-            <div class="shog-runs-title">My Runs</div>
+            <div class="shog-runs-title">Mes runs</div>
             <div class="shog-runs-sub">
               <span class="shog-runs-badge">${escapeHtml(state.module)}</span>
               <span class="shog-runs-count" id="shogRunsCount">0</span>
@@ -490,20 +490,20 @@ function renderOrderIdHtml(orderId) {
 
           <div class="shog-runs-actions">
             <div class="shog-runs-search">
-              <input id="shogRunsSearch" type="text" placeholder="Search runs..." autocomplete="off" />
+              <input id="shogRunsSearch" type="text" placeholder="Rechercher..." autocomplete="off" />
             </div>
 
             <select id="shogRunsSort" class="shog-runs-sort" title="Sort">
-              <option value="created_desc">Newest</option>
+              <option value="created_desc">Plus récents</option>
               <option value="created_asc">Oldest</option>
               <option value="updated_desc">Updated</option>
               <option value="title_asc">Title A→Z</option>
               <option value="title_desc">Title Z→A</option>
             </select>
 
-            <button id="shogRunsRefresh" class="btn-ghost shog-runs-btn" type="button">Refresh</button>
-            <button id="shogRunsExport" class="btn-ghost shog-runs-btn" type="button">Export</button>
-            <button id="shogRunsClose" class="btn-ghost shog-runs-btn" type="button">Close</button>
+            <button id="shogRunsRafraîchir" class="btn-ghost shog-runs-btn" type="button">Rafraîchir</button>
+            <button id="shogRunsExporter" class="btn-ghost shog-runs-btn" type="button">Exporter</button>
+            <button id="shogRunsFermer" class="btn-ghost shog-runs-btn" type="button">Fermer</button>
           </div>
         </div>
 
@@ -511,7 +511,7 @@ function renderOrderIdHtml(orderId) {
           <aside class="shog-runs-pane shog-runs-pane-left">
             <div class="shog-runs-list" id="shogRunsList" aria-label="Runs list"></div>
             <div class="shog-runs-listfoot">
-              <div class="shog-runs-muted" id="shogRunsListHint">Select a run to view details.</div>
+              <div class="shog-runs-muted" id="shogRunsListHint">Sélectionnez un run pour voir les détails.</div>
             </div>
           </aside>
 
@@ -543,13 +543,13 @@ function renderOrderIdHtml(orderId) {
     document.body.appendChild(overlay);
 
     // Bind header buttons
-    $("#shogRunsClose").addEventListener("click", hideModal);
+    $("#shogRunsFermer").addEventListener("click", hideModal);
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) hideModal();
     });
 
-    $("#shogRunsRefresh").addEventListener("click", () => refreshRuns(true));
-    $("#shogRunsExport").addEventListener("click", exportRuns);
+    $("#shogRunsRafraîchir").addEventListener("click", () => refreshRuns(true));
+    $("#shogRunsExporter").addEventListener("click", exportRuns);
 
     $("#shogRunsSearch").addEventListener("input", (e) => {
       state.search = String(e.target.value || "").trim();
@@ -626,44 +626,17 @@ function renderOrderIdHtml(orderId) {
     }, 2500);
   }
 
-
- 
-
-  // ---------------------------
-  // Global loading helper
-  // ---------------------------
-  function setLoading(isLoading, label) {
-    state.loading = !!isLoading;
-
-    // Root class (optional styling hook)
-    const root = $("#shogRunsModal");
-    if (root) root.classList.toggle("is-loading", state.loading);
-
-    // Disable interactive controls while loading (best effort)
-    const btns = [
-      $("#shogRunsRefreshBtn"),
-      $("#shogRunsExportBtn"),
-      $("#shogRunsCloseBtn"),
-      $("#shogRunsCopyBtn"),
-      $("#shogRunsDeleteBtn"),
-      $("#shogRunsSaveBtn"),
-      $("#shogRunsRevertBtn"),
-      $("#shogRunsDownloadBtn"),
-    ].filter(Boolean);
-
-    btns.forEach((b) => {
-      try { b.disabled = state.loading; } catch (e) {}
-    });
-
-    // Status line (if present)
-    const st = $("#shogRunsStatus");
-    if (st) {
-      if (state.loading) st.textContent = label || "Chargement...";
-      else if (label) st.textContent = label;
-      else st.textContent = "";
-    }
+  // Simple global loading flag (used for list actions)
+  function setLoading(flag, msg) {
+    state.loading = !!flag;
+    state.loadingMsg = msg ? String(msg) : "";
+    // Avoid heavy re-renders; refresh header only
+    render();
   }
- function showModal() {
+
+
+
+  function showModal() {
     ensureModal();
     const overlay = $("#shogRunsOverlay");
     overlay.classList.remove("is-hidden");
@@ -712,7 +685,7 @@ function renderOrderIdHtml(orderId) {
     $("#shogRunsCount").textContent = `${items.length} run${items.length === 1 ? "" : "s"}`;
 
     if (!items.length) {
-      list.innerHTML = `<div class="shog-runs-list-empty">No runs found.</div>`;
+      list.innerHTML = `<div class="shog-runs-list-empty">Aucun run.</div>`;
       return;
     }
 
@@ -730,8 +703,7 @@ function renderOrderIdHtml(orderId) {
             <div class="shog-runs-item-id">#${idShort}</div>
           </div>
           <div class="shog-runs-item-actions">
-            <button class="shog-runs-iconbtn" data-action="copy" title="Copy JSON" aria-label="Copy JSON">⎘</button>
-            <button class="shog-runs-iconbtn danger" data-action="delete" title="Delete" aria-label="Delete">✕</button>
+<button class="shog-runs-iconbtn danger" data-action="delete" title="Delete" aria-label="Delete">✕</button>
           </div>
         </div>
       `;
@@ -792,20 +764,18 @@ function renderOrderIdHtml(orderId) {
         </div>
 
         <div class="shog-runs-detail-actions">
-          <button class="btn-ghost" id="shogRunsCopyBtn" type="button">Copy JSON</button>
-          <button class="btn-ghost danger" id="shogRunsDeleteBtn" type="button">Supprimer</button>
+<button class="btn-ghost danger" id="shogRunsDeleteBtn" type="button">Supprimer</button>
         </div>
       </div>
 
       <div class="shog-runs-tabs">
-        <button class="shog-runs-tab ${state.tab === "summary" ? "is-active" : ""}" data-tab="summary" type="button">Summary</button>
-        <button class="shog-runs-tab ${state.tab === "json" ? "is-active" : ""}" data-tab="json" type="button">Raw JSON</button>
-        ${state.module === "mining" ? `<button class="shog-runs-tab ${state.tab === "work_orders" ? "is-active" : ""}" data-tab="work_orders" type="button">Ordres</button>` : ""}
+        <button class="shog-runs-tab ${state.tab === "summary" ? "is-active" : ""}" data-tab="summary" type="button">Résumé</button>
+${state.module === "mining" ? `<button class="shog-runs-tab ${state.tab === "work_orders" ? "is-active" : ""}" data-tab="work_orders" type="button">Ordres</button>` : ""}
       </div>
 
       <div class="shog-runs-tabpanel ${state.tab === "summary" ? "" : "is-hidden"}" data-panel="summary">
         <div class="shog-runs-summarygrid">
-          ${renderSummaryCards(run)}
+          ${renderRésuméCards(run)}
         </div>
 
         <div class="shog-runs-editblock">
@@ -825,18 +795,16 @@ function renderOrderIdHtml(orderId) {
       </div>
       ` : ""}
 
-      <div class="shog-runs-tabpanel ${state.tab === "json" ? "" : "is-hidden"}" data-panel="json">
+      <div class="shog-runs-tabpanel ${false ? "" : "is-hidden"}" >
         <div class="shog-runs-jsonactions">
-          <button class="btn-ghost" id="shogRunsCopyBtn2" type="button">Copy JSON</button>
-          <button class="btn-ghost" id="shogRunsDownloadBtn" type="button">Download</button>
+          <button class="btn-ghost" id="" type="button"></button>
+          <button class="btn-ghost" id="" type="button"></button>
         </div>
         <pre class="shog-runs-json"><code id="shogRunsJsonCode">${escapeHtml(JSON.stringify(run, null, 2))}</code></pre>
       </div>
     `;
-
-    $("#shogRunsCopyBtn").addEventListener("click", () => onCopySelected());
-    $("#shogRunsCopyBtn2").addEventListener("click", () => onCopySelected());
-    $("#shogRunsDownloadBtn").addEventListener("click", () => downloadSelected());
+$("#").addEventListener("click", () => onCopySelected());
+    $("#").addEventListener("click", () => downloadSelected());
     $("#shogRunsDeleteBtn").addEventListener("click", () => onDeleteRun(run.id));
 
     $("#shogRunsSaveEdit").addEventListener("click", onSaveEdit);
@@ -1146,7 +1114,7 @@ function renderOrderIdHtml(orderId) {
   }
 
 
-  function renderSummaryCards(run) {
+  function renderRésuméCards(run) {
     const ship = (run.ship && !/sélectionner\s+un\s+vaisseau/i.test(String(run.ship))) ? escapeHtml(String(run.ship)) : "—";
     const totals = (
       run.totals ||
@@ -1298,13 +1266,6 @@ function renderOrderIdHtml(orderId) {
     showToast(ok ? "Copied" : "Copy failed", ok ? "ok" : "error");
   }
 
-  function downloadSelected() {
-    if (!state.selectedRun) return;
-    const id = String(state.selectedRun.id || "run");
-    const fn = `shog_${state.module}_run_${id}.json`;
-    downloadJson(fn, state.selectedRun);
-    showToast("Export téléchargé", "ok");
-  }
 
   function exportRuns() {
     if (!getDiscordToken()) {
@@ -1317,7 +1278,7 @@ function renderOrderIdHtml(orderId) {
 
     (async () => {
       try {
-        showToast("Export en cours…", "info");
+        showToast("Exporter en cours…", "info");
 
         const full = [];
         for (const r of runs) {
@@ -1338,10 +1299,10 @@ function renderOrderIdHtml(orderId) {
         };
 
         downloadJson(`shog_${module}_runs_export.json`, payload);
-        showToast("Export OK", "ok");
+        showToast("Exporter OK", "ok");
       } catch (e) {
         console.error("[runs-ui] export error", e);
-        showToast("Export échoué", "error");
+        showToast("Exporter échoué", "error");
       }
     })();
   }
