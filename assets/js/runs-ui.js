@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const RUNS_UI_VERSION = "V1.1.9 (HIDE_FOOTMETA + SAVE_TOAST_FR)";
+  const RUNS_UI_VERSION = "V1.2.0 (GLOBAL_TOAST + LIST_DELETE_FIX)";
 
   // ---------------------------
   // Constants
@@ -330,6 +330,7 @@ function renderOrderIdHtml(orderId) {
   // UI (modal)
   // ---------------------------
   const state = {
+    toastTimer: null,
     module: detectModule(),
     runs: [],
     filtered: [],
@@ -436,17 +437,67 @@ function renderOrderIdHtml(orderId) {
     $("#shogRunsConfirmCancel").addEventListener("click", () => setConfirm(false));
   }
 
-  function showToast(msg, kind = "info") {
-    const el = $("#shogRunsToast");
-    if (!el) return;
-    el.textContent = msg;
-    el.className = `shog-runs-toast is-show ${kind}`;
-    window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => {
-      el.className = "shog-runs-toast";
-      el.textContent = "";
-    }, 2400);
+  // ---------------------------
+  // Toast (global, works even when modal is closed)
+  // ---------------------------
+  function ensureGlobalToastEl() {
+    let el = document.getElementById("shogRunsToastGlobal");
+    if (el) return el;
+
+    el = document.createElement("div");
+    el.id = "shogRunsToastGlobal";
+    el.setAttribute("aria-live", "polite");
+    el.style.position = "fixed";
+    el.style.left = "22px";
+    el.style.bottom = "22px";
+    el.style.zIndex = "2147483647";
+    el.style.maxWidth = "520px";
+    el.style.padding = "10px 12px";
+    el.style.borderRadius = "14px";
+    el.style.border = "1px solid rgba(0, 213, 255, 0.35)";
+    el.style.background = "rgba(6, 11, 18, 0.94)";
+    el.style.backdropFilter = "blur(10px)";
+    el.style.boxShadow = "0 16px 38px rgba(0,0,0,.45)";
+    el.style.color = "#e8f1ff";
+    el.style.font = "600 13px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif";
+    el.style.letterSpacing = ".2px";
+    el.style.opacity = "0";
+    el.style.transform = "translateY(10px)";
+    el.style.transition = "opacity .18s ease, transform .18s ease, border-color .18s ease";
+    el.style.pointerEvents = "none";
+
+    document.body.appendChild(el);
+    return el;
   }
+
+  function showToast(msg, type = "info") {
+    const text = String(msg || "").trim();
+    if (!text) return;
+
+    const el = ensureGlobalToastEl();
+
+    // Type styling (subtle)
+    const t = String(type || "info").toLowerCase();
+    if (t === "success") el.style.borderColor = "rgba(80, 220, 140, 0.45)";
+    else if (t === "error") el.style.borderColor = "rgba(255, 90, 90, 0.45)";
+    else if (t === "warn" || t === "warning") el.style.borderColor = "rgba(255, 200, 90, 0.45)";
+    else el.style.borderColor = "rgba(0, 213, 255, 0.35)";
+
+    el.textContent = text;
+
+    // Show
+    el.style.pointerEvents = "auto";
+    el.style.opacity = "1";
+    el.style.transform = "translateY(0px)";
+
+    if (state.toastTimer) clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(10px)";
+      el.style.pointerEvents = "none";
+    }, 2500);
+  }
+
 
   function showModal() {
     ensureModal();
@@ -524,7 +575,8 @@ function renderOrderIdHtml(orderId) {
 
     $$(".shog-runs-item", list).forEach((el) => {
       el.addEventListener("click", (e) => {
-        const btn = e.target && e.target.closest ? e.target.closest("button[data-action]") : null;
+        const tgt = (e.target instanceof Element) ? e.target : (e.target && e.target.parentElement ? e.target.parentElement : null);
+    const btn = tgt ? tgt.closest("button[data-action]") : null;
         const id = el.getAttribute("data-run-id");
         if (!id) return;
 
@@ -1164,6 +1216,32 @@ function setConfirm(show, { title, message, okText, onOk } = {}) {
       try { if (typeof onOk === "function") await onOk(); }
       finally { setConfirm(false); }
     };
+  }
+
+
+  async function deleteRunNow(id) {
+    const runId = String(id || "").trim();
+    if (!runId) return;
+
+    try {
+      await apiDeleteRun(state.module, runId);
+
+      // Remove locally for snappy UI
+      state.runs = (state.runs || []).filter((r) => String(r.id) !== runId);
+
+      if (String(state.selectedId || "") === runId) {
+        state.selectedId = (state.runs && state.runs[0] && state.runs[0].id) ? state.runs[0].id : null;
+      }
+
+      renderList();
+      renderDetail();
+      showToast("Run supprimé", "success");
+
+      // Also refresh from API to stay consistent with server-side ordering
+      refreshRuns().catch(() => {});
+    } catch (err) {
+      showToast(`Suppression impossible : ${String(err && err.message ? err.message : err)}`, "error");
+    }
   }
 
   async function onDeleteRun(id) {
